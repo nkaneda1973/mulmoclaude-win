@@ -113,7 +113,7 @@
       <button
         type="submit"
         class="h-8 px-3 rounded bg-blue-600 hover:bg-blue-700 text-white text-sm disabled:opacity-50"
-        :disabled="!balanced || submitting"
+        :disabled="!canSubmit || submitting"
         data-testid="accounting-entry-submit"
       >
         {{ submitting ? t("pluginAccounting.entryForm.submitting") : t("pluginAccounting.entryForm.submit") }}
@@ -246,9 +246,14 @@ const hasAtLeastTwoPostableLines = computed(() => {
 const anyTaxLine = computed(() => lines.value.some(isTaxLine));
 const hasTaxRegistrationIdError = computed(() => lines.value.some(isTaxRegistrationIdInvalid));
 const hasMissingTaxRegistrationId = computed(() => lines.value.some(isTaxLineMissingId));
-const balanced = computed(
-  () => Math.abs(imbalance.value) <= 0.005 && hasAtLeastTwoPostableLines.value && !hasTaxRegistrationIdError.value && !hasMissingTaxRegistrationId.value,
-);
+// `balanced` is the *numeric* gate only — Σ debit = Σ credit on at
+// least two postable lines. The status indicator binds to this so a
+// misleading "imbalance 0.00" never appears when the books actually
+// balance but a tax ID is missing. Submit gating goes through
+// `canSubmit` below, which adds the tax-ID guards. CodeRabbit
+// review on PR #1132.
+const balanced = computed(() => Math.abs(imbalance.value) <= 0.005 && hasAtLeastTwoPostableLines.value);
+const canSubmit = computed(() => balanced.value && !hasTaxRegistrationIdError.value && !hasMissingTaxRegistrationId.value);
 const imbalanceText = computed(() => formatAmount(imbalance.value, props.currency));
 const step = computed(() => inputStepFor(props.currency));
 
@@ -296,7 +301,7 @@ function toApiLines(): JournalLine[] {
 }
 
 async function onSubmit(): Promise<void> {
-  if (submitting.value || !balanced.value) return;
+  if (submitting.value || !canSubmit.value) return;
   submitting.value = true;
   error.value = null;
   successMessage.value = null;
