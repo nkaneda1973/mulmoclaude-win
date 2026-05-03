@@ -81,7 +81,7 @@
               :placeholder="t('pluginAccounting.entryForm.taxRegistrationIdPlaceholder')"
               :class="[
                 'h-8 px-2 w-full rounded border text-sm font-mono',
-                isTaxRegistrationIdInvalid(line) ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-300',
+                isTaxRegistrationIdInvalid(line) || isTaxLineMissingId(line) ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-300',
               ]"
               :data-testid="`accounting-entry-line-tax-registration-id-${idx}`"
             />
@@ -185,6 +185,16 @@ function isTaxLine(line: FormLine): boolean {
   return line.accountCode !== "" && isTaxAccountCode(line.accountCode);
 }
 
+// A postable tax-band line MUST carry a non-empty taxRegistrationId
+// at submit time. Without this gate `toApiLines()` silently strips
+// the empty string and posts a 14xx / 24xx entry without input-tax
+// credit documentation — exactly what the LLM prompt forbids
+// ("don't silently leave the field blank") but the form was
+// previously letting through. CodeRabbit review on PR #1122.
+function isTaxLineMissingId(line: FormLine): boolean {
+  return isPostable(line) && isTaxLine(line) && line.taxRegistrationId.trim() === "";
+}
+
 const date = ref(localDateString());
 const memo = ref("");
 const lines = ref<FormLine[]>([blankLine(), blankLine()]);
@@ -235,7 +245,10 @@ const hasAtLeastTwoPostableLines = computed(() => {
 // space for the typical entry that has no tax line.
 const anyTaxLine = computed(() => lines.value.some(isTaxLine));
 const hasTaxRegistrationIdError = computed(() => lines.value.some(isTaxRegistrationIdInvalid));
-const balanced = computed(() => Math.abs(imbalance.value) <= 0.005 && hasAtLeastTwoPostableLines.value && !hasTaxRegistrationIdError.value);
+const hasMissingTaxRegistrationId = computed(() => lines.value.some(isTaxLineMissingId));
+const balanced = computed(
+  () => Math.abs(imbalance.value) <= 0.005 && hasAtLeastTwoPostableLines.value && !hasTaxRegistrationIdError.value && !hasMissingTaxRegistrationId.value,
+);
 const imbalanceText = computed(() => formatAmount(imbalance.value, props.currency));
 const step = computed(() => inputStepFor(props.currency));
 

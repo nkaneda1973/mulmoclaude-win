@@ -175,6 +175,25 @@ interface LedgerLineAccumulator {
   running: number;
 }
 
+/** Build one ledger row from an entry / line pair. Pure — no
+ *  running-balance side effect, the caller computes that and
+ *  passes it in. Extracted so `accumulateLedgerEntry` stays small
+ *  and the row shape is reusable / unit-testable in isolation
+ *  (CodeRabbit review on PR #1122). */
+export function toLedgerRow(entry: JournalEntry, line: JournalEntry["lines"][number], debit: number, credit: number, runningBalance: number): LedgerRow {
+  const row: LedgerRow = {
+    entryId: entry.id,
+    date: entry.date,
+    kind: entry.kind,
+    memo: line.memo ?? entry.memo,
+    debit,
+    credit,
+    runningBalance,
+  };
+  if (line.taxRegistrationId !== undefined) row.taxRegistrationId = line.taxRegistrationId;
+  return row;
+}
+
 function accumulateLedgerEntry(
   entry: JournalEntry,
   accountCode: string,
@@ -190,17 +209,7 @@ function accumulateLedgerEntry(
     acc.running += debit - credit;
     if (fromDate && entry.date < fromDate) continue;
     if (toDate && entry.date > toDate) continue;
-    const row: LedgerRow = {
-      entryId: entry.id,
-      date: entry.date,
-      kind: entry.kind,
-      memo: line.memo ?? entry.memo,
-      debit,
-      credit,
-      runningBalance: acc.running,
-    };
-    if (line.taxRegistrationId !== undefined) row.taxRegistrationId = line.taxRegistrationId;
-    acc.rows.push(row);
+    acc.rows.push(toLedgerRow(entry, line, debit, credit, acc.running));
   }
 }
 
