@@ -98,15 +98,16 @@ The dual-tracking also seeds the optimistic-insert in `onBookCreated` (which cau
 - Replace every `:version="bookVersion"` prop with `:version="pubsubVersion"` (rename the destructured `version` from `useAccountingChannel` if helpful).
 - Drop `@changed="bumpLocalVersion"` from `<JournalList>`.
 - Drop `@accounts-changed="bumpLocalVersion"` from `<JournalEntryForm>` and `<OpeningBalancesForm>`.
-- Keep `@submitted="onEntrySubmitted"` — `onEntrySubmitted` still needs to switch tabs (UX, not data sync). Trim the function to just the tab switch.
+- Keep `@submitted="onEntrySubmitted"` — `onEntrySubmitted` still needs to switch tabs (UX, not data sync). After the trim it must do **two** things: (1) clear `entryBeingEdited.value = null` so the next visit to "New entry" starts blank instead of re-prefilling the just-replaced entry; (2) switch to the journal tab. Drop only the `bumpLocalVersion()` call — preserve the rest.
 - Update the multi-paragraph comment around `bookVersion` to a one-line note (or delete it; the simpler code is self-explanatory).
+- **Preserve the merge-added edit-flow plumbing in full**: `entryBeingEdited` ref, `onEditEntry` / `onCancelEdit` handlers, the `watch(activeBookId, …)` that clears the edit on book switch, and the `@edit-entry` / `:entry-to-edit` / `@cancel-edit` template wiring. These carry user intent (which entry the user wants to edit) — orthogonal to the data-sync signal we're collapsing.
 
 #### Children — drop now-unused emits
 
-- `JournalList.vue`: drop `changed` from `defineEmits`; drop `emit("changed")` from `onVoid`.
-- `JournalEntryForm.vue`: drop `accountsChanged` from `defineEmits`; drop the inner `@changed="emit('accountsChanged')"` on `<AccountsModal>` (Modal still emits it, but nobody up-stack listens).
-- `OpeningBalancesForm.vue`: drop `accountsChanged` from `defineEmits`; drop the inner `@changed="emit('accountsChanged')"` on `<AccountsModal>`.
-- `AccountsModal.vue`: keep `emit("changed")` since `service.upsertAccount` publishes a pub/sub event already → the table-level subscriber handles refetch. Actually re-evaluate: the modal *might* need to refetch its own local accounts list after an upsert. If yes, leave the internal usage; just drop the parent-level wiring.
+- `JournalList.vue`: drop `changed` from `defineEmits`; drop `emit("changed")` from `onVoid`. Keep `editEntry` and `editOpening` — both carry user intent that pub/sub can't replicate.
+- `JournalEntryForm.vue`: drop `accountsChanged` from `defineEmits`; drop the inner `@changed="emit('accountsChanged')"` on `<AccountsModal>`. Keep `submitted` and `cancelEdit`.
+- `OpeningBalancesForm.vue`: drop `accountsChanged` from `defineEmits`; drop the inner `@changed="emit('accountsChanged')"` on `<AccountsModal>`. Keep `submitted`.
+- `AccountsModal.vue`: keep `emit("changed")` — the modal uses it internally to refresh its own accounts list after an upsert (independent of the now-removed parent wiring).
 
 #### What stays
 
@@ -116,9 +117,11 @@ The dual-tracking also seeds the optimistic-insert in `onBookCreated` (which cau
 
 ### Risk assessment for #2
 
-- **Perceived latency on form submit.** Currently: form posts, server publishes, *and* child emits `changed` → table refetches before SSE arrives. After: table refetches when SSE arrives (~10–50ms later on localhost, ~100ms on real network). For a single-user local app this is imperceptible.
+- **Perceived latency on form submit.** Currently: form posts, server publishes, *and* child emits `changed` → table refetches before SSE arrives. After: table refetches when SSE arrives (~10–50ms on localhost, ~100ms on real network). For a single-user local app this is imperceptible.
 - **SSE drop.** If pub/sub delivery drops a message (server crash mid-publish, websocket reconnect window), the table won't refetch. Currently the `localVersion` masked this by re-fetching anyway. Mitigation: every component already re-fetches on mount and on `bookId` change, and the user can manually click a refresh button on every report tab. Acceptable for v1; if it becomes a real issue, add a "stale > Ns → refetch" heuristic.
 - **No multi-tab regression.** Pub/sub events fan out to every connected tab equally, so cross-tab sync (which the local-version bump never participated in) is unaffected.
+- **Edit-entry double-fire.** The merged "edit" flow posts `voidEntry` then `addEntry` sequentially, each publishing a `journal` pub/sub event. With `localVersion` removed, subscribers refetch twice in quick succession instead of once. Still correct, still cheap (~ms-scale fetches), but worth noting — a future debounce/coalesce in the subscriber composable could collapse them if it ever matters.
+- **Pub/sub vs UX state — preserved boundary.** The cleanup only removes the *data-sync* duplicate. Tab switches, edit-mode resets, and other UX state changes stay tied to local Vue parent-child emits (`@submitted`, `@cancelEdit`, `@editEntry`, `@editOpening`) and never to pub/sub — a pub/sub event that came from another tab / window / LLM tool call must NEVER hijack the active tab's UI state.
 
 ## Sequencing
 
