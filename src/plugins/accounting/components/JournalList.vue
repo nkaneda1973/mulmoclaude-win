@@ -88,7 +88,7 @@ import { useLatestRequest } from "./useLatestRequest";
 const { t } = useI18n();
 
 const props = defineProps<{ bookId: string; accounts: Account[]; currency: string; version: number }>();
-const emit = defineEmits<{ changed: []; editOpening: []; editEntry: [JournalEntry] }>();
+const emit = defineEmits<{ editOpening: []; editEntry: [JournalEntry] }>();
 
 const from = ref("");
 const toDate = ref("");
@@ -167,13 +167,12 @@ async function onVoid(entry: JournalEntry): Promise<void> {
   // reason proceeds.
   const reason = window.prompt(t("pluginAccounting.journalList.voidReason"));
   if (reason === null) return;
+  // Success path needs no local refetch — service.voidEntry publishes
+  // a per-book pub/sub event that bumps `version` and re-fires the
+  // watcher below.
   try {
     const result = await voidEntry({ entryId: entry.id, reason: reason || undefined, bookId: props.bookId });
-    if (!result.ok) {
-      error.value = result.error;
-      return;
-    }
-    emit("changed");
+    if (!result.ok) error.value = result.error;
   } catch (err) {
     error.value = err instanceof Error ? err.message : String(err);
   }
