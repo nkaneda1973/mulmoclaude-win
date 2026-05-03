@@ -204,7 +204,7 @@ function accumulateLedgerEntry(
     acc.running += debit - credit;
     if (fromDate && entry.date < fromDate) continue;
     if (toDate && entry.date > toDate) continue;
-    const row: LedgerRow = {
+    acc.rows.push({
       entryId: entry.id,
       date: entry.date,
       kind: entry.kind,
@@ -212,9 +212,8 @@ function accumulateLedgerEntry(
       debit,
       credit,
       runningBalance: acc.running,
-    };
-    if (line.taxRegistrationId !== undefined) row.taxRegistrationId = line.taxRegistrationId;
-    acc.rows.push(row);
+      ...(line.taxRegistrationId !== undefined ? { taxRegistrationId: line.taxRegistrationId } : {}),
+    });
   }
 }
 
