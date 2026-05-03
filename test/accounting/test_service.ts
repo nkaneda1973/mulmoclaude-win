@@ -1,4 +1,4 @@
-import { describe, it, after, beforeEach } from "node:test";
+import { describe, it, after } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -18,7 +18,6 @@ import {
   updateBook,
   voidEntry,
 } from "../../server/accounting/service.js";
-import { _resetRebuildQueueForTesting, awaitRebuildIdle } from "../../server/accounting/snapshotCache.js";
 
 const created: string[] = [];
 function makeTmp(): string {
@@ -27,25 +26,9 @@ function makeTmp(): string {
   return dir;
 }
 
-// Each test owns its own bookId, but the rebuild queue is module-
-// level state. Reset before every test so a leftover background
-// rebuild from an earlier test can't race with the current one.
-// The reset is async — it cancels and awaits any in-flight rebuild
-// before clearing bookkeeping.
-beforeEach(async () => {
-  await _resetRebuildQueueForTesting();
-});
-
 after(() => {
   for (const dir of created) rmSync(dir, { recursive: true, force: true });
 });
-
-// Helper for tests that follow up an entry-write with a read — drain
-// any background rebuild before asserting so we don't race the
-// snapshot writer.
-async function drainRebuilds(bookId: string): Promise<void> {
-  await awaitRebuildIdle(bookId);
-}
 
 describe("createBook id validation", () => {
   it("rejects path-traversal ids", async () => {
@@ -243,7 +226,6 @@ describe("addEntry / listEntries", () => {
       },
       root,
     );
-    await drainRebuilds(bookId);
     const list = await listEntries({ bookId }, root);
     assert.equal(list.entries.length, 1);
     assert.equal(list.entries[0].lines[0].taxRegistrationId, "T1234567890123");
@@ -474,7 +456,6 @@ describe("reports end-to-end", () => {
       },
       root,
     );
-    await drainRebuilds(bookId);
     const report = await getBalanceSheetReport({ bookId, period: { kind: "month", period: "2026-04" } }, root);
     assert.ok(Math.abs(report.balanceSheet.imbalance) < 0.0001, `imbalance was ${report.balanceSheet.imbalance}`);
     const equity = report.balanceSheet.sections.find((section) => section.type === "equity");
@@ -520,7 +501,6 @@ describe("reports end-to-end", () => {
       },
       root,
     );
-    await drainRebuilds(bookId);
     const balanceSheet = await getBalanceSheetReport({ bookId, period: { kind: "month", period: "2026-04" } }, root);
     const cashRow = balanceSheet.balanceSheet.sections[0].rows.find((row) => row.accountCode === "1000");
     assert.ok(cashRow);

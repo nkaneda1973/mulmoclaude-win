@@ -91,26 +91,19 @@ export function accountingBookChannel(bookId: string): string {
  *  subscribers (the View) — anyone branching on event kind imports
  *  from here and the type system catches drift on either side.
  *
- *  - `journal`            — addEntry / voidEntry hit the books at `period`.
- *                           Refetch the journal list and (if the View is
- *                           showing balances at or after `period`) the
- *                           relevant report.
- *  - `opening`            — setOpeningBalances. Affects every period from
- *                           the opening date forward; refetch everything.
- *  - `accounts`           — chart-of-accounts mutation that may affect
- *                           aggregation (account type changed). Refetch
- *                           accounts and the active report.
- *  - `snapshotsRebuilding` / `snapshotsReady` — purely informational;
- *                           the View can show a "calculating" spinner
- *                           during rebuild, but the lazy-rebuild safety
- *                           net means a refetch always returns the right
- *                           answer regardless. */
+ *  - `journal`  — addEntry / voidEntry hit the books at `period`.
+ *                 Refetch the journal list and (if the View is showing
+ *                 balances at or after `period`) the relevant report.
+ *  - `opening`  — setOpeningBalances. Affects every period from the
+ *                 opening date forward; refetch everything.
+ *  - `accounts` — chart-of-accounts mutation that may affect
+ *                 aggregation (account type changed) or the manual
+ *                 `rebuildSnapshots` admin action. Refetch accounts
+ *                 and the active report. */
 export const ACCOUNTING_BOOK_EVENT_KINDS = {
   journal: "journal",
   opening: "opening",
   accounts: "accounts",
-  snapshotsRebuilding: "snapshots-rebuilding",
-  snapshotsReady: "snapshots-ready",
 } as const;
 
 export type AccountingBookEventKind = (typeof ACCOUNTING_BOOK_EVENT_KINDS)[keyof typeof ACCOUNTING_BOOK_EVENT_KINDS];
@@ -118,9 +111,8 @@ export type AccountingBookEventKind = (typeof ACCOUNTING_BOOK_EVENT_KINDS)[keyof
 /** Payload published on `accountingBookChannel(bookId)`. */
 export interface AccountingBookChannelPayload {
   kind: AccountingBookEventKind;
-  /** YYYY-MM. Present for `journal` (entry month) and the snapshot
-   *  events (the earliest invalidated month). Absent for `opening`
-   *  (which invalidates everything) and `accounts`. */
+  /** YYYY-MM. Present for `journal` (entry month). Absent for
+   *  `opening` (which invalidates everything) and `accounts`. */
   period?: string;
 }
 

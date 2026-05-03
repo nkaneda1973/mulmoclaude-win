@@ -1,17 +1,16 @@
 // Subscribe to per-book accounting events.
 //
-// Returns a `version` ref that bumps every time the server publishes a
-// change for the given bookId — addEntry, voidEntry,
-// setOpeningBalances, upsertAccount, snapshot rebuild completion. View
-// components watch `version` to drive `refetch` calls.
+// Returns a `version` ref that bumps every time the server publishes
+// a change for the given bookId — addEntry, voidEntry,
+// setOpeningBalances, upsertAccount. View components watch `version`
+// to drive `refetch` calls.
 //
 // `bookId` is reactive: switching the active book in BookSwitcher
 // flips it; the composable unsubscribes from the old channel and
 // subscribes to the new one.
 //
-// `onPayload` is an optional fine-grained hook for callers that want to
-// inspect the event kind (e.g. show a "rebuilding…" indicator on
-// `kind: "snapshots-rebuilding"`).
+// `onPayload` is an optional fine-grained hook for callers that want
+// to inspect the event kind.
 
 import { ref, watch, onUnmounted, type Ref } from "vue";
 import { usePubSub } from "./usePubSub";

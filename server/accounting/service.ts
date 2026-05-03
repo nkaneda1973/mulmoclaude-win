@@ -7,11 +7,9 @@
 //  - invalidates dependent snapshots,
 //  - publishes a pub/sub event so subscribers refetch.
 //
-// Snapshot rebuild policy: writes invalidate stale snapshot files
-// synchronously, then call `scheduleRebuild` to rebuild them in the
-// background. `getOrBuildSnapshot` keeps a lazy fallback so a report
-// requested before the rebuild reaches that month still returns the
-// right number — it just builds inline. Both paths are byte-identical
+// Snapshots are a perf cache only — writes invalidate stale snapshot
+// files synchronously and the next read regenerates lazily via
+// `getOrBuildSnapshot`. Cached and lazy paths are byte-identical
 // (enforced by `test/accounting/test_snapshotCache.ts`).
 
 import { randomUUID } from "node:crypto";
@@ -36,7 +34,7 @@ import { findActiveOpening, validateOpening } from "./openingBalances.js";
 import { normalizeStoredAccount } from "./accountNormalize.js";
 import { localDateString, makeEntry, makeVoidEntries, validateEntry, voidedIdSet } from "./journal.js";
 import { aggregateBalances, buildBalanceSheet, buildLedger, buildProfitLoss } from "./report.js";
-import { awaitRebuildIdle, balancesAtEndOf, cancelRebuild, getOrBuildSnapshot, rebuildAllSnapshots, scheduleRebuild } from "./snapshotCache.js";
+import { balancesAtEndOf, getOrBuildSnapshot, rebuildAllSnapshots } from "./snapshotCache.js";
 import { publishBookChange, publishBooksChanged } from "./eventPublisher.js";
 import { DEFAULT_ACCOUNTS } from "./defaultAccounts.js";
 import { log } from "../system/logger/index.js";
@@ -222,11 +220,6 @@ export async function deleteBook(
   if (!target) {
     throw new AccountingError(404, `book ${JSON.stringify(input.bookId)} not found`);
   }
-  // Stop any in-flight rebuild before removing the directory; otherwise
-  // writeSnapshot could re-create the tree via mkdir-recursive after
-  // we delete it, leaving an orphaned book folder on disk.
-  cancelRebuild(input.bookId);
-  await awaitRebuildIdle(input.bookId);
   await removeBookDir(input.bookId, workspaceRoot);
   const remaining = config.books.filter((book) => book.id !== input.bookId);
   await writeConfig({ books: remaining }, workspaceRoot);
@@ -281,7 +274,6 @@ export async function upsertAccount(
   // snapshot to be safe. Pure name / note changes don't, but
   // distinguishing isn't worth the complexity.
   if (oldType !== null && oldType !== input.account.type) {
-    scheduleRebuild(bookId, "0000-00", workspaceRoot);
     await invalidateAllSnapshots(bookId, workspaceRoot);
   }
   publishBookChange(bookId, { kind: ACCOUNTING_BOOK_EVENT_KINDS.accounts });
@@ -304,10 +296,6 @@ export async function addEntry(
   const entry = makeEntry({ date: input.date, lines: input.lines, memo: input.memo, kind: "normal", replacesEntryId: input.replacesEntryId });
   await appendJournal(bookId, entry, workspaceRoot);
   const period = periodFromDate(input.date);
-  // scheduleRebuild first (sync, sets pendingFromPeriod) so any
-  // in-flight rebuild's `isInvalidatedDuringRebuild` check sees the
-  // new pending mark before our invalidate races with its write.
-  scheduleRebuild(bookId, period, workspaceRoot);
   await invalidateSnapshotsFrom(bookId, period, workspaceRoot);
   publishBookChange(bookId, { kind: ACCOUNTING_BOOK_EVENT_KINDS.journal, period });
   return { bookId, entry };
@@ -340,7 +328,6 @@ export async function voidEntry(
   // Period whose snapshot is now stale = the older of the
   // original entry's month and the void's month.
   const fromPeriod = target.date < voidDate ? periodFromDate(target.date) : periodFromDate(voidDate);
-  scheduleRebuild(bookId, fromPeriod, workspaceRoot);
   await invalidateSnapshotsFrom(bookId, fromPeriod, workspaceRoot);
   publishBookChange(bookId, { kind: ACCOUNTING_BOOK_EVENT_KINDS.journal, period: fromPeriod });
   return { bookId, reverseEntry: reverse, markerEntry: marker };
@@ -428,7 +415,6 @@ export async function setOpeningBalances(
     kind: "opening",
   });
   await appendJournal(bookId, opening, workspaceRoot);
-  scheduleRebuild(bookId, "0000-00", workspaceRoot);
   await invalidateAllSnapshots(bookId, workspaceRoot);
   publishBookChange(bookId, { kind: ACCOUNTING_BOOK_EVENT_KINDS.opening });
   return { bookId, openingEntry: opening, replacedExisting: existing !== null };
@@ -513,7 +499,10 @@ export async function rebuildSnapshots(input: { bookId?: string }, workspaceRoot
   const config = await loadOrInitConfig(workspaceRoot);
   const bookId = resolveBookId(config, input.bookId);
   const result = await rebuildAllSnapshots(bookId, workspaceRoot);
-  publishBookChange(bookId, { kind: ACCOUNTING_BOOK_EVENT_KINDS.snapshotsReady });
+  // After a manual rebuild, every cached number may have moved — fan
+  // out the broad-invalidation `accounts` event so subscribers refetch
+  // their report tabs.
+  publishBookChange(bookId, { kind: ACCOUNTING_BOOK_EVENT_KINDS.accounts });
   return { bookId, rebuilt: result.rebuilt };
 }
 
