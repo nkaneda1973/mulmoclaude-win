@@ -18,8 +18,6 @@ import {
   appendJournal,
   bookExists,
   ensureBookDir,
-  invalidateAllSnapshots,
-  invalidateSnapshotsFrom,
   isSafeBookId,
   listJournalPeriods,
   periodFromDate,
@@ -34,7 +32,7 @@ import { findActiveOpening, validateOpening } from "./openingBalances.js";
 import { normalizeStoredAccount } from "./accountNormalize.js";
 import { localDateString, makeEntry, makeVoidEntries, validateEntry, voidedIdSet } from "./journal.js";
 import { aggregateBalances, buildBalanceSheet, buildLedger, buildProfitLoss } from "./report.js";
-import { balancesAtEndOf, getOrBuildSnapshot, rebuildAllSnapshots } from "./snapshotCache.js";
+import { balancesAtEndOf, getOrBuildSnapshot, lockedInvalidateAllSnapshots, lockedInvalidateSnapshotsFrom, rebuildAllSnapshots } from "./snapshotCache.js";
 import { publishBookChange, publishBooksChanged } from "./eventPublisher.js";
 import { DEFAULT_ACCOUNTS } from "./defaultAccounts.js";
 import { log } from "../system/logger/index.js";
@@ -274,7 +272,7 @@ export async function upsertAccount(
   // snapshot to be safe. Pure name / note changes don't, but
   // distinguishing isn't worth the complexity.
   if (oldType !== null && oldType !== input.account.type) {
-    await invalidateAllSnapshots(bookId, workspaceRoot);
+    await lockedInvalidateAllSnapshots(bookId, workspaceRoot);
   }
   publishBookChange(bookId, { kind: ACCOUNTING_BOOK_EVENT_KINDS.accounts });
   return { bookId, account: { ...input.account }, accounts: next };
@@ -296,7 +294,7 @@ export async function addEntry(
   const entry = makeEntry({ date: input.date, lines: input.lines, memo: input.memo, kind: "normal", replacesEntryId: input.replacesEntryId });
   await appendJournal(bookId, entry, workspaceRoot);
   const period = periodFromDate(input.date);
-  await invalidateSnapshotsFrom(bookId, period, workspaceRoot);
+  await lockedInvalidateSnapshotsFrom(bookId, period, workspaceRoot);
   publishBookChange(bookId, { kind: ACCOUNTING_BOOK_EVENT_KINDS.journal, period });
   return { bookId, entry };
 }
@@ -328,7 +326,7 @@ export async function voidEntry(
   // Period whose snapshot is now stale = the older of the
   // original entry's month and the void's month.
   const fromPeriod = target.date < voidDate ? periodFromDate(target.date) : periodFromDate(voidDate);
-  await invalidateSnapshotsFrom(bookId, fromPeriod, workspaceRoot);
+  await lockedInvalidateSnapshotsFrom(bookId, fromPeriod, workspaceRoot);
   publishBookChange(bookId, { kind: ACCOUNTING_BOOK_EVENT_KINDS.journal, period: fromPeriod });
   return { bookId, reverseEntry: reverse, markerEntry: marker };
 }
@@ -415,7 +413,7 @@ export async function setOpeningBalances(
     kind: "opening",
   });
   await appendJournal(bookId, opening, workspaceRoot);
-  await invalidateAllSnapshots(bookId, workspaceRoot);
+  await lockedInvalidateAllSnapshots(bookId, workspaceRoot);
   publishBookChange(bookId, { kind: ACCOUNTING_BOOK_EVENT_KINDS.opening });
   return { bookId, openingEntry: opening, replacedExisting: existing !== null };
 }

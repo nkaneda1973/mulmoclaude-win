@@ -18,10 +18,60 @@
 // none exists), then folds forward. Writes invalidate stale snapshot
 // files via `invalidateSnapshotsFrom`; the next read regenerates
 // on demand.
+//
+// Concurrency: every snapshot build (read path) and every
+// invalidation (write path) on the same book serializes through
+// `withBookLock`. Without this, a reader could (a) see no cached
+// snapshot, (b) read journal at state J1, (c) get overtaken by a
+// writer that appends + invalidates (the invalidate is a no-op
+// because the snapshot file doesn't exist yet), and (d) persist J1
+// balances to disk — leaving a stale snapshot until some later
+// write happens to invalidate that period. The lock pins the
+// invalidate's relative order to the read's writeSnapshot, so any
+// stale snapshot the reader writes is removed by the writer's
+// invalidate immediately after, and the next read regenerates.
+// Single-process only — fine for this app, which keeps one Node
+// process per workspace.
 
-import { invalidateAllSnapshots, listJournalPeriods, readJournalMonth, readSnapshot, writeSnapshot } from "../utils/files/accounting-io.js";
+import {
+  invalidateAllSnapshots,
+  invalidateSnapshotsFrom,
+  listJournalPeriods,
+  readJournalMonth,
+  readSnapshot,
+  writeSnapshot,
+} from "../utils/files/accounting-io.js";
 import { aggregateBalances } from "./report.js";
 import type { AccountBalance, JournalEntry, MonthSnapshot } from "./types.js";
+
+// Per-book serialization. Each entry is the tail of a chain of
+// pending operations on that book; new callers chain onto it. The
+// finally branch deletes the entry when the chain drains, so books
+// that stop being touched stop holding memory.
+const bookLocks = new Map<string, Promise<void>>();
+
+async function withBookLock<T>(bookId: string, run: () => Promise<T>): Promise<T> {
+  const previous = bookLocks.get(bookId) ?? Promise.resolve();
+  // `settled` resolves once `run` finishes (success or failure). The
+  // next chained caller awaits this through `chained`; we never
+  // forward `run`'s rejection into the chain, so one failure doesn't
+  // poison subsequent operations.
+  let resolveSettled!: () => void;
+  const settled = new Promise<void>((resolve) => {
+    resolveSettled = resolve;
+  });
+  const chained = previous.then(() => settled);
+  bookLocks.set(bookId, chained);
+  try {
+    await previous;
+    return await run();
+  } finally {
+    resolveSettled();
+    if (bookLocks.get(bookId) === chained) {
+      bookLocks.delete(bookId);
+    }
+  }
+}
 
 function previousPeriod(period: string): string {
   // YYYY-MM → previous YYYY-MM. December rolls back to the previous
@@ -48,16 +98,13 @@ async function buildEmptySnapshot(bookId: string, period: string, workspaceRoot?
   return empty;
 }
 
-/** Build a snapshot at end-of-`period` for one book, lazily relying
- *  on the previous month's snapshot if it exists. Falls all the way
- *  back to the earliest journal month if no upstream snapshot is
- *  available. Always writes the result to disk before returning. */
-export async function getOrBuildSnapshot(bookId: string, period: string, workspaceRoot?: string): Promise<MonthSnapshot> {
+// Inner build path that assumes the caller already holds the
+// per-book lock. Recurses to itself for the prior-period chain so
+// the recursion stays inside the same critical section.
+async function buildSnapshotLocked(bookId: string, period: string, workspaceRoot?: string): Promise<MonthSnapshot> {
   const cached = await readSnapshot(bookId, period, workspaceRoot);
   if (cached) return cached;
 
-  // Earliest journal month determines where the recursion stops.
-  // If the book has no journal at all, return an empty snapshot.
   const periods = await listJournalPeriods(bookId, workspaceRoot);
   if (periods.length === 0 || period < periods[0]) {
     return buildEmptySnapshot(bookId, period, workspaceRoot);
@@ -66,12 +113,10 @@ export async function getOrBuildSnapshot(bookId: string, period: string, workspa
   const { entries } = await readJournalMonth(bookId, period, workspaceRoot);
   const monthDelta = aggregateBalances(entries);
 
-  // Get the prior month's closing snapshot — recurse, which will
-  // either hit cache or build the chain back to the start.
   let priorBalances: readonly AccountBalance[] = [];
   if (period > periods[0]) {
     const prior = previousPeriod(period);
-    const priorSnap = await getOrBuildSnapshot(bookId, prior, workspaceRoot);
+    const priorSnap = await buildSnapshotLocked(bookId, prior, workspaceRoot);
     priorBalances = priorSnap.balances;
   }
   const merged = mergeBalances(priorBalances, monthDelta);
@@ -82,6 +127,19 @@ export async function getOrBuildSnapshot(bookId: string, period: string, workspa
   };
   await writeSnapshot(bookId, snap, workspaceRoot);
   return snap;
+}
+
+/** Build a snapshot at end-of-`period` for one book, lazily relying
+ *  on the previous month's snapshot if it exists. Falls all the way
+ *  back to the earliest journal month if no upstream snapshot is
+ *  available. Always writes the result to disk before returning. */
+export async function getOrBuildSnapshot(bookId: string, period: string, workspaceRoot?: string): Promise<MonthSnapshot> {
+  // Fast path: cache hit, no lock needed. Stale reads are
+  // self-correcting — a stale snapshot only exists momentarily
+  // before the writer's locked invalidate removes it.
+  const cached = await readSnapshot(bookId, period, workspaceRoot);
+  if (cached) return cached;
+  return withBookLock(bookId, () => buildSnapshotLocked(bookId, period, workspaceRoot));
 }
 
 /** Compute closing balances at end-of-`period` from journal alone,
@@ -103,10 +161,28 @@ export async function balancesAtEndOf(bookId: string, period: string, workspaceR
  *  `rebuildSnapshots` admin action. Returns the periods that were
  *  rebuilt. */
 export async function rebuildAllSnapshots(bookId: string, workspaceRoot?: string): Promise<{ rebuilt: string[] }> {
-  await invalidateAllSnapshots(bookId, workspaceRoot);
-  const periods = await listJournalPeriods(bookId, workspaceRoot);
-  for (const monthKey of periods) {
-    await getOrBuildSnapshot(bookId, monthKey, workspaceRoot);
-  }
-  return { rebuilt: periods };
+  return withBookLock(bookId, async () => {
+    await invalidateAllSnapshots(bookId, workspaceRoot);
+    const periods = await listJournalPeriods(bookId, workspaceRoot);
+    for (const monthKey of periods) {
+      await buildSnapshotLocked(bookId, monthKey, workspaceRoot);
+    }
+    return { rebuilt: periods };
+  });
+}
+
+/** Locked variants of the file-IO invalidate helpers. Use these
+ *  from any code path (e.g. service.ts addEntry / voidEntry) that
+ *  needs to invalidate snapshots while concurrent reads may be in
+ *  flight — they share the per-book mutex with `getOrBuildSnapshot`
+ *  so an invalidate can't slip between a reader's journal walk and
+ *  its writeSnapshot. The raw helpers in `accounting-io.ts` stay
+ *  available for paths that already hold the lock (or that don't
+ *  need it, e.g. tests / admin reset). */
+export async function lockedInvalidateSnapshotsFrom(bookId: string, fromPeriod: string, workspaceRoot?: string): Promise<{ removed: string[] }> {
+  return withBookLock(bookId, () => invalidateSnapshotsFrom(bookId, fromPeriod, workspaceRoot));
+}
+
+export async function lockedInvalidateAllSnapshots(bookId: string, workspaceRoot?: string): Promise<{ removed: string[] }> {
+  return withBookLock(bookId, () => invalidateAllSnapshots(bookId, workspaceRoot));
 }
