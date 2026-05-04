@@ -85,8 +85,12 @@
               :maxlength="MAX_TAX_REGISTRATION_ID_LENGTH"
               :placeholder="t('pluginAccounting.entryForm.taxRegistrationIdPlaceholder')"
               :class="[
-                'h-8 px-2 w-full rounded border text-sm font-mono',
-                isTaxRegistrationIdInvalid(line) ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-300',
+                'h-8 px-2 w-full rounded border text-sm font-mono focus:outline-none',
+                isTaxRegistrationIdInvalid(line)
+                  ? 'border-red-500 ring-1 ring-red-500'
+                  : isTaxRegistrationIdMissing(line)
+                    ? 'border-amber-500 ring-1 ring-amber-500'
+                    : 'border-gray-300 focus:ring-1 focus:ring-blue-500',
               ]"
               :data-testid="`accounting-entry-line-tax-registration-id-${idx}`"
             />
@@ -147,6 +151,7 @@
 import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { addEntry, voidEntry, type Account, type JournalEntry, type JournalLine } from "../api";
+import { taxRegistrationRequirement, type SupportedCountryCode } from "../countries";
 import { formatAmount, inputStepFor } from "../currencies";
 import { localDateString } from "../dates";
 import { isTaxAccountCode } from "./accountNumbering";
@@ -154,7 +159,13 @@ import AccountsModal from "./AccountsModal.vue";
 
 const { t } = useI18n();
 
-const props = defineProps<{ bookId: string; accounts: Account[]; currency: string; entryToEdit?: JournalEntry | null }>();
+const props = defineProps<{
+  bookId: string;
+  accounts: Account[];
+  currency: string;
+  country?: SupportedCountryCode;
+  entryToEdit?: JournalEntry | null;
+}>();
 const emit = defineEmits<{ submitted: []; cancelEdit: [] }>();
 
 const showAccountsModal = ref(false);
@@ -198,6 +209,21 @@ function isTaxRegistrationIdInvalid(line: FormLine): boolean {
 
 function isTaxLine(line: FormLine): boolean {
   return line.accountCode !== "" && isTaxAccountCode(line.accountCode);
+}
+
+// Soft warning: an empty taxRegistrationId on a postable tax line
+// in a jurisdiction that expects one. Drives the amber border on
+// the input — does NOT gate submit. Submit-gating belongs to
+// `balanced` and stays scoped to length-invalid (red) only, so the
+// user can still post if they truly have nothing to enter (e.g.
+// supplier without registration; the role prompt says to book the
+// gross amount in that case, but the form doesn't enforce that
+// flow).
+function isTaxRegistrationIdMissing(line: FormLine): boolean {
+  if (!isTaxLine(line)) return false;
+  if (!isPostable(line)) return false;
+  if (taxRegistrationRequirement(props.country) === "none") return false;
+  return line.taxRegistrationId.trim() === "";
 }
 
 const date = ref(localDateString());

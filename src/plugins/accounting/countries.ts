@@ -98,3 +98,63 @@ export function localizedCountryName(code: string, locale: string): string {
 export function isSupportedCountryCode(value: unknown): value is SupportedCountryCode {
   return typeof value === "string" && (SUPPORTED_COUNTRY_CODES as readonly string[]).includes(value);
 }
+
+/** Whether the supplier's tax-registration ID (T-number / VAT ID /
+ *  GSTIN / ABN / …) is required, recommended, or unused for a given
+ *  jurisdiction. Drives the JournalEntryForm amber-border warning
+ *  when the user picks a 14xx / 24xx account but leaves the field
+ *  blank. The form never blocks submit on this — the warning is a
+ *  nudge, not a gate.
+ *
+ *  Mirrors the country-by-country guidance in the Accounting role
+ *  prompt at `src/config/roles.ts` ("Country-aware tax behaviour"
+ *  section). Keep them in sync; drift here means the LLM and the
+ *  form give contradictory advice. */
+export type TaxRegistrationRequirement = "required" | "recommended" | "none";
+
+export const TAX_REGISTRATION_REQUIREMENT: Record<SupportedCountryCode, TaxRegistrationRequirement> = {
+  // Explicitly required by the role prompt.
+  JP: "required",
+  GB: "required",
+  DE: "required",
+  FR: "required",
+  IT: "required",
+  ES: "required",
+  NL: "required",
+  BE: "required",
+  AT: "required",
+  IE: "required",
+  PT: "required",
+  FI: "required",
+  SE: "required",
+  DK: "required",
+  PL: "required",
+  IN: "required",
+  AU: "required",
+  NZ: "required",
+  CA: "required",
+  // Explicitly excluded by the role prompt — US has no federal
+  // sales-tax registration; sales tax is per-state.
+  US: "none",
+  // "Other countries" bucket — the prompt asks for the equivalent
+  // local registration number but doesn't make it a hard rule.
+  CH: "recommended",
+  NO: "recommended",
+  CN: "recommended",
+  KR: "recommended",
+  TW: "recommended",
+  HK: "recommended",
+  SG: "recommended",
+  BR: "recommended",
+  MX: "recommended",
+};
+
+/** Tax-registration requirement for the book's country. Defaults
+ *  to "recommended" when the country is unset — if the user picked
+ *  a tax-related account, something tax-related is happening, so
+ *  the amber nudge is appropriate even before the book's country
+ *  has been configured. */
+export function taxRegistrationRequirement(country: SupportedCountryCode | undefined): TaxRegistrationRequirement {
+  if (!country) return "recommended";
+  return TAX_REGISTRATION_REQUIREMENT[country];
+}
