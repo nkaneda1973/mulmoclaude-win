@@ -63,18 +63,17 @@ interface ToolDef {
   endpoint?: string;
 }
 
-// Shape returned by a plugin endpoint dispatch. `data` / `jsonData`
-// are the two protocol-defined "view payload" fields — either one
-// being set means the plugin wants to surface a card. `message` /
-// `instructions` are read by the bridge for the LLM-facing return
-// value; other fields (title, action, etc.) flow through to the
+// Shape returned by a plugin endpoint dispatch. `data` is the
+// protocol's render-eligibility signal — set means "render a
+// card", absent means narrate-only. `message` / `instructions`
+// are read by the bridge for the LLM-facing return value; other
+// fields (title, jsonData, action, etc.) flow through to the
 // frontend untouched. `toolName` / `uuid` are listed so the
-// post-spread override in `handleToolCall` is type-checked rather
-// than relying on object-shape coincidence — the bridge always
-// re-asserts them from its own state.
+// post-spread override in `handleToolCall` is type-checked
+// rather than relying on object-shape coincidence — the bridge
+// always re-asserts them from its own state.
 interface PluginResultEnvelope {
   data?: unknown;
-  jsonData?: unknown;
   message?: unknown;
   instructions?: unknown;
   toolName?: unknown;
@@ -436,18 +435,17 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
   const result = ((await res.json()) ?? {}) as PluginResultEnvelope;
 
   // Push visual ToolResult to the frontend via the session — but only
-  // when the handler set a view payload (`data` or `jsonData`).
-  // Narrate-only actions (e.g. accounting `getReport`, `getBooks`,
-  // plugin validation-error branches) deliberately omit both and
-  // behave like a plain MCP tool call: the LLM gets `message` /
-  // `instructions` via the return value below, and nothing lands in
-  // the session's `toolResults` or its on-disk JSONL log. Skipping
-  // the POST keeps the session log clean and avoids the prior bug
-  // where a hidden tool_result during a run could trap canvas
-  // selection on a stale prior-turn card. Both fields are accepted
-  // because the protocol leaves the choice to the plugin: presentForm
-  // sets both, accounting sets `data`, quiz sets only `jsonData`.
-  if (result.data !== undefined || result.jsonData !== undefined) {
+  // when the handler set `data`. The protocol uses `data` as the
+  // render-eligibility signal: present means "render a card", absent
+  // means narrate-only. Narrate-only actions (e.g. accounting
+  // `getReport`, `getBooks`, plugin validation-error branches) flow
+  // their `message` / `instructions` to the LLM via the return
+  // value below; nothing lands in the session's `toolResults` or
+  // its on-disk JSONL log. Skipping the POST keeps the session log
+  // clean and avoids the prior bug where a hidden tool_result
+  // during a run could trap canvas selection on a stale prior-turn
+  // card.
+  if (result.data !== undefined) {
     // Spread `result` first so the bridge's own `toolName` and `uuid`
     // are authoritative — a plugin handler that (intentionally or
     // accidentally) returned those keys can't impersonate a different
