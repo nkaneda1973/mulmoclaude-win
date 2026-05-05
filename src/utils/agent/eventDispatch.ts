@@ -35,7 +35,10 @@ export async function applyAgentEvent(event: SseEvent, ctx: AgentEventContext): 
       await ctx.refreshRoles();
       return;
     case EVENT_TYPES.text:
-      applyTextEvent(session, event.message, event.source ?? "assistant", event.attachments);
+      // Pass `isSidebarVisible` so a sidebar-hidden tool result
+      // emitted earlier in this run (e.g. accounting `getReport`)
+      // does not suppress selecting the text reply on canvas.
+      applyTextEvent(session, event.message, event.source ?? "assistant", event.attachments, isSidebarVisible);
       return;
     case EVENT_TYPES.toolResult:
       // Skip auto-select for sidebar-hidden results; otherwise the

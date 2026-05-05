@@ -64,8 +64,17 @@ function isDuplicateUserText(session: ActiveSession, message: string): boolean {
  *  streams assistant text into the last card, and selects the
  *  result when appropriate. `attachments` is forwarded for cross-tab
  *  user-text broadcasts so observing tabs render chips identically
- *  to the originating tab. */
-export function applyTextEvent(session: ActiveSession, message: string, source: "user" | "assistant", attachments?: readonly string[]): void {
+ *  to the originating tab. `isVisible` is forwarded to
+ *  `shouldSelectAssistantText` so sidebar-hidden tool results in
+ *  the current run don't suppress text-reply selection (default
+ *  `() => true` keeps tests / off-thread callers behaviour-compat). */
+export function applyTextEvent(
+  session: ActiveSession,
+  message: string,
+  source: "user" | "assistant",
+  attachments?: readonly string[],
+  isVisible: (result: ToolResultComplete) => boolean = () => true,
+): void {
   if (source === "user") {
     if (!isDuplicateUserText(session, message)) {
       pushResult(session, makeTextResult(message, "user", attachments));
@@ -76,7 +85,7 @@ export function applyTextEvent(session: ActiveSession, message: string, source: 
   if (appendToLastAssistantText(session, message)) return;
   const textResult = makeTextResult(message, "assistant");
   pushResult(session, textResult);
-  if (shouldSelectAssistantText(session.toolResults, session.runStartIndex)) {
+  if (shouldSelectAssistantText(session.toolResults, session.runStartIndex, isVisible)) {
     session.selectedResultUuid = textResult.uuid;
   }
 }

@@ -136,6 +136,32 @@ describe("shouldSelectAssistantText — boundary conditions", () => {
   });
 });
 
+describe("shouldSelectAssistantText — sidebar-hidden results don't block selection", () => {
+  it("hidden plugin result in run is ignored when isVisible filters it out", () => {
+    // Repro of the accounting / presentForm bug: a getReport
+    // tool result lands during the run with no `data` field, so
+    // isSidebarVisible returns false. The trailing text reply
+    // should still become the selected canvas result instead of
+    // leaving the previous-turn form card highlighted.
+    const results = [makeToolResult("user", "text-response"), makeToolResult("hidden", "manageAccounting"), makeToolResult("text", "text-response")];
+    const isVisible = (result: ToolResultComplete) => result.uuid !== "hidden";
+    assert.equal(shouldSelectAssistantText(results, 0, isVisible), true);
+  });
+
+  it("visible plugin result in run still blocks selection", () => {
+    const results = [makeToolResult("user", "text-response"), makeToolResult("visible", "generateImage"), makeToolResult("text", "text-response")];
+    const isVisible = () => true;
+    assert.equal(shouldSelectAssistantText(results, 0, isVisible), false);
+  });
+
+  it("default predicate (no arg) preserves legacy behaviour", () => {
+    // Same shape as above but without the isVisible arg —
+    // existing callers / tests must keep getting `false`.
+    const results = [makeToolResult("user", "text-response"), makeToolResult("plugin", "generateImage"), makeToolResult("text", "text-response")];
+    assert.equal(shouldSelectAssistantText(results, 0), false);
+  });
+});
+
 describe("shouldSelectAssistantText — multi-turn regression (#stale-runStartIndex)", () => {
   it("turn 2 with a plugin result in turn 1 → true for text-only turn 2", () => {
     // Simulates the two-turn bug:
