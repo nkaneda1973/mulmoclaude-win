@@ -44,4 +44,10 @@ export const PRESET_PLUGINS: readonly PresetPlugin[] = [
   // per recipe under the plugin's `files.data` scope; demonstrates
   // markdown-per-record storage on the v0.3 runtime API.
   { packageName: "@mulmoclaude/recipe-book-plugin" },
+  // #1188 / #1169 — reading-list runtime plugin. First slice of the
+  // My Library plugin set. Same markdown-per-record shape as
+  // recipe-book; one file per book at `books/<slug>.md` with
+  // structured frontmatter (title / author / status / rating / dates
+  // / tags) plus a free-form notes body.
+  { packageName: "@mulmoclaude/reading-list-plugin" },
 ];
