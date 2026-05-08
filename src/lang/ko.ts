@@ -152,6 +152,7 @@ const koMessages = {
       mcp: "MCP 서버",
       dirs: "디렉터리",
       refs: "참조 디렉터리",
+      map: "지도",
     },
     // `<i18n-t>` 슬롯 — `envKey` / `envFile` 은 SettingsModal.vue 에서
     // 인라인 `<code>` 로 렌더링되므로 변수명·파일명은 번역하지 않고
@@ -218,6 +219,7 @@ const koMessages = {
     calendar: { label: "캘린더", title: "캘린더 열기" },
     automations: { label: "자동화", title: "자동화 열기" },
     wiki: { label: "위키", title: "위키 열기" },
+    map: { label: "지도", title: "지도 열기" },
     sources: { label: "소스", title: "정보 소스 열기" },
     news: { label: "뉴스", title: "뉴스 뷰어 열기" },
     skills: { label: "스킬", title: "스킬 열기" },
@@ -1125,6 +1127,7 @@ const koMessages = {
   app: {
     startConversation: "대화 시작",
     thinking: "생각 중…",
+    mapPluginNotLoaded: "Map 플러그인이 로드되지 않았습니다. @mulmoclaude/map-plugin이 빌드되어 프리셋에 등록되었는지 확인하세요.",
   },
   suggestionsPanel: {
     suggestions: "추천",
@@ -1140,6 +1143,16 @@ const koMessages = {
     // `<code>` 태그는 스타일을 유지하면서 본문은 번역 가능합니다.
     explanation:
       "{allowedTools} 를 통해 Claude 에 전달할 추가 도구 이름. 한 줄에 하나씩. {claudeMcp} 로 인증을 완료한 후 Claude Code 내장 MCP 서버 (Gmail / Google 캘린더 등) 를 사용할 때 유용합니다.",
+  },
+  settingsMapTab: {
+    explanation: "Google Maps API 키를 붙여넣으면 지도 보기가 활성화됩니다. 키는 이 워크스페이스에 로컬로 저장되며 Google 외부로 전송되지 않습니다.",
+    apiKeyLabel: "Google Maps API 키",
+    apiKeyPlaceholder: "AIza…",
+    consoleLink: "Google Cloud Console (사용자 인증 정보) 열기",
+    requiredApis: "필수 API: Maps JavaScript API, Places API",
+    configured: "구성됨",
+    notConfigured: "구성되지 않음",
+    saveFailed: "API 키 저장에 실패했습니다.",
   },
 };
 

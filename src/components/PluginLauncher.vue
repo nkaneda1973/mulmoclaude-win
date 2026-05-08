@@ -43,7 +43,7 @@ export type PluginLauncherKind = "view"; // Switch the canvas to a dedicated vie
 // strings out of this file avoids duplication across locales.
 export interface PluginLauncherTarget {
   /** Stable key for testid + dispatch in App.vue. */
-  key: "todos" | "calendar" | "automations" | "wiki" | "sources" | "news" | "skills" | "roles" | "files" | "debug";
+  key: "todos" | "calendar" | "automations" | "wiki" | "sources" | "news" | "skills" | "roles" | "files" | "map" | "debug";
   kind: PluginLauncherKind;
   /** Material-icons glyph. */
   icon: string;
@@ -69,6 +69,12 @@ const TARGETS: PluginLauncherTarget[] = [
   { key: "calendar", kind: "view", icon: "calendar_month" },
   { key: "automations", kind: "view", icon: "schedule" },
   { key: "wiki", kind: "view", icon: "menu_book" },
+  // #1227 PR-A — Google Maps integration (favorites + wiki coords).
+  // Owned by `@mulmoclaude/map-plugin`. PR-A only carries the API-key
+  // configure round-trip; the interactive map and favorites flow ship
+  // in PR-B. The launcher entry stays visible regardless of API-key
+  // state so users can discover the Settings prompt.
+  { key: "map", kind: "view", icon: "map" },
   { key: "sources", kind: "view", icon: "rss_feed" },
   // News viewer (#761) — a reader UI for items aggregated by the
   // sources pipeline. Sits next to the source-registry button so the
@@ -89,9 +95,9 @@ const TARGETS: PluginLauncherTarget[] = [
 
 // Index AFTER which the visual separator is inserted (between data
 // plugins on the left and management on the right). Data plugins are
-// todos / calendar / automations / wiki / sources / news (indices
-// 0-5), so the divider renders before index 6 (skills).
-const SEPARATOR_AFTER_INDEX = 6;
+// todos / calendar / automations / wiki / map / sources / news
+// (indices 0-6), so the divider renders before index 7 (skills).
+const SEPARATOR_AFTER_INDEX = 7;
 
 // Dev-mode flag — set `VITE_DEV_MODE=1` in `.env`. Anything else
 // (including unset) hides any target with `devOnly: true`.

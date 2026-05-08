@@ -150,6 +150,7 @@ const jaMessages = {
       mcp: "MCP サーバ",
       dirs: "ディレクトリ",
       refs: "参照ディレクトリ",
+      map: "マップ",
     },
     // `<i18n-t>` スロット — `envKey` / `envFile` は SettingsModal.vue で
     // インラインの `<code>` として描画されるため、変数名とファイル名は
@@ -216,6 +217,7 @@ const jaMessages = {
     calendar: { label: "カレンダー", title: "カレンダーを開く" },
     automations: { label: "自動化", title: "自動化を開く" },
     wiki: { label: "Wiki", title: "Wiki を開く" },
+    map: { label: "マップ", title: "マップを開く" },
     sources: { label: "ソース", title: "情報ソースを開く" },
     news: { label: "ニュース", title: "ニュースビューアを開く" },
     skills: { label: "スキル", title: "スキルを開く" },
@@ -1124,6 +1126,7 @@ const jaMessages = {
   app: {
     startConversation: "会話を開始してください",
     thinking: "考え中…",
+    mapPluginNotLoaded: "Map プラグインがロードされていません。@mulmoclaude/map-plugin がビルドされ、プリセットに登録されていることを確認してください。",
   },
   suggestionsPanel: {
     suggestions: "候補",
@@ -1137,6 +1140,17 @@ const jaMessages = {
   settingsToolsTab: {
     explanation:
       "{allowedTools} を介して Claude に渡す追加ツール名。1行につき1つ。Gmail / Google Calendar などの Claude Code 組み込み MCP サーバを、{claudeMcp} で認証した後に利用する場合に便利です。",
+  },
+  settingsMapTab: {
+    explanation:
+      "Google Maps API キーを貼り付けるとマップビューが有効になります。キーはこのワークスペース内にローカル保存され、Google 以外には送信されません。",
+    apiKeyLabel: "Google Maps API キー",
+    apiKeyPlaceholder: "AIza…",
+    consoleLink: "Google Cloud Console (認証情報) を開く",
+    requiredApis: "必要な API: Maps JavaScript API、Places API",
+    configured: "設定済み",
+    notConfigured: "未設定",
+    saveFailed: "API キーの保存に失敗しました。",
   },
 };
 

@@ -145,6 +145,7 @@ const ptBRMessages = {
       mcp: "Servidores MCP",
       dirs: "Diretórios",
       refs: "Diretórios de referência",
+      map: "Mapa",
     },
     // Slots `<i18n-t>` — os nomes `envKey` / `envFile` renderizam como
     // `<code>` inline no SettingsModal.vue, então os literais de
@@ -211,6 +212,7 @@ const ptBRMessages = {
     calendar: { label: "Calendário", title: "Abrir calendário" },
     automations: { label: "Ações", title: "Abrir ações" },
     wiki: { label: "Wiki", title: "Abrir wiki" },
+    map: { label: "Mapa", title: "Abrir mapa" },
     sources: { label: "Fontes", title: "Abrir fontes de informação" },
     news: { label: "Notícias", title: "Abrir o leitor de notícias" },
     skills: { label: "Skills", title: "Abrir skills" },
@@ -1124,6 +1126,7 @@ const ptBRMessages = {
   app: {
     startConversation: "Iniciar uma conversa",
     thinking: "Pensando…",
+    mapPluginNotLoaded: "O plugin de mapa não está carregado. Verifique se @mulmoclaude/map-plugin foi construído e registrado como predefinição.",
   },
   suggestionsPanel: {
     suggestions: "Sugestões",
@@ -1140,6 +1143,17 @@ const ptBRMessages = {
     // enquanto o texto é traduzível.
     explanation:
       "Nomes adicionais de ferramentas a serem passados ao Claude via {allowedTools}. Um por linha. Útil para servidores MCP integrados ao Claude Code como Gmail / Google Calendar após autenticar via {claudeMcp}.",
+  },
+  settingsMapTab: {
+    explanation:
+      "Cole uma chave da API do Google Maps aqui para ativar a visualização do mapa. A chave é armazenada localmente neste workspace e nunca é enviada para outro lugar além do Google.",
+    apiKeyLabel: "Chave da API do Google Maps",
+    apiKeyPlaceholder: "AIza…",
+    consoleLink: "Abrir Google Cloud Console (credenciais)",
+    requiredApis: "APIs necessárias: Maps JavaScript API, Places API",
+    configured: "Configurado",
+    notConfigured: "Não configurado",
+    saveFailed: "Falha ao salvar a chave da API.",
   },
 };
 

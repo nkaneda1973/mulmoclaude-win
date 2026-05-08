@@ -146,6 +146,7 @@ const deMessages = {
       mcp: "MCP-Server",
       dirs: "Verzeichnisse",
       refs: "Referenzverzeichnisse",
+      map: "Karte",
     },
     // `<i18n-t>`-Slots — die Namen `envKey` / `envFile` werden in
     // SettingsModal.vue als Inline-`<code>` gerendert, sodass die
@@ -213,6 +214,7 @@ const deMessages = {
     calendar: { label: "Kalender", title: "Kalender öffnen" },
     automations: { label: "Aktionen", title: "Aktionen öffnen" },
     wiki: { label: "Wiki", title: "Wiki öffnen" },
+    map: { label: "Karte", title: "Karte öffnen" },
     sources: { label: "Quellen", title: "Informationsquellen öffnen" },
     news: { label: "Nachrichten", title: "Nachrichten-Viewer öffnen" },
     skills: { label: "Skills", title: "Skills öffnen" },
@@ -1138,6 +1140,7 @@ const deMessages = {
   app: {
     startConversation: "Gespräch beginnen",
     thinking: "Denkt nach…",
+    mapPluginNotLoaded: "Karten-Plugin ist nicht geladen. Stelle sicher, dass @mulmoclaude/map-plugin gebaut und als Voreinstellung registriert ist.",
   },
   suggestionsPanel: {
     suggestions: "Vorschläge",
@@ -1154,6 +1157,17 @@ const deMessages = {
     // behalten, während der Text übersetzbar ist.
     explanation:
       "Zusätzliche Tool-Namen, die Claude über {allowedTools} übergeben werden sollen. Einer pro Zeile. Nützlich für in Claude Code integrierte MCP-Server wie Gmail / Google Kalender, nachdem Sie sich über {claudeMcp} authentifiziert haben.",
+  },
+  settingsMapTab: {
+    explanation:
+      "Füge hier einen Google Maps API-Schlüssel ein, um die Kartenansicht zu aktivieren. Der Schlüssel wird lokal in diesem Arbeitsbereich gespeichert und nie an einen anderen Ort als Google gesendet.",
+    apiKeyLabel: "Google Maps API-Schlüssel",
+    apiKeyPlaceholder: "AIza…",
+    consoleLink: "Google Cloud Console (Anmeldedaten) öffnen",
+    requiredApis: "Erforderliche APIs: Maps JavaScript API, Places API",
+    configured: "Konfiguriert",
+    notConfigured: "Nicht konfiguriert",
+    saveFailed: "API-Schlüssel konnte nicht gespeichert werden.",
   },
 };
 

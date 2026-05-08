@@ -148,6 +148,7 @@ const zhMessages = {
       mcp: "MCP 服务器",
       dirs: "目录",
       refs: "引用目录",
+      map: "地图",
     },
     // `<i18n-t>` 插槽 — 命名为 `envKey` / `envFile`,在 SettingsModal.vue
     // 中作为行内 `<code>` 渲染,因此字面的变量名和文件名保持不翻译。
@@ -212,6 +213,7 @@ const zhMessages = {
     calendar: { label: "日历", title: "打开日历" },
     automations: { label: "自动化", title: "打开自动化" },
     wiki: { label: "百科", title: "打开 Wiki" },
+    map: { label: "地图", title: "打开地图" },
     sources: { label: "信息源", title: "打开信息源" },
     news: { label: "新闻", title: "打开新闻阅读器" },
     skills: { label: "技能", title: "打开技能" },
@@ -1118,6 +1120,7 @@ const zhMessages = {
   app: {
     startConversation: "开始对话",
     thinking: "思考中…",
+    mapPluginNotLoaded: "地图插件未加载。请确认 @mulmoclaude/map-plugin 已构建并注册为预设。",
   },
   suggestionsPanel: {
     suggestions: "建议",
@@ -1133,6 +1136,16 @@ const zhMessages = {
     // 以便保留 `<code>` 标签的样式,同时文本可本地化。
     explanation:
       "要通过 {allowedTools} 传递给 Claude 的额外工具名。每行一个。适用于在 {claudeMcp} 完成授权后,调用 Claude Code 内置的 MCP 服务器(如 Gmail / Google 日历)。",
+  },
+  settingsMapTab: {
+    explanation: "粘贴 Google Maps API 密钥以启用地图视图。密钥仅本地保存在此工作区,除 Google 外不会发送到任何位置。",
+    apiKeyLabel: "Google Maps API 密钥",
+    apiKeyPlaceholder: "AIza…",
+    consoleLink: "打开 Google Cloud Console (凭据)",
+    requiredApis: "需要的 API: Maps JavaScript API、Places API",
+    configured: "已配置",
+    notConfigured: "未配置",
+    saveFailed: "保存 API 密钥失败。",
   },
 };
 

@@ -166,6 +166,7 @@ const enMessages = {
       mcp: "MCP Servers",
       dirs: "Directories",
       refs: "Reference Dirs",
+      map: "Map",
     },
     // `<i18n-t>` slots — named `envKey` / `envFile` render as inline
     // `<code>` in SettingsModal.vue, so the literal variable and file
@@ -232,6 +233,7 @@ const enMessages = {
     calendar: { label: "Calendar", title: "Open calendar" },
     automations: { label: "Actions", title: "Open actions" },
     wiki: { label: "Wiki", title: "Open wiki" },
+    map: { label: "Map", title: "Open map" },
     sources: { label: "Sources", title: "Open information sources" },
     news: { label: "News", title: "Open news viewer" },
     skills: { label: "Skills", title: "Open skills" },
@@ -1123,6 +1125,7 @@ const enMessages = {
   app: {
     startConversation: "Start a conversation",
     thinking: "Thinking…",
+    mapPluginNotLoaded: "Map plugin is not loaded. Make sure @mulmoclaude/map-plugin is built and registered as a preset.",
   },
   suggestionsPanel: {
     suggestions: "Suggestions",
@@ -1139,6 +1142,17 @@ const enMessages = {
     // is translatable.
     explanation:
       "Extra tool names to pass to Claude via {allowedTools}. One per line. Useful for built-in Claude Code MCP servers like Gmail / Google Calendar after you have authenticated via {claudeMcp}.",
+  },
+  settingsMapTab: {
+    explanation:
+      "Paste a Google Maps API key here to enable the Map view. The key is stored locally in this workspace and is never sent anywhere except Google.",
+    apiKeyLabel: "Google Maps API key",
+    apiKeyPlaceholder: "AIza…",
+    consoleLink: "Open Google Cloud Console (credentials)",
+    requiredApis: "Required APIs: Maps JavaScript API, Places API",
+    configured: "Configured",
+    notConfigured: "Not configured",
+    saveFailed: "Failed to save the API key.",
   },
 };
 

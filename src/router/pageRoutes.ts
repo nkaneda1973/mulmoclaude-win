@@ -18,6 +18,7 @@ export const PAGE_ROUTES = {
   roles: "roles",
   sources: "sources",
   news: "news",
+  map: "map",
   debug: "debug",
 } as const;
 

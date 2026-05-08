@@ -150,6 +150,7 @@ const esMessages = {
       mcp: "Servidores MCP",
       dirs: "Directorios",
       refs: "Directorios de referencia",
+      map: "Mapa",
     },
     // Slots `<i18n-t>` — los nombres `envKey` / `envFile` se renderizan
     // como `<code>` en línea en SettingsModal.vue, por lo que los
@@ -218,6 +219,7 @@ const esMessages = {
     calendar: { label: "Calendario", title: "Abrir calendario" },
     automations: { label: "Acciones", title: "Abrir acciones" },
     wiki: { label: "Wiki", title: "Abrir wiki" },
+    map: { label: "Mapa", title: "Abrir mapa" },
     sources: { label: "Fuentes", title: "Abrir fuentes de información" },
     news: { label: "Noticias", title: "Abrir el lector de noticias" },
     skills: { label: "Skills", title: "Abrir skills" },
@@ -1135,6 +1137,7 @@ const esMessages = {
   app: {
     startConversation: "Inicia una conversación",
     thinking: "Pensando…",
+    mapPluginNotLoaded: "El complemento de mapa no está cargado. Asegúrate de que @mulmoclaude/map-plugin esté compilado y registrado como preestablecido.",
   },
   suggestionsPanel: {
     suggestions: "Sugerencias",
@@ -1151,6 +1154,17 @@ const esMessages = {
     // su estilo mientras el texto se traduce.
     explanation:
       "Nombres adicionales de herramientas que pasar a Claude mediante {allowedTools}. Uno por línea. Útil para servidores MCP integrados en Claude Code como Gmail / Google Calendar tras autenticarte mediante {claudeMcp}.",
+  },
+  settingsMapTab: {
+    explanation:
+      "Pega aquí una clave de API de Google Maps para activar la vista del mapa. La clave se guarda localmente en este espacio de trabajo y no se envía a ninguna otra parte que no sea Google.",
+    apiKeyLabel: "Clave de API de Google Maps",
+    apiKeyPlaceholder: "AIza…",
+    consoleLink: "Abrir Google Cloud Console (credenciales)",
+    requiredApis: "APIs necesarias: Maps JavaScript API, Places API",
+    configured: "Configurado",
+    notConfigured: "Sin configurar",
+    saveFailed: "No se pudo guardar la clave de API.",
   },
 };
 

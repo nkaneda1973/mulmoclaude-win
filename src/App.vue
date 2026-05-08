@@ -209,6 +209,14 @@
             Debug plugin is not loaded. Make sure @mulmoclaude/debug-plugin is built and registered as a preset.
           </div>
           <!-- eslint-enable @intlify/vue-i18n/no-raw-text -->
+          <!-- #1227 PR-A. Same dynamic-component pattern as debug:
+               look up the runtime plugin by tool name and render its
+               registered viewComponent. The fallback covers the case
+               where the preset failed to load. -->
+          <component :is="mapViewComponent" v-else-if="currentPage === 'map' && mapViewComponent" />
+          <div v-else-if="currentPage === 'map'" class="h-full flex items-center justify-center text-sm text-gray-500">
+            {{ t("app.mapPluginNotLoaded") }}
+          </div>
         </div>
 
         <!-- Bottom bar (Stack chat only — plugin views have no
@@ -607,6 +615,12 @@ const selectedResult = computed(() => toolResults.value.find((result) => result.
 // reactive, so this computed re-evaluates when the load completes and
 // the /debug branch in the template lights up without a refresh.
 const debugViewComponent = computed(() => getPlugin("manageDebug")?.viewComponent ?? null);
+
+// Map-plugin View component (#1227 PR-A). Same lookup pattern as
+// `debugViewComponent` — populated asynchronously by the runtime
+// plugin loader, reactive so the /map branch lights up without a
+// page refresh once the preset finishes loading.
+const mapViewComponent = computed(() => getPlugin("manageMap")?.viewComponent ?? null);
 
 // Centralised session-switch handler: subscribe to the current session's
 // pub/sub channel so we receive real-time events even if the session is

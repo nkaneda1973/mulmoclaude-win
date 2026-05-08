@@ -145,6 +145,7 @@ const frMessages = {
       mcp: "Serveurs MCP",
       dirs: "Répertoires",
       refs: "Répertoires de référence",
+      map: "Carte",
     },
     // Slots `<i18n-t>` — les noms `envKey` / `envFile` sont rendus sous
     // forme de `<code>` inline dans SettingsModal.vue ; les littéraux
@@ -212,6 +213,7 @@ const frMessages = {
     calendar: { label: "Calendrier", title: "Ouvrir le calendrier" },
     automations: { label: "Actions", title: "Ouvrir les actions" },
     wiki: { label: "Wiki", title: "Ouvrir le wiki" },
+    map: { label: "Carte", title: "Ouvrir la carte" },
     sources: { label: "Sources", title: "Ouvrir les sources d'information" },
     news: { label: "Actualités", title: "Ouvrir le lecteur d'actualités" },
     skills: { label: "Skills", title: "Ouvrir les skills" },
@@ -1129,6 +1131,7 @@ const frMessages = {
   app: {
     startConversation: "Démarrer une conversation",
     thinking: "Réflexion…",
+    mapPluginNotLoaded: "Le plugin Map n'est pas chargé. Vérifiez que @mulmoclaude/map-plugin est compilé et enregistré comme préréglage.",
   },
   suggestionsPanel: {
     suggestions: "Suggestions",
@@ -1145,6 +1148,17 @@ const frMessages = {
     // style tandis que le texte reste traduisible.
     explanation:
       "Noms d'outils supplémentaires à transmettre à Claude via {allowedTools}. Un par ligne. Utile pour les serveurs MCP intégrés à Claude Code comme Gmail / Google Agenda après authentification via {claudeMcp}.",
+  },
+  settingsMapTab: {
+    explanation:
+      "Collez ici une clé d'API Google Maps pour activer la vue carte. La clé est stockée localement dans cet espace de travail et n'est envoyée nulle part ailleurs que chez Google.",
+    apiKeyLabel: "Clé d'API Google Maps",
+    apiKeyPlaceholder: "AIza…",
+    consoleLink: "Ouvrir Google Cloud Console (identifiants)",
+    requiredApis: "APIs requises : Maps JavaScript API, Places API",
+    configured: "Configurée",
+    notConfigured: "Non configurée",
+    saveFailed: "Échec de l'enregistrement de la clé d'API.",
   },
 };
 

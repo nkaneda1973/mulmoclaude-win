@@ -49,4 +49,8 @@ export const PRESET_PLUGINS: readonly PresetPlugin[] = [
   // `VITE_DEV_MODE=1` so production builds hide the launcher button
   // (the page itself is still reachable by typing the URL).
   { packageName: "@mulmoclaude/debug-plugin" },
+  // #1227 PR-A — Google Maps integration. PR-A only carries the API-
+  // key configure round-trip; favorites + Places search + wiki coord
+  // linking ship in PR-B / PR-C / PR-D respectively.
+  { packageName: "@mulmoclaude/map-plugin" },
 ];
