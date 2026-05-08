@@ -101,8 +101,12 @@ describe("Map plugin — end-to-end through the loader (PR-A)", () => {
     assert.deepEqual(res, { ok: true, configured: false });
     assert.equal(published.length, 0, "status must not publish");
 
-    // 2. configure → ok:true, key persisted, "configured-changed" emitted
-    res = (await plugin.execute({}, { kind: "configure", apiKey: "AIzaTestKey1234567890" })) as DispatchResult;
+    // 2. configure → ok:true, key persisted, "configured-changed" emitted.
+    //    Fixture is deliberately not Google-API-key-shaped (no `AIza`
+    //    prefix) so gitleaks doesn't flag it; the previous shape
+    //    needed an entry in `.gitleaksignore`.
+    const FAKE_KEY = "FAKE_KEY_FOR_TESTING_ONLY";
+    res = (await plugin.execute({}, { kind: "configure", apiKey: FAKE_KEY })) as DispatchResult;
     assert.equal(res.ok, true);
     assert.equal(published.length, 1);
     assert.equal(published[0].channel, `plugin:${PKG_NAME}:configured-changed`);
@@ -118,7 +122,7 @@ describe("Map plugin — end-to-end through the loader (PR-A)", () => {
     assert.ok(existsSync(configFile), `expected config file at ${configFile}`);
     const stored = JSON.parse(readFileSync(configFile, "utf-8")) as { version: number; googleMapsApiKey?: string };
     assert.equal(stored.version, 1);
-    assert.equal(stored.googleMapsApiKey, "AIzaTestKey1234567890");
+    assert.equal(stored.googleMapsApiKey, FAKE_KEY);
   });
 
   it("rejects an empty apiKey with a Zod parse error", async (ctx) => {
