@@ -3,7 +3,7 @@
 // install any API mocks — the real Claude API runs end-to-end. Use
 // these helpers from specs in `e2e-live/tests/`.
 
-import { copyFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -196,6 +196,121 @@ export async function removeProjectSkill(slug: string): Promise<void> {
   assertValidSkillSlug(slug);
   const dir = resolveWorkspacePath(`.claude/skills/${slug}`);
   await rm(dir, { recursive: true, force: true });
+}
+
+/**
+ * MCP-namespaced tool name for the manageSkills bridge as it appears
+ * in `tool_call` records of the session jsonl. The Claude Agent SDK
+ * prefixes every MCP tool with `mcp__<server-name>__`; mulmoclaude's
+ * MCP server exposes `manageSkills` (`server/agent/mcp-server.ts`),
+ * so the wire-level toolName is the value below. Centralised here so
+ * specs that watch for skill-creation can share one source of truth
+ * (renaming the bridge has to update this constant, the test, and
+ * `mcp-server.ts` together).
+ */
+export const MCP_MANAGE_SKILLS_TOOL_NAME = "mcp__mulmoclaude__manageSkills";
+
+/**
+ * One `tool_call` record as persisted by `server/workspace/tool-trace`.
+ * Specs filter on `toolName` and pull selected fields from `args`
+ * (`action`, `name`, `file_path`, ...) — the trace shape is wider
+ * than this slice but the spec only needs the dispatch-level info.
+ */
+export interface ToolCallTraceRecord {
+  toolName: string;
+  args: unknown;
+}
+
+interface ToolCallJsonlLine {
+  type?: unknown;
+  toolName?: unknown;
+  args?: unknown;
+}
+
+function parseToolCallLine(line: string): ToolCallTraceRecord | null {
+  if (line.length === 0) return null;
+  let parsed: ToolCallJsonlLine;
+  try {
+    parsed = JSON.parse(line);
+  } catch {
+    return null;
+  }
+  if (parsed.type !== "tool_call") return null;
+  if (typeof parsed.toolName !== "string") return null;
+  return { toolName: parsed.toolName, args: parsed.args };
+}
+
+function isENOENT(err: unknown): boolean {
+  return typeof err === "object" && err !== null && "code" in err && err.code === "ENOENT";
+}
+
+/**
+ * Read the per-session jsonl event log and return every `tool_call`
+ * record in dispatch order. Specs use this to assert the agent
+ * reached for a specific MCP tool (or, conversely, that it did NOT
+ * reach for `Write` against `.claude/skills/`). The path mirrors
+ * `server/utils/files/session-io.ts → sessionJsonlAbsPath`
+ * (`<workspace>/conversations/chat/<id>.jsonl`); resolved through
+ * `resolveWorkspacePath` so a stale env override cannot escape the
+ * workspace root. Returns `[]` when the jsonl is missing — agent
+ * routes only flush the file once the first event is recorded, so
+ * an early read can race ahead of the first tool call. The caller
+ * is expected to gate this on `waitForAssistantResponseComplete`.
+ */
+export async function readSessionToolCalls(sessionId: string): Promise<ToolCallTraceRecord[]> {
+  const jsonlPath = resolveWorkspacePath(`conversations/chat/${sessionId}.jsonl`);
+  let raw: string;
+  try {
+    raw = await readFile(jsonlPath, "utf8");
+  } catch (err) {
+    if (isENOENT(err)) return [];
+    throw err;
+  }
+  const calls: ToolCallTraceRecord[] = [];
+  for (const line of raw.split("\n")) {
+    const record = parseToolCallLine(line);
+    if (record !== null) calls.push(record);
+  }
+  return calls;
+}
+
+/**
+ * Snapshot the slug names currently sitting under
+ * `<workspace>/.claude/skills/`. Returned as a Set so a post-test
+ * `difference()`-style filter is cheap; missing directory yields an
+ * empty set so a fresh workspace doesn't trip the helper. Used by
+ * L-32 to identify skill dirs that the test caused (Claude picks
+ * the slug) without stomping on a parallel run's seeded skills.
+ */
+export async function snapshotProjectSkillSlugs(): Promise<Set<string>> {
+  const skillsDir = resolveWorkspacePath(".claude/skills");
+  let entries: { name: string; isDirectory: () => boolean }[];
+  try {
+    entries = await readdir(skillsDir, { withFileTypes: true });
+  } catch (err) {
+    if (isENOENT(err)) return new Set();
+    throw err;
+  }
+  return new Set(entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name));
+}
+
+/**
+ * Read the SKILL.md body of the named project skill. Returns `null`
+ * when the file is absent (e.g. cleanup race in a parallel suite),
+ * so the caller can treat absence as "not ours" without distinguishing
+ * it from a read failure. Slug is filesystem-validated upstream by
+ * the directory listing in {@link snapshotProjectSkillSlugs}; we
+ * still go through `resolveWorkspacePath` so a malformed slug cannot
+ * escape the workspace root.
+ */
+export async function readProjectSkillBody(slug: string): Promise<string | null> {
+  const target = resolveWorkspacePath(`.claude/skills/${slug}/SKILL.md`);
+  try {
+    return await readFile(target, "utf8");
+  } catch (err) {
+    if (isENOENT(err)) return null;
+    throw err;
+  }
 }
 
 const WIKI_PAGE_BODY_SELECTOR = '[data-testid="wiki-page-body"]';
@@ -517,6 +632,34 @@ export async function waitForImgInPresentHtml(page: Page, imgSelector: string, t
  */
 export async function waitForAssistantResponseComplete(page: Page, timeoutMs: number = ONE_MINUTE_MS): Promise<void> {
   await expect(page.getByTestId("thinking-indicator")).toBeHidden({ timeout: timeoutMs });
+}
+
+const THINKING_INDICATOR_VISIBLE_TIMEOUT_MS = 30 * ONE_SECOND_MS;
+
+/**
+ * Stricter variant of {@link waitForAssistantResponseComplete} that
+ * additionally proves the agent actually started before waiting for
+ * it to finish. The default helper falls through immediately when
+ * `thinking-indicator` is still absent from the DOM (Playwright's
+ * `toBeHidden` treats a detached element as hidden) — fine for
+ * specs that have a UI-side gate of their own
+ * (`chart-card-0`, `text-response-assistant-body`) but a silent
+ * race for specs whose only assertion lives in the session jsonl:
+ * `readSessionToolCalls` runs before the agent has appended a
+ * single `tool_call` line, sees `length === 0`, and the spec fails
+ * even though the agent ran successfully a few hundred ms later.
+ *
+ * Use this instead of `waitForAssistantResponseComplete` whenever
+ * the assertion target is the tool-trace jsonl (or any other
+ * out-of-band signal) and there is no fail-safe `toContainText`
+ * polling downstream that would mask the early-return.
+ */
+export async function waitForAssistantTurn(page: Page, timeoutMs: number = ONE_MINUTE_MS): Promise<void> {
+  const indicator = page.getByTestId("thinking-indicator");
+  await expect(indicator, "thinking-indicator must appear after sendChatMessage — proves the agent actually started").toBeVisible({
+    timeout: THINKING_INDICATOR_VISIBLE_TIMEOUT_MS,
+  });
+  await expect(indicator, "thinking-indicator must hide when the assistant turn ends").toBeHidden({ timeout: timeoutMs });
 }
 
 /**
