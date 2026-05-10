@@ -35,7 +35,15 @@ const SESSION_URL_PATTERN = /\/chat\/[0-9a-f-]+/;
 // user observes a stuck conversation. Naming the tool here keeps the
 // "must not Write to skills dir" predicate one place.
 const BUILTIN_WRITE_TOOL_NAME = "Write";
-const PROJECT_SKILLS_PATH_FRAGMENT = "/.claude/skills/";
+// Match `.claude/skills/` either at the start of `file_path` (the
+// relative-path shape, e.g. `.claude/skills/foo/SKILL.md`) or after
+// any `/` separator (the absolute-path shape, e.g.
+// `/Users/.../mulmoclaude/.claude/skills/foo/SKILL.md`). A naive
+// substring of `/.claude/skills/` (codex iter-1 must-fix) silently
+// passes the relative-path variant — we observed only absolute paths
+// in the f65b1da1 trace, but the SDK has historically emitted both
+// shapes for `Write` and the regression has to fail on either.
+const PROJECT_SKILLS_PATH_REGEX = /(?:^|\/)\.claude\/skills\//;
 
 // Centralise "did this tool_call create a skill via the MCP bridge?"
 // because L-31 (explicit prompt) and L-32 (ambiguous prompt) both
@@ -50,16 +58,16 @@ function isManageSkillsSaveCall(call: ToolCallTraceRecord): boolean {
 }
 
 // Mirror predicate for the regression we are guarding against:
-// `Write` invoked with a `file_path` somewhere under
-// `.claude/skills/`. We intentionally match on substring rather than
-// a full prefix because the path could be absolute (host workspace)
-// or relative (cwd-anchored) depending on how the SDK normalises
-// args; the `/.claude/skills/` segment is unambiguous either way.
+// `Write` invoked with a `file_path` anchored under
+// `.claude/skills/`. The regex matches both absolute
+// (`/.../mulmoclaude/.claude/skills/...`) and relative
+// (`.claude/skills/...`) shapes — see PROJECT_SKILLS_PATH_REGEX
+// above for the rationale.
 function isWriteToProjectSkillsCall(call: ToolCallTraceRecord): boolean {
   if (call.toolName !== BUILTIN_WRITE_TOOL_NAME) return false;
   if (!isRecord(call.args)) return false;
   const filePath = call.args.file_path;
-  return typeof filePath === "string" && filePath.includes(PROJECT_SKILLS_PATH_FRAGMENT);
+  return typeof filePath === "string" && PROJECT_SKILLS_PATH_REGEX.test(filePath);
 }
 
 // Both scenarios talk to the live LLM (L-21: chart tool dispatch,

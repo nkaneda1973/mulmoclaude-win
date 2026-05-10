@@ -12,6 +12,7 @@ import { type Download, type FrameLocator, type Page, expect } from "@playwright
 
 import { ONE_MINUTE_MS, ONE_SECOND_MS } from "../../server/utils/time.ts";
 import { isValidSlug } from "../../server/utils/slug.ts";
+import { MCP_SERVER_ID } from "../../server/agent/activeTools.ts";
 import { API_ROUTES } from "../../src/config/apiRoutes.ts";
 
 const FIXTURES_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -201,14 +202,17 @@ export async function removeProjectSkill(slug: string): Promise<void> {
 /**
  * MCP-namespaced tool name for the manageSkills bridge as it appears
  * in `tool_call` records of the session jsonl. The Claude Agent SDK
- * prefixes every MCP tool with `mcp__<server-name>__`; mulmoclaude's
- * MCP server exposes `manageSkills` (`server/agent/mcp-server.ts`),
- * so the wire-level toolName is the value below. Centralised here so
- * specs that watch for skill-creation can share one source of truth
- * (renaming the bridge has to update this constant, the test, and
- * `mcp-server.ts` together).
+ * prefixes every MCP tool with `mcp__<server-id>__`; we derive the
+ * server-id half from `MCP_SERVER_ID` (the same constant the prompt
+ * builder and `--allowedTools` builder read) so a future server-id
+ * rename propagates to the test in lockstep instead of leaving the
+ * literal stale (codex iter-1 question — keeping the literal would
+ * have meant a renaming PR has to remember to bump this string by
+ * hand). The bare tool name `manageSkills` is the only literal that
+ * stays here, mirroring the registration in
+ * `server/agent/mcp-server.ts:411` (`name === "manageSkills"`).
  */
-export const MCP_MANAGE_SKILLS_TOOL_NAME = "mcp__mulmoclaude__manageSkills";
+export const MCP_MANAGE_SKILLS_TOOL_NAME = `mcp__${MCP_SERVER_ID}__manageSkills`;
 
 /**
  * One `tool_call` record as persisted by `server/workspace/tool-trace`.
