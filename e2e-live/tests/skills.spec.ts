@@ -220,7 +220,7 @@ test.describe("skills (real LLM / static)", () => {
     // remaining role whose `availablePlugins` (`src/config/roles.ts`)
     // surfaces `manageSkills`. This canary stays on Tutor for now
     // so a manageSkills bridge regression is caught in isolation;
-    // a follow-up issue tracks restoring `manageSkills` to General
+    // issue #1290 tracks restoring `manageSkills` to General
     // (where the user-facing surface lives), and once that lands
     // this spec should switch to General.
     //
