@@ -137,19 +137,11 @@ function saveRoleResult(input: ManageRolesInput, sessionId: string): Record<stri
   };
 }
 
-function extendBuiltinResult(input: ManageRolesInput, sessionId: string): Record<string, unknown> {
-  const { roleId, extraPlugins } = input;
-  if (!roleId) return { success: false, error: "roleId is required for extendBuiltin action" };
-  if (!BUILTIN_IDS.has(roleId)) {
-    return { success: false, error: `Role '${roleId}' is not a built-in role.` };
-  }
-  if (!Array.isArray(extraPlugins)) {
-    return { success: false, error: "extraPlugins (string[]) is required for extendBuiltin action" };
-  }
-  // Reject non-string entries silently; baseline plugins in the input
-  // are dropped (they're already included by the built-in, so there's
-  // nothing to persist). Dedup preserves first-seen order.
-  const baseline = BUILTIN_BASELINE.get(roleId) ?? new Set<string>();
+// Filter the user-supplied extras list down to what actually gets
+// persisted: non-empty strings, none from the built-in baseline
+// (the baseline is always applied by the loader, so persisting it
+// would be a duplicate), dedup preserving first-seen order.
+function cleanExtraPlugins(extraPlugins: readonly unknown[], baseline: ReadonlySet<string>): string[] {
   const seen = new Set<string>();
   const cleaned: string[] = [];
   for (const name of extraPlugins) {
@@ -159,6 +151,19 @@ function extendBuiltinResult(input: ManageRolesInput, sessionId: string): Record
     seen.add(name);
     cleaned.push(name);
   }
+  return cleaned;
+}
+
+function extendBuiltinResult(input: ManageRolesInput, sessionId: string): Record<string, unknown> {
+  const { roleId, extraPlugins } = input;
+  if (!roleId) return { success: false, error: "roleId is required for extendBuiltin action" };
+  if (!BUILTIN_IDS.has(roleId)) {
+    return { success: false, error: `Role '${roleId}' is not a built-in role.` };
+  }
+  if (!Array.isArray(extraPlugins)) {
+    return { success: false, error: "extraPlugins (string[]) is required for extendBuiltin action" };
+  }
+  const cleaned = cleanExtraPlugins(extraPlugins, BUILTIN_BASELINE.get(roleId) ?? new Set<string>());
   if (cleaned.length === 0) {
     deleteExtras(roleId);
   } else {

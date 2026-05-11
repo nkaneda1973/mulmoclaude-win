@@ -1049,7 +1049,7 @@ const zhMessages = {
     confirmDelete: '要删除技能 "{name}" 吗?将会移除 ~/mulmoclaude/.claude/skills/{name}/SKILL.md。',
   },
   pluginManageRoles: {
-    heading: "自定义角色",
+    heading: "角色",
     roleCount: "{count} 个角色",
     addButton: "+ 添加",
     createPanel: "创建新角色",

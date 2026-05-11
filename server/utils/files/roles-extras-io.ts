@@ -3,6 +3,7 @@ import { mkdirSync, readFileSync, readdirSync, statSync, unlinkSync } from "node
 import { WORKSPACE_DIRS, workspacePath } from "../../workspace/paths.js";
 import { writeFileAtomicSync } from "./atomic.js";
 import { isEnoent } from "./safe.js";
+import { log } from "../../system/logger/index.js";
 
 const root = (workspaceRoot?: string) => workspaceRoot ?? workspacePath;
 
@@ -11,13 +12,21 @@ function extrasFilePath(roleId: string, workspaceRoot?: string): string {
 }
 
 export function readExtras(roleId: string, workspaceRoot?: string): string[] {
+  const filePath = extrasFilePath(roleId, workspaceRoot);
   try {
-    const raw = readFileSync(extrasFilePath(roleId, workspaceRoot), "utf-8");
+    const raw = readFileSync(filePath, "utf-8");
     const parsed = JSON.parse(raw) as { extraPlugins?: unknown };
-    if (!parsed || !Array.isArray(parsed.extraPlugins)) return [];
+    if (!parsed || !Array.isArray(parsed.extraPlugins)) {
+      log.warn("roles-extras", "malformed overlay", { roleId, filePath });
+      return [];
+    }
     return parsed.extraPlugins.filter((plugin): plugin is string => typeof plugin === "string" && plugin.length > 0);
   } catch (err) {
     if (isEnoent(err)) return [];
+    // Parse error or unexpected I/O: surface in logs so a corrupted
+    // overlay doesn't silently turn into "no extras". Still returns
+    // [] so the loader keeps a usable built-in baseline.
+    log.warn("roles-extras", "read failed", { roleId, filePath, error: String(err) });
     return [];
   }
 }

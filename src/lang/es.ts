@@ -1068,7 +1068,7 @@ const esMessages = {
     confirmDelete: '¿Eliminar la skill "{name}"? Esto borrará ~/mulmoclaude/.claude/skills/{name}/SKILL.md.',
   },
   pluginManageRoles: {
-    heading: "Roles personalizados",
+    heading: "Roles",
     roleCount: "{count} rol | {count} roles",
     addButton: "+ Añadir",
     createPanel: "Crear nuevo rol",

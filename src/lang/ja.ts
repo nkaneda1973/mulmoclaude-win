@@ -1057,7 +1057,7 @@ const jaMessages = {
     confirmDelete: "スキル「{name}」を削除しますか? ~/mulmoclaude/.claude/skills/{name}/SKILL.md が削除されます。",
   },
   pluginManageRoles: {
-    heading: "カスタムロール",
+    heading: "ロール",
     roleCount: "{count} 件",
     addButton: "+ 追加",
     createPanel: "新しいロールを作成",

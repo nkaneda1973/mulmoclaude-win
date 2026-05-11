@@ -1071,7 +1071,7 @@ const deMessages = {
     confirmDelete: 'Skill "{name}" löschen? Dies entfernt ~/mulmoclaude/.claude/skills/{name}/SKILL.md.',
   },
   pluginManageRoles: {
-    heading: "Benutzerdefinierte Rollen",
+    heading: "Rollen",
     roleCount: "{count} Rolle | {count} Rollen",
     addButton: "+ Hinzufügen",
     createPanel: "Neue Rolle erstellen",
@@ -1107,7 +1107,7 @@ const deMessages = {
     errServerError: "Serverfehler: {status}",
     builtInBadge: "Integriert",
     builtInEditHint:
-      "Integrierte Rollen können nicht geändert werden, aber du kannst {name} zusätzliche Plugins hinzufügen. Plugins, die zur Rolle gehören, sind unten markiert und gesperrt.",
+      "Integrierte Rollen können nicht geändert werden, aber Sie können {name} zusätzliche Plugins hinzufügen. Plugins, die zur Rolle gehören, sind unten markiert und gesperrt.",
     builtInBaselineSuffix: "(integriert)",
     builtInBaselineTooltip: "In dieser integrierten Rolle enthalten",
   },

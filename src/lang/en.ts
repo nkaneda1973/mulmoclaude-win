@@ -1056,7 +1056,7 @@ const enMessages = {
     confirmDelete: 'Delete skill "{name}"? This removes ~/mulmoclaude/.claude/skills/{name}/SKILL.md.',
   },
   pluginManageRoles: {
-    heading: "Custom Roles",
+    heading: "Roles",
     roleCount: "{count} role | {count} roles",
     addButton: "+ Add",
     createPanel: "Create new role",

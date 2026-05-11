@@ -1057,7 +1057,7 @@ const koMessages = {
     confirmDelete: '스킬 "{name}" 을(를) 삭제할까요? ~/mulmoclaude/.claude/skills/{name}/SKILL.md 가 제거됩니다.',
   },
   pluginManageRoles: {
-    heading: "커스텀 역할",
+    heading: "역할",
     roleCount: "{count}개 역할",
     addButton: "+ 추가",
     createPanel: "새 역할 만들기",

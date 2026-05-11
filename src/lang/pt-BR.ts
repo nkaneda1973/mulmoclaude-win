@@ -1057,7 +1057,7 @@ const ptBRMessages = {
     confirmDelete: 'Excluir a skill "{name}"? Isso remove ~/mulmoclaude/.claude/skills/{name}/SKILL.md.',
   },
   pluginManageRoles: {
-    heading: "Papéis personalizados",
+    heading: "Papéis",
     roleCount: "{count} papel | {count} papéis",
     addButton: "+ Adicionar",
     createPanel: "Criar novo papel",

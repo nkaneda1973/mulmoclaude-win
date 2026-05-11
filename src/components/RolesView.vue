@@ -3,7 +3,7 @@
     <div class="flex items-center justify-between gap-2 px-3 py-2 border-b border-gray-100">
       <h2 class="text-lg font-semibold text-gray-800">{{ t("pluginManageRoles.heading") }}</h2>
       <div class="flex items-center gap-2">
-        <span class="text-sm text-gray-500">{{ t("pluginManageRoles.roleCount", customRoles.length, { named: { count: customRoles.length } }) }}</span>
+        <span class="text-sm text-gray-500">{{ t("pluginManageRoles.roleCount", allRows.length, { named: { count: allRows.length } }) }}</span>
         <button
           v-if="!creating"
           data-testid="role-add-btn"

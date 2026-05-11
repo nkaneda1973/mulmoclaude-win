@@ -1062,7 +1062,7 @@ const frMessages = {
     confirmDelete: 'Supprimer la skill "{name}" ? Cela retire ~/mulmoclaude/.claude/skills/{name}/SKILL.md.',
   },
   pluginManageRoles: {
-    heading: "Rôles personnalisés",
+    heading: "Rôles",
     roleCount: "{count} rôle | {count} rôles",
     addButton: "+ Ajouter",
     createPanel: "Créer un nouveau rôle",
