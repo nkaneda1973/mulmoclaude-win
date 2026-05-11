@@ -1096,6 +1096,11 @@ const frMessages = {
     errDeleteFailed: "Échec de la suppression",
     errNetworkError: "Erreur réseau",
     errServerError: "Erreur du serveur : {status}",
+    builtInBadge: "Intégré",
+    builtInEditHint:
+      "Les rôles intégrés ne peuvent pas être modifiés, mais vous pouvez ajouter des plugins supplémentaires à {name}. Les plugins fournis avec le rôle sont cochés et verrouillés ci-dessous.",
+    builtInBaselineSuffix: "(intégré)",
+    builtInBaselineTooltip: "Inclus par ce rôle intégré",
   },
   pluginUiImage: {
     promptLabel: "{label} :",

@@ -6,15 +6,29 @@ import { pushSessionEvent } from "../../events/session-store/index.js";
 import { API_ROUTES } from "../../../src/config/apiRoutes.js";
 import { EVENT_TYPES } from "../../../src/types/events.js";
 import { roleExists, deleteRole, saveRole } from "../../utils/files/roles-io.js";
+import { deleteExtras, listAllExtras, writeExtras } from "../../utils/files/roles-extras-io.js";
 import { log } from "../../system/logger/index.js";
 import { previewSnippet } from "../../utils/logPreview.js";
 
 const BUILTIN_IDS = new Set(BUILTIN_ROLES.map((role) => role.id));
+const BUILTIN_BASELINE = new Map(BUILTIN_ROLES.map((role) => [role.id, new Set(role.availablePlugins)] as const));
 
 const router = Router();
 
-router.get(API_ROUTES.roles.list, (_req: Request, res: Response<Role[]>) => {
-  res.json(loadCustomRoles());
+export interface RolesListResponse {
+  customRoles: Role[];
+  builtInExtras: Record<string, string[]>;
+}
+
+function buildListResponse(): RolesListResponse {
+  return {
+    customRoles: loadCustomRoles(),
+    builtInExtras: listAllExtras(),
+  };
+}
+
+router.get(API_ROUTES.roles.list, (_req: Request, res: Response<RolesListResponse>) => {
+  res.json(buildListResponse());
 });
 
 router.post(API_ROUTES.roles.manage, async (req: Request, res: Response<Record<string, unknown>>) => {
@@ -49,14 +63,16 @@ interface ManageRolesInput {
   };
   roleId?: string;
   oldRoleId?: string;
+  extraPlugins?: string[];
 }
 
 function listRolesResult(): Record<string, unknown> {
-  const customRoles = loadCustomRoles();
+  const data = buildListResponse();
+  const count = data.customRoles.length;
   return {
     success: true,
-    message: `${customRoles.length} custom role${customRoles.length !== 1 ? "s" : ""}.`,
-    data: { customRoles },
+    message: `${count} custom role${count !== 1 ? "s" : ""}.`,
+    data,
   };
 }
 
@@ -73,7 +89,7 @@ function deleteRoleResult(roleId: string | undefined, sessionId: string): Record
   return {
     success: true,
     message: `Role '${roleId}' deleted.`,
-    roles: loadCustomRoles(),
+    ...buildListResponse(),
   };
 }
 
@@ -117,12 +133,51 @@ function saveRoleResult(input: ManageRolesInput, sessionId: string): Record<stri
   return {
     success: true,
     message: `Role '${role.name}' ${action}d successfully.`,
-    roles: loadCustomRoles(),
+    ...buildListResponse(),
+  };
+}
+
+function extendBuiltinResult(input: ManageRolesInput, sessionId: string): Record<string, unknown> {
+  const { roleId, extraPlugins } = input;
+  if (!roleId) return { success: false, error: "roleId is required for extendBuiltin action" };
+  if (!BUILTIN_IDS.has(roleId)) {
+    return { success: false, error: `Role '${roleId}' is not a built-in role.` };
+  }
+  if (!Array.isArray(extraPlugins)) {
+    return { success: false, error: "extraPlugins (string[]) is required for extendBuiltin action" };
+  }
+  // Reject non-string entries silently; baseline plugins in the input
+  // are dropped (they're already included by the built-in, so there's
+  // nothing to persist). Dedup preserves first-seen order.
+  const baseline = BUILTIN_BASELINE.get(roleId) ?? new Set<string>();
+  const seen = new Set<string>();
+  const cleaned: string[] = [];
+  for (const name of extraPlugins) {
+    if (typeof name !== "string" || name.length === 0) continue;
+    if (baseline.has(name)) continue;
+    if (seen.has(name)) continue;
+    seen.add(name);
+    cleaned.push(name);
+  }
+  if (cleaned.length === 0) {
+    deleteExtras(roleId);
+  } else {
+    writeExtras(roleId, cleaned);
+  }
+  notifyRolesUpdated(sessionId);
+  return {
+    success: true,
+    message:
+      cleaned.length === 0
+        ? `Cleared extra plugins for '${roleId}'.`
+        : `Saved ${cleaned.length} extra plugin${cleaned.length !== 1 ? "s" : ""} for '${roleId}'.`,
+    ...buildListResponse(),
   };
 }
 
 export async function executeManageRoles(input: ManageRolesInput, sessionId: string): Promise<Record<string, unknown>> {
   if (input.action === "list") return listRolesResult();
   if (input.action === "delete") return deleteRoleResult(input.roleId, sessionId);
+  if (input.action === "extendBuiltin") return extendBuiltinResult(input, sessionId);
   return saveRoleResult(input, sessionId);
 }

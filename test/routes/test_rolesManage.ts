@@ -12,9 +12,14 @@ let originalUserProfile: string | undefined;
 
 type RolesRoute = typeof import("../../server/api/routes/roles.js");
 type RolesIo = typeof import("../../server/utils/files/roles-io.js");
+type RolesExtrasIo = typeof import("../../server/utils/files/roles-extras-io.js");
+type RolesWorkspace = typeof import("../../server/workspace/roles.js");
 let rolesRoute: RolesRoute;
 let rolesIo: RolesIo;
+let rolesExtrasIo: RolesExtrasIo;
+let rolesWorkspace: RolesWorkspace;
 let rolesDir: string;
+let extrasDir: string;
 
 before(async () => {
   tmpRoot = mkdtempSync(path.join(tmpdir(), "roles-manage-test-"));
@@ -25,7 +30,10 @@ before(async () => {
   mkdirSync(path.join(tmpRoot, "mulmoclaude"), { recursive: true });
   rolesRoute = await import("../../server/api/routes/roles.js");
   rolesIo = await import("../../server/utils/files/roles-io.js");
+  rolesExtrasIo = await import("../../server/utils/files/roles-extras-io.js");
+  rolesWorkspace = await import("../../server/workspace/roles.js");
   rolesDir = path.join(tmpRoot, "mulmoclaude", "config", "roles");
+  extrasDir = path.join(rolesDir, "extras");
 });
 
 after(() => {
@@ -180,5 +188,127 @@ describe("executeManageRoles — rename (oldRoleId)", () => {
     assert.equal(result.success, true);
     assert.equal(rolesIo.roleExists("plain"), true);
     rolesIo.deleteRole("plain");
+  });
+});
+
+describe("executeManageRoles — extendBuiltin", () => {
+  function extrasFile(roleId: string): string {
+    return path.join(extrasDir, `${roleId}.json`);
+  }
+
+  it("writes extras for a built-in id and includes them in the list response", async () => {
+    const result = await rolesRoute.executeManageRoles(
+      {
+        action: "extendBuiltin",
+        roleId: "general",
+        extraPlugins: ["customA", "customB"],
+      },
+      "test-session",
+    );
+    assert.equal(result.success, true, `result: ${JSON.stringify(result)}`);
+
+    const onDisk = JSON.parse(readFileSync(extrasFile("general"), "utf-8")) as { extraPlugins: string[] };
+    assert.deepEqual(onDisk.extraPlugins, ["customA", "customB"]);
+
+    const listResult = (await rolesRoute.executeManageRoles({ action: "list" }, "test-session")) as { data?: { builtInExtras?: Record<string, string[]> } };
+    assert.deepEqual(listResult.data?.builtInExtras?.general, ["customA", "customB"]);
+
+    rolesExtrasIo.deleteExtras("general");
+  });
+
+  it("empty extraPlugins deletes the overlay file", async () => {
+    rolesExtrasIo.writeExtras("general", ["x"]);
+    assert.equal(existsSync(extrasFile("general")), true);
+
+    const result = await rolesRoute.executeManageRoles({ action: "extendBuiltin", roleId: "general", extraPlugins: [] }, "test-session");
+    assert.equal(result.success, true, `result: ${JSON.stringify(result)}`);
+    assert.equal(existsSync(extrasFile("general")), false, "overlay file should be deleted when extraPlugins is empty");
+  });
+
+  it("rejects a non-built-in roleId", async () => {
+    const result = await rolesRoute.executeManageRoles({ action: "extendBuiltin", roleId: "totally-made-up", extraPlugins: ["x"] }, "test-session");
+    assert.equal(result.success, false);
+    assert.match(String(result.error), /not a built-in/i);
+    assert.equal(existsSync(extrasFile("totally-made-up")), false);
+  });
+
+  it("silently drops baseline plugins from the extras payload (additive-only)", async () => {
+    // The "general" built-in includes `presentForm` in its baseline.
+    // Passing it as an extra must not persist — extras represent ONLY
+    // additions on top of the baseline.
+    const result = await rolesRoute.executeManageRoles(
+      { action: "extendBuiltin", roleId: "general", extraPlugins: ["presentForm", "novelExtra"] },
+      "test-session",
+    );
+    assert.equal(result.success, true, `result: ${JSON.stringify(result)}`);
+    const onDisk = JSON.parse(readFileSync(extrasFile("general"), "utf-8")) as { extraPlugins: string[] };
+    assert.deepEqual(onDisk.extraPlugins, ["novelExtra"], "baseline plugin must be dropped, only novel extras persisted");
+    rolesExtrasIo.deleteExtras("general");
+  });
+
+  it("dedupes duplicate names in the extras payload", async () => {
+    const result = await rolesRoute.executeManageRoles({ action: "extendBuiltin", roleId: "general", extraPlugins: ["a", "b", "a", "b"] }, "test-session");
+    assert.equal(result.success, true, `result: ${JSON.stringify(result)}`);
+    const onDisk = JSON.parse(readFileSync(extrasFile("general"), "utf-8")) as { extraPlugins: string[] };
+    assert.deepEqual(onDisk.extraPlugins, ["a", "b"]);
+    rolesExtrasIo.deleteExtras("general");
+  });
+
+  it("rejects a missing extraPlugins array", async () => {
+    const result = await rolesRoute.executeManageRoles({ action: "extendBuiltin", roleId: "general" }, "test-session");
+    assert.equal(result.success, false);
+    assert.match(String(result.error), /extraPlugins/i);
+  });
+});
+
+describe("loadAllRoles — built-in extras merge", () => {
+  it("appends extras to the built-in's availablePlugins (baseline first, dedup)", () => {
+    rolesExtrasIo.writeExtras("general", ["zExtra", "presentForm", "yExtra"]);
+    try {
+      const all = rolesWorkspace.loadAllRoles();
+      const general = all.find((role) => role.id === "general");
+      assert.ok(general, "general role should be present");
+      // Baseline contains presentForm — it must not appear twice.
+      const occurrences = general.availablePlugins.filter((name) => name === "presentForm").length;
+      assert.equal(occurrences, 1, "baseline plugin must not duplicate after merge");
+      // Extras land at the tail, in their declared order, minus dupes.
+      assert.ok(general.availablePlugins.includes("zExtra"), "extras should be merged in");
+      assert.ok(general.availablePlugins.includes("yExtra"), "extras should be merged in");
+      const zIdx = general.availablePlugins.indexOf("zExtra");
+      const yIdx = general.availablePlugins.indexOf("yExtra");
+      assert.ok(zIdx < yIdx, "extras preserve their declared order");
+      // Baseline ordering preserved at the front.
+      const baselineIdx = general.availablePlugins.indexOf("presentForm");
+      assert.ok(baselineIdx < zIdx, "baseline entries precede appended extras");
+    } finally {
+      rolesExtrasIo.deleteExtras("general");
+    }
+  });
+
+  it("ignores extras for a built-in shadowed by a same-id custom role", () => {
+    rolesExtrasIo.writeExtras("general", ["shouldBeIgnored"]);
+    rolesIo.saveRole("general", { ...sampleRole("general"), availablePlugins: ["onlyCustomPlugin"] });
+    try {
+      const all = rolesWorkspace.loadAllRoles();
+      const general = all.find((role) => role.id === "general");
+      assert.ok(general, "shadowing custom role should win");
+      assert.deepEqual(general.availablePlugins, ["onlyCustomPlugin"], "custom role wins and extras for the built-in are ignored");
+    } finally {
+      rolesIo.deleteRole("general");
+      rolesExtrasIo.deleteExtras("general");
+    }
+  });
+
+  it("no extras file → built-in unchanged", () => {
+    rolesExtrasIo.deleteExtras("general"); // ensure clean
+    const all = rolesWorkspace.loadAllRoles();
+    const general = all.find((role) => role.id === "general");
+    assert.ok(general);
+    // We can't assert exact contents (built-in evolves over releases),
+    // but we can assert presentForm is there as baseline and there are
+    // no stray "Extra" / "custom" sentinels left from prior tests.
+    assert.ok(general.availablePlugins.includes("presentForm"));
+    assert.equal(general.availablePlugins.includes("zExtra"), false);
+    assert.equal(general.availablePlugins.includes("customA"), false);
   });
 });

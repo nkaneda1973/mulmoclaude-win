@@ -1083,6 +1083,10 @@ const zhMessages = {
     errDeleteFailed: "删除失败",
     errNetworkError: "网络错误",
     errServerError: "服务器错误: {status}",
+    builtInBadge: "内置",
+    builtInEditHint: "内置角色不可修改，但你可以为 {name} 添加额外的插件。下方已勾选并锁定的是该角色自带的插件。",
+    builtInBaselineSuffix: "(内置)",
+    builtInBaselineTooltip: "由该内置角色包含",
   },
   pluginUiImage: {
     promptLabel: "{label}:",

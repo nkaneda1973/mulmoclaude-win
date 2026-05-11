@@ -45,6 +45,16 @@ export type HostEndpointGroup = Readonly<Record<string, string>>;
  *  caller-declared shape. */
 export type EndpointRegistry = Readonly<Record<string, EndpointGroup | HostEndpointGroup>>;
 
+/** Editor-relevant slice of a built-in role record. Carries just
+ *  enough for the role-editor UI to render a row and separate
+ *  baseline plugins from user-added extras — full `prompt` /
+ *  `queries` stay host-side. */
+export interface BuiltinRoleBaseline {
+  readonly name: string;
+  readonly icon: string;
+  readonly availablePlugins: readonly string[];
+}
+
 /** Everything the host hands to plugins at boot. Each field is
  *  read-only — plugins consume, never mutate. */
 export interface HostContext {
@@ -53,6 +63,10 @@ export interface HostContext {
   /** Built-in role IDs (e.g. `general`, `engineer`). Used by
    *  plugins that start a chat with a specific role. */
   readonly builtinRoleIds: Readonly<Record<string, string>>;
+  /** Baseline (= shipped, non-extended) plugin set keyed by role
+   *  id. Used by the role editor (manageRoles) to render which
+   *  plugins are locked vs which are user-added extras. */
+  readonly builtinRoleBaselines: Readonly<Record<string, BuiltinRoleBaseline>>;
   /** Vue-router page-name constants. Used by plugins that need to
    *  branch on the current page or push a navigation. */
   readonly pageRoutes: Readonly<Record<string, string>>;
@@ -101,6 +115,13 @@ export function pluginEndpoints<E extends object = EndpointGroup>(scope: string)
 /** Built-in role IDs (e.g. `pluginBuiltinRoleIds().general`). */
 export function pluginBuiltinRoleIds(): Readonly<Record<string, string>> {
   return requireContext().builtinRoleIds;
+}
+
+/** Baseline (shipped) plugin set per built-in role id. Used by the
+ *  role editor to distinguish locked baseline checkboxes from
+ *  user-added extras. */
+export function pluginBuiltinRoleBaselines(): Readonly<Record<string, BuiltinRoleBaseline>> {
+  return requireContext().builtinRoleBaselines;
 }
 
 /** A specific Vue-router page-name constant

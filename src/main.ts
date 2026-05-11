@@ -9,7 +9,7 @@ import { loadRuntimePlugins } from "./tools/runtimeLoader";
 import { startDevPluginReloadListener } from "./composables/useDevPluginReload";
 import { installHostContext, type EndpointRegistry } from "./plugins/api";
 import { API_ROUTES } from "./config/apiRoutes";
-import { BUILTIN_ROLE_IDS } from "./config/roles";
+import { BUILTIN_ROLE_IDS, BUILTIN_ROLES } from "./config/roles";
 import { PAGE_ROUTES } from "./router";
 import { getAllPluginNames } from "./tools";
 import { setupMarked } from "./utils/markdown/setup";
@@ -79,9 +79,17 @@ const pluginEndpointRegistry: EndpointRegistry = {
   mcpTools: { list: API_ROUTES.mcpTools.list },
 };
 
+// Per-role baseline projected from `BUILTIN_ROLES` so plugins (e.g.
+// manageRoles) can render which plugins are shipped-with-the-role vs.
+// user-added extras without importing `src/config/*` directly.
+const builtinRoleBaselines = Object.fromEntries(
+  BUILTIN_ROLES.map((role) => [role.id, { name: role.name, icon: role.icon, availablePlugins: role.availablePlugins }]),
+);
+
 installHostContext({
   endpoints: pluginEndpointRegistry,
   builtinRoleIds: BUILTIN_ROLE_IDS,
+  builtinRoleBaselines,
   pageRoutes: PAGE_ROUTES,
   getAllPluginNames,
 });

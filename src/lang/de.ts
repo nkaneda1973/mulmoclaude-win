@@ -1105,6 +1105,11 @@ const deMessages = {
     errDeleteFailed: "Löschen fehlgeschlagen",
     errNetworkError: "Netzwerkfehler",
     errServerError: "Serverfehler: {status}",
+    builtInBadge: "Integriert",
+    builtInEditHint:
+      "Integrierte Rollen können nicht geändert werden, aber du kannst {name} zusätzliche Plugins hinzufügen. Plugins, die zur Rolle gehören, sind unten markiert und gesperrt.",
+    builtInBaselineSuffix: "(integriert)",
+    builtInBaselineTooltip: "In dieser integrierten Rolle enthalten",
   },
   pluginUiImage: {
     promptLabel: "{label}:",

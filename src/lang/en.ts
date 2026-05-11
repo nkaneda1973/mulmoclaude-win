@@ -1090,6 +1090,10 @@ const enMessages = {
     errDeleteFailed: "Delete failed",
     errNetworkError: "Network error",
     errServerError: "Server error: {status}",
+    builtInBadge: "Built-in",
+    builtInEditHint: "Built-in roles can't be modified, but you can add extra plugins to {name}. Plugins that ship with the role are checked and locked below.",
+    builtInBaselineSuffix: "(built-in)",
+    builtInBaselineTooltip: "Included by this built-in role",
   },
   pluginUiImage: {
     promptLabel: "{label}:",

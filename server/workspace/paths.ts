@@ -146,6 +146,15 @@ const HOST_WORKSPACE_DIRS = {
   // config/
   configs: "config",
   roles: "config/roles",
+  // Per-built-in-role overlay: each `<builtInId>.json` is an additive
+  // `{ extraPlugins: string[] }` blob whose names are appended to the
+  // built-in's `availablePlugins` at load. Lives under a subfolder
+  // (rather than next to `<id>.json` custom roles) so the directory
+  // listing for custom roles stays clean — `loadCustomRoles()` reads
+  // `config/roles/*.json` only, and extras don't collide because they
+  // share the built-in's id which `loadCustomRoles` already filters
+  // out, but the subfolder makes the separation obvious on disk.
+  rolesExtras: "config/roles/extras",
   helps: "config/helps",
   // Project-scope Claude Code skills root — both user-authored and
   // launcher-managed presets live here. Path is hardcoded by Claude

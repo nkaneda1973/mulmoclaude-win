@@ -1091,6 +1091,11 @@ const koMessages = {
     errDeleteFailed: "삭제 실패",
     errNetworkError: "네트워크 오류",
     errServerError: "서버 오류: {status}",
+    builtInBadge: "기본",
+    builtInEditHint:
+      "기본 역할은 수정할 수 없지만 {name} 에 추가 플러그인을 더할 수 있습니다. 역할에 포함된 기본 플러그인은 아래에서 선택 및 잠금 상태로 표시됩니다.",
+    builtInBaselineSuffix: "(기본)",
+    builtInBaselineTooltip: "이 기본 역할에 포함되어 있습니다",
   },
   pluginUiImage: {
     promptLabel: "{label}:",

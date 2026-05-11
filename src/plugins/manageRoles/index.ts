@@ -19,6 +19,12 @@ export interface CustomRole {
 
 export interface ManageRolesData {
   customRoles: CustomRole[];
+  // Per-built-in-role overlay: only entries with at least one extra
+  // plugin are present; missing key means "no overlay". Built-in role
+  // baselines themselves are imported from `src/config/roles.ts` on
+  // the client; only the user-added overlay needs to traverse the
+  // network.
+  builtInExtras?: Record<string, string[]>;
 }
 
 const manageRolesPlugin: ToolPlugin = {

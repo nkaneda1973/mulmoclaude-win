@@ -29,7 +29,13 @@ const endpoints = pluginEndpoints<RolesEndpoints>("roles");
 
 const { refresh } = useFreshPluginData<CustomRole[]>({
   endpoint: () => endpoints.list,
-  extract: (json) => (Array.isArray(json) ? (json as CustomRole[]) : null),
+  extract: (json) => {
+    if (json && typeof json === "object" && !Array.isArray(json)) {
+      const obj = json as Record<string, unknown>;
+      return Array.isArray(obj.customRoles) ? (obj.customRoles as CustomRole[]) : null;
+    }
+    return null;
+  },
   apply: (data) => {
     customRoles.value = data;
   },

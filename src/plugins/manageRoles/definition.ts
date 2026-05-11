@@ -17,8 +17,9 @@ const toolDefinition: ToolDefinition = {
     properties: {
       action: {
         type: "string",
-        enum: ["create", "update", "delete", "list"],
-        description: "The action to perform. Use 'list' to display all custom roles in the canvas.",
+        enum: ["create", "update", "delete", "list", "extendBuiltin"],
+        description:
+          "The action to perform. Use 'list' to display all custom roles in the canvas. Use 'extendBuiltin' with { roleId, extraPlugins[] } to append plugins to a built-in role's availablePlugins (baseline plugins cannot be removed).",
       },
       role: {
         type: "object",
@@ -39,7 +40,13 @@ const toolDefinition: ToolDefinition = {
       },
       roleId: {
         type: "string",
-        description: "The role ID to delete (required for delete action)",
+        description: "The role ID to delete or extend (required for delete / extendBuiltin actions)",
+      },
+      extraPlugins: {
+        type: "array",
+        items: { type: "string" },
+        description:
+          "Extra plugin/tool names to append to a built-in role's availablePlugins (required for extendBuiltin action). Baseline plugins of the built-in are silently dropped.",
       },
     },
     required: ["action"],

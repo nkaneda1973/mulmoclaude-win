@@ -1102,6 +1102,11 @@ const esMessages = {
     errDeleteFailed: "Error al eliminar",
     errNetworkError: "Error de red",
     errServerError: "Error del servidor: {status}",
+    builtInBadge: "Integrado",
+    builtInEditHint:
+      "Los roles integrados no se pueden modificar, pero puedes añadir complementos adicionales a {name}. Los complementos que vienen con el rol aparecen marcados y bloqueados abajo.",
+    builtInBaselineSuffix: "(integrado)",
+    builtInBaselineTooltip: "Incluido por este rol integrado",
   },
   pluginUiImage: {
     promptLabel: "{label}:",

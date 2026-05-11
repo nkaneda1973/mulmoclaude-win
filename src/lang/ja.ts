@@ -1091,6 +1091,10 @@ const jaMessages = {
     errDeleteFailed: "削除失敗",
     errNetworkError: "ネットワークエラー",
     errServerError: "サーバエラー: {status}",
+    builtInBadge: "標準",
+    builtInEditHint: "標準ロールは編集できませんが、{name} に追加のプラグインを加えることはできます。標準で含まれるプラグインはチェック済みで変更できません。",
+    builtInBaselineSuffix: "(標準)",
+    builtInBaselineTooltip: "この標準ロールに含まれています",
   },
   pluginUiImage: {
     promptLabel: "{label}:",

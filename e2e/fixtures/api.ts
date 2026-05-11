@@ -29,7 +29,7 @@ function parseDispatchAction(body: string | null): string | undefined {
   }
 }
 
-const DEFAULT_ROLES: unknown[] = [];
+const DEFAULT_ROLES = { customRoles: [], builtInExtras: {} };
 
 const DEFAULT_TODOS = {
   data: {

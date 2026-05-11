@@ -124,38 +124,40 @@
         </div>
       </div>
 
-      <div v-if="!creating && customRoles.length === 0" class="h-full flex items-center justify-center text-gray-400 text-sm">
-        {{ t("pluginManageRoles.emptyHint") }}
-      </div>
-
-      <ul v-if="customRoles.length > 0" class="p-4 space-y-2">
-        <li v-for="role in customRoles" :key="role.id" class="rounded-lg border" :class="selectedId === role.id ? 'border-blue-400' : 'border-gray-200'">
+      <ul v-if="allRows.length > 0" class="p-4 space-y-2">
+        <li v-for="row in allRows" :key="row.role.id" class="rounded-lg border" :class="selectedId === row.role.id ? 'border-blue-400' : 'border-gray-200'">
           <!-- Role header row -->
           <div
             class="flex items-center gap-3 p-3 cursor-pointer hover:bg-gray-50 rounded-lg"
-            :class="selectedId === role.id ? 'rounded-b-none' : ''"
-            @click="selectRole(role)"
+            :class="selectedId === row.role.id ? 'rounded-b-none' : ''"
+            @click="selectRole(row)"
           >
-            <span class="material-icons text-gray-500">{{ role.icon }}</span>
+            <span class="material-icons text-gray-500">{{ row.role.icon }}</span>
             <div class="flex-1 min-w-0">
-              <div class="font-medium text-sm text-gray-800">
-                {{ role.name }}
-                <span class="ml-1 text-xs font-mono text-gray-400">{{ t("pluginManageRoles.idFormatted", { id: role.id }) }}</span>
+              <div class="font-medium text-sm text-gray-800 flex items-center gap-2">
+                <span>{{ row.role.name }}</span>
+                <span
+                  v-if="row.kind === 'builtin'"
+                  class="text-[10px] font-medium uppercase tracking-wide px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 border border-gray-200"
+                >
+                  {{ t("pluginManageRoles.builtInBadge") }}
+                </span>
+                <span class="text-xs font-mono text-gray-400">{{ t("pluginManageRoles.idFormatted", { id: row.role.id }) }}</span>
               </div>
               <div class="text-xs text-gray-400 truncate">
-                {{ role.availablePlugins.join(", ") }}
+                {{ row.mergedPlugins.join(", ") }}
               </div>
             </div>
             <span
               class="material-icons text-gray-400 text-sm"
-              :title="selectedId === role.id ? t('pluginManageRoles.collapse') : t('pluginManageRoles.expand')"
+              :title="selectedId === row.role.id ? t('pluginManageRoles.collapse') : t('pluginManageRoles.expand')"
             >
-              {{ selectedId === role.id ? "expand_less" : "expand_more" }}
+              {{ selectedId === row.role.id ? "expand_less" : "expand_more" }}
             </span>
           </div>
 
-          <!-- Inline editor -->
-          <div v-if="selectedId === role.id" class="border-t border-blue-100 bg-blue-50 p-4 space-y-3 rounded-b-lg">
+          <!-- Inline editor (custom role) -->
+          <div v-if="selectedId === row.role.id && row.kind === 'custom'" class="border-t border-blue-100 bg-blue-50 p-4 space-y-3 rounded-b-lg">
             <!-- ID + Name + Icon row -->
             <div class="flex gap-3">
               <div class="w-40">
@@ -172,7 +174,7 @@
                   v-model="editForm.name"
                   type="text"
                   class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:border-blue-400"
-                  @keydown.enter="saveEdit(role.id)"
+                  @keydown.enter="saveEdit(row.role.id)"
                 />
               </div>
               <div class="w-32">
@@ -247,7 +249,7 @@
                   class="px-3 py-1.5 text-sm rounded bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
                   :disabled="saving || !!editFormError"
                   :title="editFormError ?? ''"
-                  @click="saveEdit(role.id)"
+                  @click="saveEdit(row.role.id)"
                 >
                   {{ saving ? t("pluginManageRoles.updating") : t("pluginManageRoles.update") }}
                 </button>
@@ -258,13 +260,60 @@
               <button
                 class="px-3 py-1.5 text-sm rounded border border-red-200 text-red-500 hover:bg-red-50 disabled:opacity-50"
                 :disabled="saving"
-                @click="deleteRole(role.id)"
+                @click="deleteRole(row.role.id)"
               >
                 {{ t("pluginManageRoles.delete") }}
               </button>
             </div>
             <div v-if="editFormError" class="text-xs text-gray-500">
               {{ editFormError }}
+            </div>
+            <div v-if="saveError" class="text-xs text-red-500">
+              {{ saveError }}
+            </div>
+          </div>
+
+          <!-- Inline editor (built-in role — plugin grid only) -->
+          <div v-if="selectedId === row.role.id && row.kind === 'builtin'" class="border-t border-blue-100 bg-blue-50 p-4 space-y-3 rounded-b-lg">
+            <div class="text-xs text-gray-500">
+              {{ t("pluginManageRoles.builtInEditHint", { name: row.role.name }) }}
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-gray-600 mb-2">{{ t("pluginManageRoles.fieldPlugins") }}</label>
+              <div class="grid gap-x-4 gap-y-1 [grid-template-columns:repeat(auto-fit,minmax(180px,1fr))]">
+                <label
+                  v-for="plugin in availablePlugins"
+                  :key="plugin.name"
+                  class="flex items-center gap-2 text-sm cursor-pointer"
+                  :class="builtInLabelClass(plugin, row.baselineSet)"
+                  :title="builtInLabelTitle(plugin, row.baselineSet)"
+                >
+                  <input
+                    v-model="builtInForm.selectedPlugins"
+                    type="checkbox"
+                    :value="plugin.name"
+                    :disabled="!plugin.enabled || row.baselineSet.has(plugin.name)"
+                    class="cursor-pointer disabled:cursor-not-allowed"
+                  />
+                  {{ plugin.name }}
+                  <span v-if="row.baselineSet.has(plugin.name)" class="text-xs text-gray-400">{{ t("pluginManageRoles.builtInBaselineSuffix") }}</span>
+                  <span v-else-if="!plugin.enabled" class="text-xs text-gray-400">{{
+                    t("pluginManageRoles.missingEnv", { env: plugin.requiredEnv.join(", ") })
+                  }}</span>
+                </label>
+              </div>
+            </div>
+            <div class="flex gap-2 pt-1">
+              <button
+                class="px-3 py-1.5 text-sm rounded bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                :disabled="saving"
+                @click="saveBuiltInExtras(row)"
+              >
+                {{ saving ? t("pluginManageRoles.updating") : t("pluginManageRoles.update") }}
+              </button>
+              <button class="px-3 py-1.5 text-sm rounded border border-gray-300 text-gray-600 hover:bg-gray-50" @click="selectedId = null">
+                {{ t("common.cancel") }}
+              </button>
             </div>
             <div v-if="saveError" class="text-xs text-red-500">
               {{ saveError }}
@@ -284,7 +333,7 @@ import { useAppApi } from "../../composables/useAppApi";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import type { CustomRole, ManageRolesData } from "./index";
 import { apiGet, apiPost } from "../../utils/api";
-import { pluginEndpoints, pluginAllPluginNames } from "../api";
+import { pluginEndpoints, pluginAllPluginNames, pluginBuiltinRoleBaselines } from "../api";
 import type { RolesEndpoints } from "./definition";
 
 const { t } = useI18n();
@@ -333,14 +382,25 @@ const emit = defineEmits<{ updateResult: [result: ToolResultComplete] }>();
 const appApi = useAppApi();
 
 const customRoles = ref<CustomRole[]>(props.selectedResult?.data?.customRoles ?? []);
+const builtInExtras = ref<Record<string, string[]>>(props.selectedResult?.data?.builtInExtras ?? {});
 
 const rolesEndpoints = pluginEndpoints<RolesEndpoints>("roles");
 
-const { refresh: refreshCustomRoles } = useFreshPluginData<CustomRole[]>({
+const { refresh: refreshCustomRoles } = useFreshPluginData<ManageRolesData>({
   endpoint: () => rolesEndpoints.list,
-  extract: (json) => (Array.isArray(json) ? (json as CustomRole[]) : null),
+  extract: (json) => {
+    if (json && typeof json === "object" && !Array.isArray(json)) {
+      const obj = json as Record<string, unknown>;
+      const customs = Array.isArray(obj.customRoles) ? (obj.customRoles as CustomRole[]) : [];
+      const extras =
+        obj.builtInExtras && typeof obj.builtInExtras === "object" && !Array.isArray(obj.builtInExtras) ? (obj.builtInExtras as Record<string, string[]>) : {};
+      return { customRoles: customs, builtInExtras: extras };
+    }
+    return null;
+  },
   apply: (data) => {
-    customRoles.value = data;
+    customRoles.value = data.customRoles;
+    builtInExtras.value = data.builtInExtras ?? {};
   },
 });
 
@@ -348,9 +408,79 @@ watch(
   () => props.selectedResult?.uuid,
   () => {
     customRoles.value = props.selectedResult?.data?.customRoles ?? [];
+    builtInExtras.value = props.selectedResult?.data?.builtInExtras ?? {};
     void refreshCustomRoles();
   },
 );
+
+// ── Row model ─────────────────────────────────────────────────────────────────
+
+interface BuiltInRoleView {
+  id: string;
+  name: string;
+  icon: string;
+  availablePlugins: readonly string[];
+}
+
+interface BuiltInRow {
+  kind: "builtin";
+  role: BuiltInRoleView;
+  baselineSet: Set<string>;
+  extraPlugins: string[];
+  mergedPlugins: string[];
+}
+
+interface CustomRow {
+  kind: "custom";
+  role: CustomRole;
+  // Kept for parity with BuiltInRow so template doesn't need a kind-narrowed access.
+  baselineSet: Set<string>;
+  extraPlugins: string[];
+  mergedPlugins: string[];
+}
+
+type Row = BuiltInRow | CustomRow;
+
+const builtInRows = computed<BuiltInRow[]>(() => {
+  const baselines = pluginBuiltinRoleBaselines();
+  return Object.entries(baselines)
+    .filter(([roleId]) => !customRoles.value.some((custom) => custom.id === roleId))
+    .map(([roleId, baseline]) => {
+      const extras = builtInExtras.value[roleId] ?? [];
+      const baselineSet = new Set(baseline.availablePlugins);
+      return {
+        kind: "builtin",
+        role: { id: roleId, name: baseline.name, icon: baseline.icon, availablePlugins: baseline.availablePlugins },
+        baselineSet,
+        extraPlugins: extras,
+        mergedPlugins: [...baseline.availablePlugins, ...extras.filter((name) => !baselineSet.has(name))],
+      };
+    });
+});
+
+const customRows = computed<CustomRow[]>(() =>
+  customRoles.value.map((role) => ({
+    kind: "custom",
+    role,
+    baselineSet: new Set<string>(),
+    extraPlugins: [],
+    mergedPlugins: role.availablePlugins,
+  })),
+);
+
+const allRows = computed<Row[]>(() => [...builtInRows.value, ...customRows.value]);
+
+function builtInLabelClass(plugin: PluginEntry, baseline: Set<string>): string {
+  if (baseline.has(plugin.name)) return "text-gray-500";
+  if (!plugin.enabled) return "text-gray-400 cursor-not-allowed";
+  return "text-gray-700";
+}
+
+function builtInLabelTitle(plugin: PluginEntry, baseline: Set<string>): string {
+  if (baseline.has(plugin.name)) return t("pluginManageRoles.builtInBaselineTooltip");
+  if (!plugin.enabled) return t("pluginManageRoles.requiresEnv", { env: plugin.requiredEnv.join(", ") });
+  return "";
+}
 
 // ── Selection & edit form ─────────────────────────────────────────────────────
 
@@ -375,6 +505,11 @@ const editForm = ref<EditForm>({
   selectedPlugins: [],
   queriesText: "",
 });
+
+// Built-in editor uses only the plugin grid. Baseline plugins are
+// pre-checked and locked; the user can only add/remove non-baseline
+// entries, which become `extraPlugins` on save.
+const builtInForm = ref<{ selectedPlugins: string[] }>({ selectedPlugins: [] });
 
 const creating = ref(false);
 const createError = ref("");
@@ -406,20 +541,28 @@ function cancelCreate() {
   createError.value = "";
 }
 
-function selectRole(role: CustomRole) {
-  if (selectedId.value === role.id) {
+function selectRole(row: Row) {
+  if (selectedId.value === row.role.id) {
     selectedId.value = null;
     return;
   }
-  selectedId.value = role.id;
+  selectedId.value = row.role.id;
   saveError.value = "";
+  if (row.kind === "builtin") {
+    // Pre-check baseline + current extras; baseline checkboxes render
+    // disabled, so the user can only toggle non-baseline entries.
+    builtInForm.value = {
+      selectedPlugins: [...row.role.availablePlugins, ...row.extraPlugins.filter((name) => !row.baselineSet.has(name))],
+    };
+    return;
+  }
   editForm.value = {
-    id: role.id,
-    name: role.name,
-    icon: role.icon,
-    prompt: role.prompt,
-    selectedPlugins: [...role.availablePlugins],
-    queriesText: (role.queries ?? []).join("\n"),
+    id: row.role.id,
+    name: row.role.name,
+    icon: row.role.icon,
+    prompt: row.role.prompt,
+    selectedPlugins: [...row.role.availablePlugins],
+    queriesText: (row.role.queries ?? []).join("\n"),
   };
 }
 
@@ -451,8 +594,9 @@ async function callManage(body: Record<string, unknown>): Promise<ManageResult> 
 async function refreshList() {
   const result = await callManage({ action: "list" });
   if (result.success) {
-    const data = result as { data?: { customRoles?: CustomRole[] } };
+    const data = result as { data?: { customRoles?: CustomRole[]; builtInExtras?: Record<string, string[]> } };
     customRoles.value = data.data?.customRoles ?? [];
+    builtInExtras.value = data.data?.builtInExtras ?? {};
     if (props.selectedResult) {
       emit("updateResult", {
         ...props.selectedResult,
@@ -537,6 +681,20 @@ async function saveEdit(originalId: string) {
     role,
     oldRoleId: originalId,
   });
+  if (result.success) {
+    selectedId.value = null;
+    await refreshList();
+  } else {
+    saveError.value = result.error ?? t("pluginManageRoles.errSaveFailed");
+  }
+  saving.value = false;
+}
+
+async function saveBuiltInExtras(row: BuiltInRow) {
+  saving.value = true;
+  saveError.value = "";
+  const extras = builtInForm.value.selectedPlugins.filter((name) => !row.baselineSet.has(name));
+  const result = await callManage({ action: "extendBuiltin", roleId: row.role.id, extraPlugins: extras });
   if (result.success) {
     selectedId.value = null;
     await refreshList();

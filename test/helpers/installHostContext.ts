@@ -17,7 +17,7 @@
 
 import { installHostContext, type EndpointRegistry, type HostContext } from "../../src/plugins/api.js";
 import { API_ROUTES } from "../../src/config/apiRoutes.js";
-import { BUILTIN_ROLE_IDS } from "../../src/config/roles.js";
+import { BUILTIN_ROLE_IDS, BUILTIN_ROLES } from "../../src/config/roles.js";
 // Import from the leaf file (not `src/router/index.ts`) so the test
 // helper doesn't transitively load `vue-router`'s `createRouter`,
 // which touches `window` at module init.
@@ -45,9 +45,14 @@ export function installTestHostContext(overrides: Partial<HostContext> = {}): vo
     mcpTools: { list: API_ROUTES.mcpTools.list },
   };
 
+  const builtinRoleBaselines = Object.fromEntries(
+    BUILTIN_ROLES.map((role) => [role.id, { name: role.name, icon: role.icon, availablePlugins: role.availablePlugins }]),
+  );
+
   installHostContext({
     endpoints: registry,
     builtinRoleIds: BUILTIN_ROLE_IDS,
+    builtinRoleBaselines,
     pageRoutes: PAGE_ROUTES,
     getAllPluginNames: () => [],
     ...overrides,

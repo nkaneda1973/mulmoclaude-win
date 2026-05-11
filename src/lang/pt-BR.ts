@@ -1091,6 +1091,11 @@ const ptBRMessages = {
     errDeleteFailed: "Falha ao excluir",
     errNetworkError: "Erro de rede",
     errServerError: "Erro do servidor: {status}",
+    builtInBadge: "Integrado",
+    builtInEditHint:
+      "Papéis integrados não podem ser modificados, mas você pode adicionar plugins extras a {name}. Os plugins que vêm com o papel aparecem marcados e bloqueados abaixo.",
+    builtInBaselineSuffix: "(integrado)",
+    builtInBaselineTooltip: "Incluído por este papel integrado",
   },
   pluginUiImage: {
     promptLabel: "{label}:",
