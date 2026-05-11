@@ -30,6 +30,11 @@ export function categorizeSkill(skill: SkillIdentity): SkillCategoryKey {
   return "project";
 }
 
+/**
+ * @internal exported only so the unit tests can target the type guard
+ * directly. Not part of the View-layer helper surface; call sites
+ * should reach the guard via loadCollapsedGroups instead.
+ */
 export function isSkillCategoryKey(value: unknown): value is SkillCategoryKey {
   return typeof value === "string" && (SKILL_CATEGORY_KEYS as readonly string[]).includes(value);
 }
