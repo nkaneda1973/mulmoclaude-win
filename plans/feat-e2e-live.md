@@ -81,7 +81,7 @@ e2e-live/
 | `/e2e-live-session` | session.spec.ts | 3 | B-13, B-14, B-16 |
 | `/e2e-live-wiki` | wiki.spec.ts | 3 | B-23〜B-27 |
 | `/e2e-live-ui` | ui.spec.ts | 4 | B-30, B-31, B-34, B-50 |
-| `/e2e-live-skills` | skills.spec.ts | 4 | B-08, B-22, B-41, manageSkills tool selection |
+| `/e2e-live-skills` | skills.spec.ts | 3 | B-08, B-22, B-41, manageSkills bridge plumbing |
 | `/e2e-live-docker` | docker.spec.ts | 8 (うち 2 は L4) | B-01〜B-08 |
 
 ## Docker 依存度フラグ（凡例）
@@ -274,15 +274,9 @@ e2e-live/
 
 - カバー: manageSkills MCP bridge plumbing
 - 重要度: **A** / Docker: `both` / 画像: 不要
-- 操作: Settings ロール（`manageSkills` を `availablePlugins` に持つ唯一のロール）で session を起動 → `Use the manageSkills tool with action: "save" ...` と明示プロンプト送信 → assistant turn 完了を待機
-- 検証: session jsonl の `tool_call` に `mcp__mulmoclaude__manageSkills` + `args.action === "save"` が現れる + `<workspace>/.claude/skills/<slug>/SKILL.md` に body が書かれている。 L-32 と対の canary で、 L-32 fail 時に「Claude のツール選択が悪いのか」「manageSkills bridge が壊れているのか」を切り分けるための明示テスト
-
-#### L-32: 曖昧 「skill 作って」 でも Claude が manageSkills を選ぶ (Write 直行を禁止)
-
-- カバー: f65b1da1 退行 (Claude が `Write` で `.claude/skills/` を直接書こうとして permission stall)
-- 重要度: **A** / Docker: `both` / 画像: 不要
-- 操作: Settings ロールで session を起動 → tool 名にも slug にも触れず 「呼ばれたら ${marker} とだけ返事するスキルを作って」 と曖昧プロンプト送信 → assistant turn 完了を待機
-- 検証: (1) `tool_call` に `mcp__mulmoclaude__manageSkills` (action=save) が現れる + (2) `tool_call` に **`Write` toolName で `file_path` が `.claude/skills/` 配下のもの** が **0 件** + (3) baseline snapshot の差分に少なくとも 1 件の skill dir が現れ、 そこに marker 文字列が含まれている。 cleanup は marker フィルタで自テスト発の dir のみ削除（L-22 / L-31 と並列実行しても踏まない）
+- 操作: Tutor ロール（`0fb0f8e0` 以降 `manageSkills` を `availablePlugins` に持つ唯一のロール）で session を起動 → `Use the manageSkills tool with action: "save" ...` と明示プロンプト送信 → assistant turn 完了を待機
+- 検証: session jsonl の `tool_call` に `mcp__mulmoclaude__manageSkills` + `args.action === "save"` が現れる + `<workspace>/.claude/skills/<slug>/SKILL.md` に body が書かれている
+- フォローアップメモ: 「`manageSkills` を General ロールにも入れる」 提案 issue が merge されたら、 Tutor 経由ではなく **General で動かす形に変更する**（ユーザー実面に近い）。 同時に L-32 を「曖昧プロンプトで skill が確実に landing する」 outcome ベースの canary として再実装する
 
 ### docker（8、うち 2 は manual-l4）
 
@@ -368,8 +362,7 @@ e2e-live/
 | **L-21** chart deferred-tool dispatch | ✅ 実装済 | skills.spec.ts、 「`L-21 sales` の bar chart を chart tool で render して」 と prompt → `chart-card-0` + `chart-canvas-0` testid (`src/plugins/chart/View.vue` 既存) が visible になることを assert (B-41 canary)。 L-03 (presentMulmoScript) と異なる plugin で 2 本目の deferred dispatch canary を立て、 deferred mode で 1 plugin だけ schema 取りこぼす shear 退行を網羅。 LLM のばらつきを「`Do not narrate the result.`」 で抑え、 textResponse fallback を防ぐ |
 | **L-22** skill end-to-end 実行 (B-08) | ✅ 実装済 | skills.spec.ts、 合成 skill を `<workspace>/.claude/skills/<unique-slug>/SKILL.md` に seed (body には 「`/<slug>` で呼ばれたら `L22-OK-<nonce>` という marker を返答せよ」 の指示) → `/skills` 直叩き → 一覧に row 出現 → click で `skill-body-rendered` に marker が描画 → Run ボタン → `/chat/<id>` で agent ターン完走 → assistant 応答に同 marker が含まれることを assert。 discovery → list API → detail API → slash-command dispatch → skill body が agent context に乗る、 の 4 段全てが繋がっていないと marker が出ない設計。 nonce で他テストと衝突回避、 marker は ASCII の決定論的文字列で LLM 揺れ吸収 |
 | L-10, L-13, L-17, L-23〜L-30 | 未実装 | 後続 PR で順次。 L-10 / L-13 はサーバ再起動 (env unset / 再接続) が必要なので別インフラ skill で扱う。 L-17 は `00f4a740 fix(notifier): drop HTTP publish` で外部から bridge message を注入するルートが廃止されており、 test 用 inject 経路 (engine.publish 直叩き or socket.io 直接 emit) の追加が前提。 L-23〜L-30 は docker-only / manual-l4 |
-| **L-31** manageSkills tool 明示プロンプト canary | ✅ 実装済 | skills.spec.ts、 Settings ロール（`manageSkills` を `availablePlugins` に持つ唯一のロール）に切り替え → `Use the manageSkills tool with action: "save"` と明示プロンプト → `readSessionToolCalls(sessionId)` で `<workspace>/conversations/chat/<id>.jsonl` を読み、 `mcp__mulmoclaude__manageSkills` + `args.action === "save"` の `tool_call` が ≥1 件 + `.claude/skills/<slug>/SKILL.md` に body marker が含まれている事を assert。 dispatch 経路の plumbing canary (L-32 失敗時の切り分け軸) |
-| **L-32** 曖昧プロンプトでの Write 直行禁止 canary | ✅ 実装済 | skills.spec.ts、 Settings ロールで tool 名にも slug にも触れず 「呼ばれたら ${marker} とだけ返事するスキルを作って」 と曖昧プロンプト → 同じ jsonl を読み (a) `mcp__mulmoclaude__manageSkills(save)` ≥1 件 + (b) `Write` toolName で `file_path` が `/.claude/skills/` を含むものが **0 件** を assert。 baseline snapshot 差分から marker 文字列を持つ skill dir のみ cleanup する設計で、 L-22 / L-31 と parallel 実行しても踏まない。 `waitForAssistantTurn` (indicator visible → hidden) で `thinking-indicator.toBeHidden` の detached-element race を回避 (jsonl が空のまま assertion が走る regression を closeした) |
+| **L-31** manageSkills tool 明示プロンプト canary | ✅ 実装済 | skills.spec.ts、 Tutor ロール（`0fb0f8e0` 以降 `manageSkills` を持つ唯一のロール）に切り替え → `Use the manageSkills tool with action: "save"` と明示プロンプト → `readSessionToolCalls(sessionId)` で `<workspace>/conversations/chat/<id>.jsonl` を読み、 `mcp__mulmoclaude__manageSkills` + `args.action === "save"` の `tool_call` が ≥1 件 + `.claude/skills/<slug>/SKILL.md` に body marker が含まれている事を assert。 `waitForAssistantTurn` (indicator visible → hidden) で `thinking-indicator.toBeHidden` の detached-element race を回避。 follow-up: 「`manageSkills` を General ロールに戻す」 issue が merge 後、 Tutor → General に切り替え、 同時に **L-32 (曖昧プロンプト → skill 確実 landing の outcome canary)** を新規実装する |
 | **L-EDIT** beat 編集永続化 | ✅ 実装済 (active) | mulmo-script-edit.spec.ts、 PR #1243 で #1074 fix と同梱で unskip 済 (`adcca773 fix: persist presentMulmoScript beat edits across page reload`)。 fixture json を seed → presentMulmoScript view を立ち上げ → beat 0 の source-editor textarea で `text: ""` → `"L-EDIT marker via e2e-live"` に書き換え → update ボタン押下 (`sourceOpen[index]=false` で textarea が `v-if` 解除されるのを成功シグナルに使う、 button が enabled に戻るのを待つと button 自体が DOM から消えてるので timeout する罠あり) → wiki launcher → session tab で SPA 内ナビゲーション (page.goto は server `enrichWithMulmoScript` で fix を bypass するので避ける) → marker が再表示される事を assert |
 | **L-W-S-03** `<picture><source srcset>` rewriter | 🟡 skip 中 | wiki.spec.ts、 `<picture><source srcset>` の rewriter 対応待ち。 #1011 Stage B (commit `f3c52268 feat: shared HTML URL-attr rewriter`) で `<source src>` / `<video poster\|src>` / `<audio src>` までは widen 済だが、 **`srcset` (comma-separated descriptor list) は明示的に deferred** (`src/utils/image/htmlSrcAttrs.ts:21-24` の deferred 注記参照)。 `srcset` 専用の split/rewrite pass が入った後に skip 解除する想定。 別の Stage B 効果 (`<video poster>` 等) を測りたければ別 spec として L-W-S-06+ を立てるのが筋 |
 

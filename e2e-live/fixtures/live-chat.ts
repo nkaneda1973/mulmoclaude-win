@@ -3,7 +3,7 @@
 // install any API mocks — the real Claude API runs end-to-end. Use
 // these helpers from specs in `e2e-live/tests/`.
 
-import { copyFile, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -279,33 +279,11 @@ export async function readSessionToolCalls(sessionId: string): Promise<ToolCallT
 }
 
 /**
- * Snapshot the slug names currently sitting under
- * `<workspace>/.claude/skills/`. Returned as a Set so a post-test
- * `difference()`-style filter is cheap; missing directory yields an
- * empty set so a fresh workspace doesn't trip the helper. Used by
- * L-32 to identify skill dirs that the test caused (Claude picks
- * the slug) without stomping on a parallel run's seeded skills.
- */
-export async function snapshotProjectSkillSlugs(): Promise<Set<string>> {
-  const skillsDir = resolveWorkspacePath(".claude/skills");
-  let entries: { name: string; isDirectory: () => boolean }[];
-  try {
-    entries = await readdir(skillsDir, { withFileTypes: true });
-  } catch (err) {
-    if (isENOENT(err)) return new Set();
-    throw err;
-  }
-  return new Set(entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name));
-}
-
-/**
  * Read the SKILL.md body of the named project skill. Returns `null`
- * when the file is absent (e.g. cleanup race in a parallel suite),
- * so the caller can treat absence as "not ours" without distinguishing
- * it from a read failure. Slug is filesystem-validated upstream by
- * the directory listing in {@link snapshotProjectSkillSlugs}; we
- * still go through `resolveWorkspacePath` so a malformed slug cannot
- * escape the workspace root.
+ * when the file is absent so the caller can treat absence as
+ * "not ours" without distinguishing it from a read failure. We go
+ * through `resolveWorkspacePath` so a malformed slug cannot escape
+ * the workspace root.
  */
 export async function readProjectSkillBody(slug: string): Promise<string | null> {
   const target = resolveWorkspacePath(`.claude/skills/${slug}/SKILL.md`);
@@ -585,10 +563,48 @@ export async function deleteSession(page: Page, sessionId: string): Promise<void
 
 const PRESENT_HTML_IFRAME_SELECTOR = '[data-testid="present-html-iframe"]';
 
+const CHAT_SESSION_URL_PATTERN = /\/chat\/[0-9a-f-]+/;
+
 /** Open the app root and start a fresh chat session. */
 export async function startNewSession(page: Page): Promise<void> {
   await page.goto("/");
   await page.getByTestId("new-session-btn").click();
+}
+
+/**
+ * Like {@link startNewSession} but waits until the URL settles on a
+ * `/chat/<id>` that differs from whatever the SPA was sitting on
+ * before the click, and returns the freshly-created session id.
+ *
+ * Why this exists: `page.goto("/")` triggers the SPA's
+ * "resume the most-recent session" redirect when one exists, so the
+ * URL can already match `/chat/<old-id>` before the click. A naive
+ * `await page.waitForURL(SESSION_URL_PATTERN)` after that passes
+ * immediately on the *stale* URL, and a subsequent
+ * `getCurrentSessionId(page)` returns the old session id — any
+ * follow-up assertion that reads tool-trace by session id then
+ * reads from the wrong file and sees zero matches. Specs that need
+ * the new session id (e.g. to read its `conversations/chat/<id>.jsonl`)
+ * should reach for this helper instead of pairing `startNewSession`
+ * with `waitForURL(SESSION_URL_PATTERN)` by hand. Specs that follow
+ * with `selectRole(...)` are not affected — `selectRole` spawns its
+ * own fresh session, and their second wait already filters out the
+ * old id.
+ */
+export async function startGuaranteedNewSession(page: Page): Promise<string> {
+  await page.goto("/");
+  const priorSessionId = getCurrentSessionId(page);
+  await page.getByTestId("new-session-btn").click();
+  if (priorSessionId === null) {
+    await page.waitForURL(CHAT_SESSION_URL_PATTERN);
+  } else {
+    await page.waitForURL((url) => CHAT_SESSION_URL_PATTERN.test(url.pathname) && !url.pathname.endsWith(priorSessionId));
+  }
+  const newSessionId = getCurrentSessionId(page);
+  if (newSessionId === null) {
+    throw new Error("startGuaranteedNewSession: URL did not settle on /chat/<id> after new-session-btn click");
+  }
+  return newSessionId;
 }
 
 /** Fill the chat input and click send. */
