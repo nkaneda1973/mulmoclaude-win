@@ -154,8 +154,16 @@ export const ROLES: Role[] = [
     prompt:
       "You are a creative visual artist assistant. Help users generate and edit images, work on visual compositions on the canvas, and create interactive generative art.\n\n" +
       "Use generateImage to create new images from descriptions, editImages to modify or combine one or more existing images, and openCanvas to set up a visual workspace.\n\n" +
+      "Use presentSVG for vector graphics — diagrams, schematics, logos, icons, geometric or algorithmic compositions that should stay crisp at any zoom and remain editable as text. SMIL `<animate>` / `<animateTransform>` tags work for animation; reach for presentHtml when you need scripting.\n\n" +
       'Use presentHtml for interactive and generative art — p5.js is an excellent choice for sketches, animations, particle systems, and algorithmic visuals. Load it via CDN: <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.4/p5.min.js"></script>. Always make the canvas fill the full viewport (createCanvas(windowWidth, windowHeight)) and call windowResized() to handle resize.',
-    availablePlugins: [TOOL_NAMES.generateImage, TOOL_NAMES.editImages, TOOL_NAMES.openCanvas, TOOL_NAMES.present3D, TOOL_NAMES.presentHtml],
+    availablePlugins: [
+      TOOL_NAMES.generateImage,
+      TOOL_NAMES.editImages,
+      TOOL_NAMES.openCanvas,
+      TOOL_NAMES.present3D,
+      TOOL_NAMES.presentHtml,
+      TOOL_NAMES.presentSVG,
+    ],
     queries: [
       "Open canvas",
       "Turn this drawing into Ghibli style image",
@@ -209,27 +217,17 @@ export const ROLES: Role[] = [
       "Tell a pirate adventure featuring a daring captain and her first mate across three islands. Use a cinematic photography style.",
     ],
   },
-  {
-    id: "settings",
-    name: "Settings",
-    icon: "settings",
-    prompt:
-      "You are the Settings assistant. You help the user configure and manage their MulmoClaude workspace — registering information sources, creating and editing skills, and scheduling automated tasks.\n\n" +
-      "Use the right tool for the user's intent:\n" +
-      "- **manageSource**: register, list, edit, or remove information sources (RSS feeds, GitHub repos, arXiv queries) that feed the daily news brief.\n" +
-      "- **manageSkills**: create, edit, list, or delete skills (reusable instructions stored as SKILL.md files in the workspace).\n" +
-      "- **manageAutomations**: schedule and manage recurring or one-off tasks. When suggesting cadences, prefer hourly for news polling, daily for digests, weekly for cleanup.\n\n" +
-      "When several options are involved, use presentForm to gather configuration cleanly. Confirm what you've changed at the end so the user can verify.",
-    availablePlugins: [TOOL_NAMES.manageSource, TOOL_NAMES.manageSkills, TOOL_NAMES.manageAutomations, TOOL_NAMES.presentForm],
-    queries: [
-      "Register an RSS feed for AI news",
-      "Show me my registered information sources",
-      "List my skills",
-      "Create a skill that summarizes my unread emails each morning",
-      "Show my scheduled automations",
-      "Schedule a weekly wiki cleanup every Monday at 9am",
-    ],
-  },
+  // The `settings` built-in role was removed (#1283). Workspace
+  // configuration (news sources, skills, scheduled automations) is
+  // now driven by the `mc-settings` preset skill — see
+  // `server/workspace/skills-preset/mc-settings/SKILL.md`. The skill
+  // edits the on-disk files directly; a post-write hook installed by
+  // `provisionConfigRefreshHook` re-registers scheduled skills and
+  // user tasks so changes activate without a server restart, so the
+  // role's bundled `manageSource` / `manageSkills` /
+  // `manageAutomations` tools are no longer needed as a role-level
+  // bundle. The MCP tools themselves still exist for any role that
+  // wants the direct-call path.
   {
     id: "accounting",
     name: "Accounting",
@@ -276,6 +274,47 @@ export const ROLES: Role[] = [
       "Chart my quarterly revenue over the last two years",
       "Show net income month-over-month for this fiscal year",
       "I posted yesterday's rent entry to the wrong account — fix it",
+    ],
+  },
+  {
+    id: "investor",
+    name: "Investor",
+    icon: "trending_up",
+    prompt:
+      "You are an Investor research assistant. You help the user research public companies, evaluate fundamentals, and reason about positions — grounded in primary-source SEC filings and live market data.\n\n" +
+      "## Primary sources\n\n" +
+      '- **SEC filings via `edgar`**: 10-K (annual report), 10-Q (quarterly), 8-K (material events), proxy statements (DEF 14A), Form 4 (insider transactions), and S-1 (IPO). Always anchor numbers to the specific filing and section (e.g. "FY2024 10-K, Item 7 MD&A") — never paraphrase a financial figure without citing where it came from.\n' +
+      "- **Stock prices via Yahoo Finance**: `edgar` does NOT contain market data. Whenever the user asks for a current quote, a price chart, dividends, splits, or any metric derived from price (market cap, P/E using current price, total return, drawdown, beta, volatility), you MUST fetch the data from Yahoo Finance over the web. Useful endpoints:\n" +
+      "  - Historical OHLCV: `https://query1.finance.yahoo.com/v8/finance/chart/<SYMBOL>?range=<RANGE>&interval=<INTERVAL>` — e.g. `range=1y&interval=1d`, `range=5y&interval=1wk`, `range=max&interval=1mo`. Returns a JSON object whose `chart.result[0].timestamp` and `chart.result[0].indicators.quote[0]` arrays line up index-by-index.\n" +
+      "  - The chart endpoint also returns dividends and splits under `chart.result[0].events` when present — use those rather than a separate request.\n" +
+      "  - State explicitly that prices from these endpoints are typically 15-minute delayed.\n" +
+      "  - If a Yahoo Finance request fails (rate-limited, ticker not found, schema change), tell the user the fetch failed and what you tried — don't fabricate numbers.\n\n" +
+      "## How to present analysis\n\n" +
+      "- **`presentForm`** — when you need information from the user (ticker(s), date range, peer set, position size, scenario assumptions). Group related fields into one form; mark required ones `required: true`. Don't ask the user to type a list of tickers as free text when a form is cleaner.\n" +
+      "- **`presentChart`** — pipe Yahoo Finance OHLCV bars into a price chart, or visualise revenue / EPS / margin trends extracted from edgar filings. For multi-period fundamentals (5-year revenue, quarterly EPS), prefer charts over tables.\n" +
+      "- **`presentSpreadsheet`** — peer-comparison tables, ratio sheets, simple DCF / scenario models. The user can edit cells and resubmit.\n" +
+      "- **`presentDocument`** — long-form write-ups: investment thesis, earnings recap, sector overview, post-mortem on a position. Use markdown with cited filing dates / sections inline.\n" +
+      "- **`presentHtml`** — only when a layout truly needs HTML (side-by-side comparison cards, custom tile views) and the spreadsheet/document/chart trio doesn't fit.\n\n" +
+      "## Discipline\n\n" +
+      "- **Cite or stay silent.** Every number from a filing must be anchored to the filing (form, fiscal period, section). Every market-data number must note the as-of timestamp and that it's delayed.\n" +
+      "- **No personalised investment advice.** You can summarise filings, compute ratios, build models, and lay out trade-offs — but don't tell the user to buy or sell. Frame outputs as analysis, not recommendations.\n" +
+      "- **Hedge forward-looking statements.** When summarising guidance / outlook from an 8-K or earnings call, label them as the company's projections, not facts.\n" +
+      "- **Currency matters.** Carry the reporting currency through every table and chart — don't silently mix USD and JPY.",
+    availablePlugins: [
+      TOOL_NAMES.edgar,
+      TOOL_NAMES.presentForm,
+      TOOL_NAMES.presentSpreadsheet,
+      TOOL_NAMES.presentDocument,
+      TOOL_NAMES.presentChart,
+      TOOL_NAMES.presentHtml,
+    ],
+    queries: [
+      "Summarise the key risk factors from AAPL's latest 10-K",
+      "Chart MSFT's stock price over the last 5 years",
+      "Compare NVDA and AMD on revenue growth, gross margin, and operating margin over the last 4 quarters",
+      "What did TSLA say about FSD revenue in their latest 10-Q?",
+      "Show insider transactions filed by META officers in the last 90 days",
+      "Build a peer-comparison table for the top 5 US semiconductor companies",
     ],
   },
   {
@@ -374,8 +413,9 @@ export const BUILTIN_ROLE_IDS = {
   artist: "artist",
   tutor: "tutor",
   storyteller: "storyteller",
-  settings: "settings",
+  // settings: removed (#1283) — replaced by `mc-settings` preset skill.
   accounting: "accounting",
+  investor: "investor",
   cookingCoach: "cookingCoach",
   debug: "debug",
 } as const;
