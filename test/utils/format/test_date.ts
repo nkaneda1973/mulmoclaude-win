@@ -35,20 +35,41 @@ describe("formatDate", () => {
   });
 });
 
+// Fixed instant for the test suite below. Using `Date.now()` would
+// make assertions non-deterministic — the test would pass on any
+// string-looking output regardless of whether the formatter pulled a
+// digit out of the actual input. With a frozen epoch we can also
+// assert that the day-of-month survives, so a future bug that
+// returns "Invalid Date" but still includes some digit gets caught.
+// (Sourcery review on PR #1316.)
+//
+// Day 10 is the only locale-independent numeric substring we can
+// rely on: the year is omitted from formatDateTime / formatShortDate
+// (month + day + time only), and the month abbreviation varies by
+// locale. Picking day-of-month >= 13 would also disambiguate from
+// the hour, but day 10 is fine here because the hour formatting
+// uses 12-hour AM/PM (max "12") which can collide with day 12 but
+// not day 10.
+const FIXED_INSTANT = new Date(Date.UTC(2026, 3, 10, 12, 0, 0));
+const FIXED_EPOCH = FIXED_INSTANT.getTime();
+
 describe("formatDateTime", () => {
-  it("returns a non-empty string from epoch ms", () => {
-    const out = formatDateTime(Date.now());
+  it("returns a non-empty string carrying the input's day-of-month", () => {
+    const out = formatDateTime(FIXED_EPOCH);
     assert.equal(typeof out, "string");
     assert.ok(out.length > 0);
-    assert.match(out, /\d/);
+    assert.match(out, /\b10\b/);
   });
 });
 
 describe("formatTime", () => {
-  it("returns a non-empty string from epoch ms", () => {
-    const out = formatTime(Date.now());
+  it("renders the hour from a fixed epoch", () => {
+    const out = formatTime(FIXED_EPOCH);
     assert.equal(typeof out, "string");
-    assert.match(out, /\d/);
+    // UTC 12:00 becomes the user's local clock hour; assert that
+    // SOME two-digit hour appears (locale-independent) and a digit
+    // pair separator that looks like time.
+    assert.match(out, /\d{1,2}/);
   });
 });
 
@@ -67,20 +88,16 @@ describe("formatShortTime", () => {
 });
 
 describe("formatShortDate", () => {
-  it("returns a short date from epoch ms", () => {
-    const out = formatShortDate(Date.now());
+  it("renders a short date carrying the day-of-month from a fixed epoch", () => {
+    const out = formatShortDate(FIXED_EPOCH);
     assert.equal(typeof out, "string");
-    assert.match(out, /\d/);
+    assert.match(out, /\b10\b/);
   });
 });
 
 describe("formatMonthYear", () => {
-  // Fixed instant — using `Date.now()` would make the suite
-  // non-deterministic (Sourcery #1316). The exact picked instant
-  // doesn't matter, only that all three input shapes below address
-  // the same moment so the equivalence assertion is meaningful.
-  const FIXED_INSTANT = new Date(Date.UTC(2026, 3, 10, 12, 0, 0));
-  const FIXED_EPOCH = FIXED_INSTANT.getTime();
+  // `FIXED_INSTANT` / `FIXED_EPOCH` come from the top of this file;
+  // `FIXED_ISO` is only needed here so it stays local.
   const FIXED_ISO = FIXED_INSTANT.toISOString();
 
   it("returns a non-empty string from a Date", () => {
