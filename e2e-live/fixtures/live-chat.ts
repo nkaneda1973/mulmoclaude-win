@@ -736,22 +736,49 @@ export async function startNewSession(page: Page): Promise<void> {
  * out even when the URL captured priorSessionId reads as `null`.
  * Runs inside `page.evaluate` so the `<meta name="mulmoclaude-auth">`
  * bearer is picked up the same way the live-mode UI fetches do.
+ *
+ * Fail-fast on every failure mode (network drop, non-200, malformed
+ * payload). An empty baseline is NOT a safe fallback — it lets
+ * `startGuaranteedNewSession` accept a bootstrap-resumed
+ * `/chat/<existing>` as the "new" session, exactly the race the
+ * helper was added to close. Surfacing the underlying failure with
+ * a descriptive message lets the test fail fast with a diagnostic
+ * pointing at the real cause (server down, auth meta missing, etc.)
+ * instead of silently producing the wrong session id and failing
+ * downstream on an unrelated assertion. CodeRabbit + Codex GHA
+ * review on PR #1345.
  */
+interface SessionListProbe {
+  ok: boolean;
+  ids?: string[];
+  reason?: string;
+}
+
 async function fetchExistingSessionIds(page: Page): Promise<Set<string>> {
   const route = API_ROUTES.sessions.list;
-  const ids = await page.evaluate(async (sessionsListUrl) => {
+  const probe: SessionListProbe = await page.evaluate(async (sessionsListUrl) => {
     const meta = document.querySelector('meta[name="mulmoclaude-auth"]');
     const token = meta?.getAttribute("content") ?? "";
     try {
       const res = await fetch(sessionsListUrl, { headers: { Authorization: `Bearer ${token}` } });
-      if (!res.ok) return [];
+      if (!res.ok) {
+        return { ok: false, reason: `GET ${sessionsListUrl} returned HTTP ${res.status} ${res.statusText}` };
+      }
       const data = (await res.json()) as { sessions?: { id: string }[] };
-      return (data.sessions ?? []).map((session) => session.id);
-    } catch {
-      return [];
+      if (!Array.isArray(data.sessions)) {
+        return { ok: false, reason: `GET ${sessionsListUrl} returned an unexpected payload (no sessions array)` };
+      }
+      return { ok: true, ids: data.sessions.map((session) => session.id) };
+    } catch (err) {
+      return { ok: false, reason: `GET ${sessionsListUrl} threw: ${err instanceof Error ? err.message : String(err)}` };
     }
   }, route);
-  return new Set(ids);
+  if (!probe.ok || probe.ids === undefined) {
+    throw new Error(
+      `fetchExistingSessionIds: failed to baseline server sessions — ${probe.reason ?? "unknown error"}. An empty baseline would reopen the bootstrap-resume race in startGuaranteedNewSession.`,
+    );
+  }
+  return new Set(probe.ids);
 }
 
 const SESSION_ID_FROM_PATH_RE = /\/chat\/([0-9a-f-]+)/;
