@@ -46,26 +46,21 @@ describe("formatDate", () => {
 // assert that the day-of-month survives, so a future bug that
 // returns "Invalid Date" but still includes some digit gets caught.
 // (Sourcery review on PR #1316.)
-//
-// Day 10 is the only locale-independent numeric substring we can
-// rely on: the year is omitted from formatDateTime / formatShortDate
-// (month + day + time only), and the month abbreviation varies by
-// locale. Picking day-of-month >= 13 would also disambiguate from
-// the hour, but day 10 is fine here because the hour formatting
-// uses 12-hour AM/PM (max "12") which can collide with day 12 but
-// not day 10.
 const FIXED_INSTANT = new Date(Date.UTC(2026, 3, 10, 12, 0, 0));
 const FIXED_EPOCH = FIXED_INSTANT.getTime();
 
-// "10" rendered in whatever numerals the host's default locale uses.
-// `toLocaleString(undefined, ...)` inside the formatter pulls from
-// the same default, so `Intl.NumberFormat()` here produces the
-// matching glyphs — `"10"` on ASCII hosts, `"١٠"` on `ar-EG`,
-// `"१०"` on `hi-IN`, etc. The substring assertion below stays
-// correct under any default locale. `\b10\b` (the previous form)
-// was ASCII-only and would false-fail on non-Latin-numeral hosts
-// (Codex review on #1338).
-const TEN_IN_DEFAULT_LOCALE = new Intl.NumberFormat(undefined, { useGrouping: false }).format(10);
+// Day-of-month rendered through the host's locale AND timezone, so
+// the substring assertion below tracks BOTH axes:
+//   - locale numeral system (`"10"` on en-US, `"١٠"` on ar-EG,
+//     `"१०"` on hi-IN, etc.) — `\b10\b` was ASCII-only.
+//   - host timezone — at UTC+13/UTC+14, `FIXED_INSTANT` is locally
+//     April 11, so the formatter correctly emits day `11`, not `10`;
+//     a hard-coded `10` (or `Intl.NumberFormat(10)`) would
+//     false-fail there.
+// Deriving the expected string from the same `Intl.DateTimeFormat`
+// surface the formatters use makes both fall out automatically
+// (Codex review on PR #1338).
+const EXPECTED_DAY = new Intl.DateTimeFormat(undefined, { day: "numeric" }).format(FIXED_INSTANT);
 
 // Locale-independent time-shape pattern: 1-2 Unicode digits, a
 // common time separator (`:` typical, some locales use `.` or
@@ -78,7 +73,7 @@ describe("formatDateTime", () => {
     const out = formatDateTime(FIXED_EPOCH);
     assert.equal(typeof out, "string");
     assert.ok(out.length > 0);
-    assert.ok(out.includes(TEN_IN_DEFAULT_LOCALE), `expected "${TEN_IN_DEFAULT_LOCALE}" in ${out}`);
+    assert.ok(out.includes(EXPECTED_DAY), `expected "${EXPECTED_DAY}" in ${out}`);
   });
 });
 
@@ -114,7 +109,7 @@ describe("formatShortDate", () => {
   it("renders a short date carrying the day-of-month from a fixed epoch", () => {
     const out = formatShortDate(FIXED_EPOCH);
     assert.equal(typeof out, "string");
-    assert.ok(out.includes(TEN_IN_DEFAULT_LOCALE), `expected "${TEN_IN_DEFAULT_LOCALE}" in ${out}`);
+    assert.ok(out.includes(EXPECTED_DAY), `expected "${EXPECTED_DAY}" in ${out}`);
   });
 });
 
