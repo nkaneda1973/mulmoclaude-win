@@ -193,12 +193,19 @@ export async function placeProjectSkill(slug: string, description: string, body:
 }
 
 /**
- * Best-effort delete the seeded skill directory. Removes both the
+ * Best-effort fs-level delete of a seeded skill. Removes both the
  * canonical `.claude/skills/<slug>/` and the staging
  * `data/skills/<slug>/` (the latter is a no-op when it does not
  * exist — true for L-22-style direct seeds via {@link placeProjectSkill},
  * non-trivial for L-31 / L-32 where the agent wrote to staging and
  * the bridge mirrored it across).
+ *
+ * Prefer {@link deleteProjectSkillViaUi} for normal test teardown:
+ * it routes through `DELETE /api/skills/:name` which keeps the
+ * server-side skill registry in sync. Use this fs-level helper only
+ * as a safety-net follow-up (the UI / API never touch the staging
+ * dir, so it must still be cleaned to keep the bridge from
+ * re-mirroring on a stale Write event).
  */
 export async function removeProjectSkill(slug: string): Promise<void> {
   assertValidSkillSlug(slug);
@@ -206,6 +213,56 @@ export async function removeProjectSkill(slug: string): Promise<void> {
   const stagingDir = resolveWorkspacePath(`data/skills/${slug}`);
   await rm(canonicalDir, { recursive: true, force: true });
   await rm(stagingDir, { recursive: true, force: true });
+}
+
+/**
+ * Delete a project-scope skill via the user-facing UI flow:
+ * navigate to `/skills`, click the row, click the delete button,
+ * accept the native `confirm()`, and wait for the row to disappear
+ * from the listing. Internally hits `DELETE /api/skills/:name`
+ * (`server/api/routes/skills.ts`) which `unlink`s
+ * `.claude/skills/<slug>/SKILL.md` and `rmdir`s the dir, then the
+ * normal config-refresh hook deregisters the skill — so unlike the
+ * raw fs delete this keeps the in-memory registry honest and the
+ * `/skills` listing fresh.
+ *
+ * What it does NOT do: clean the staging
+ * `<workspace>/data/skills/<slug>/` dir. That path is owned by the
+ * skill bridge (#1298) and the server-side delete deliberately does
+ * not touch it. Test cleanups MUST follow this with a
+ * {@link removeProjectSkill} call so a stale staging dir cannot
+ * round-trip through the bridge into a future test's view.
+ *
+ * No-op when the row never appears (skill already cleaned up by an
+ * earlier finally pass, or never landed). Returns silently on a
+ * missing row so finally clauses do not fail-cascade on cleanup
+ * order surprises.
+ */
+const SKILL_ROW_PRESENCE_TIMEOUT_MS = 5 * ONE_SECOND_MS;
+
+export async function deleteProjectSkillViaUi(page: Page, slug: string, timeoutMs: number = ONE_MINUTE_MS): Promise<void> {
+  assertValidSkillSlug(slug);
+  await page.goto("/skills");
+  const skillRow = page.getByTestId(`skill-item-${slug}`);
+  try {
+    await expect(skillRow).toBeVisible({ timeout: SKILL_ROW_PRESENCE_TIMEOUT_MS });
+  } catch {
+    // Row absent → skill is not in the listing (either the test
+    // never created it or a previous finally already cleaned it).
+    // Treat as success so cleanup stays idempotent.
+    return;
+  }
+  await skillRow.click();
+  // `window.confirm()` resolves synchronously when fired, so the
+  // dialog handler MUST be installed before the click — a late
+  // listener misses the prompt and the click hangs the page.
+  page.once("dialog", (dialog) => {
+    dialog.accept().catch(() => {
+      /* ignore: page may have closed during cleanup */
+    });
+  });
+  await page.getByTestId("skill-delete-btn").click();
+  await expect(skillRow, "deleted skill row must disappear from /skills listing").toBeHidden({ timeout: timeoutMs });
 }
 
 /**

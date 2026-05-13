@@ -1,9 +1,10 @@
 import { randomUUID } from "node:crypto";
 
-import { expect, test } from "@playwright/test";
+import { type Page, expect, test } from "@playwright/test";
 
 import { ONE_MINUTE_MS } from "../../server/utils/time.ts";
 import {
+  deleteProjectSkillViaUi,
   deleteSession,
   getCurrentSessionId,
   placeProjectSkill,
@@ -194,7 +195,7 @@ test.describe("skills (real LLM / static)", () => {
       });
     } finally {
       if (sessionIdForCleanup !== null) await deleteSession(page, sessionIdForCleanup);
-      await removeProjectSkill(skillSlug);
+      await cleanupProjectSkill(page, skillSlug);
     }
   });
 
@@ -258,25 +259,37 @@ test.describe("skills (real LLM / static)", () => {
       ).toContain(skillSlug);
     } finally {
       if (sessionId !== null) await deleteSession(page, sessionId);
-      await removeProjectSkill(skillSlug);
+      await cleanupProjectSkill(page, skillSlug);
     }
   });
 
-  test("L-32: 「skill 化して」 (slug 任せ) → bridge mirror が .claude/skills/<slug>/SKILL.md を landing させる (end-to-end canary)", async ({
+  test("L-32: 「skill 化して」 (slug 任せ) → bridge mirror landing → /skills 一覧に出現 → Run で marker echo (post-#1298 end-to-end canary)", async ({
     page,
   }, testInfo) => {
     test.setTimeout(L32_TIMEOUT_MS);
     // End-to-end canary for the post-#1298 skill-creation flow. L-31
     // proves the agent reached for the right path; this spec proves
-    // the file actually lands on disk where Claude CLI's skill
-    // discovery scans (`.claude/skills/<slug>/SKILL.md`). A break
-    // anywhere along
+    // the file lands AND the chain that follows actually fires. A
+    // break anywhere along
     //   discovery (mc-manage-skills surfaces) →
     //   dispatch (agent picks the right tool) →
     //   Write (staging file lands) →
     //   bridge hook (mirror copy fires) →
-    //   refresh (server rescan picks it up)
-    // collapses into a missing canonical file or a missing marker.
+    //   refresh (server rescan picks it up + /api/config/refresh) →
+    //   /skills listing surfaces the new entry →
+    //   Run / slash dispatch loads the body into the agent →
+    //   agent echoes the marker
+    // collapses into a missing file, a missing /skills row, or a
+    // missing marker in the assistant reply.
+    //
+    // Why bother with the Run leg in addition to the file landing
+    // assertion: the bridge fires `POST /api/config/refresh` after
+    // the mirror, and a silent failure there leaves the file on disk
+    // (assertion (1) passes) but the skill registry never re-scans
+    // (assertion (2) and (3) fail). L-22 covers Run+marker on a
+    // direct fs seed (no bridge), so this canary is the only place
+    // that proves bridge → refresh → registry rescan → invocability
+    // is wired end-to-end.
     //
     // Slug picked by the agent (not the test) — this is the
     // ambiguous-prompt branch. Identification of "this run's slug"
@@ -289,7 +302,8 @@ test.describe("skills (real LLM / static)", () => {
     // ours. The `finally` re-snapshots in case the assertion failed
     // before assigning `createdSlugs` — leaving a stray `<slug>/`
     // dir behind would leak across runs and pollute the discovery
-    // listing.
+    // listing. Both the creation chat session and the Run chat
+    // session are deleted; either one alone leaks history.
     const projectSlug = testInfo.project.name;
     const nonce = `${Date.now()}-${randomUUID().slice(0, 6)}`;
     const replyMarker = `L32-OK-${projectSlug}-${nonce}`;
@@ -300,33 +314,81 @@ test.describe("skills (real LLM / static)", () => {
     ].join("\n");
 
     const baselineSlugs = await snapshotProjectSkillSlugs();
-    let sessionId: string | null = null;
+    let creationSessionId: string | null = null;
+    let runSessionId: string | null = null;
     let createdSlugs: string[] = [];
     try {
-      sessionId = await startGuaranteedNewSession(page);
+      creationSessionId = await startGuaranteedNewSession(page);
       await sendChatMessage(page, userPrompt);
-      // The assertion target is a filesystem outcome, so the strict
-      // gating helper is mandatory — see L-31 comment for why
-      // waitForAssistantResponseComplete would race past an empty
-      // workspace.
+      // The (1) file-landing assertion target is a filesystem
+      // outcome, so the strict gating helper is mandatory — see
+      // L-31 comment for why waitForAssistantResponseComplete would
+      // race past an empty workspace.
       await waitForAssistantTurn(page, 2 * ONE_MINUTE_MS);
 
+      // (1) bridge mirrored the body to .claude/skills/<slug>/SKILL.md
       createdSlugs = await collectL32MarkedSlugs(baselineSlugs, replyMarker);
       expect(
         createdSlugs.length,
-        "at least one new dir under .claude/skills/<slug>/ must contain this run's marker — proves the bridge mirrored data/skills → .claude/skills (post-#1298 outcome canary)",
+        "at least one new dir under .claude/skills/<slug>/ must contain this run's marker — proves the bridge mirrored data/skills → .claude/skills (post-#1298 outcome)",
       ).toBeGreaterThan(0);
+
+      // (2) /api/config/refresh succeeded → the new skill surfaces
+      // in /skills. We pick the first marker-bearing slug; if the
+      // agent created multiple (rare), the first one is enough to
+      // prove the registry refreshed — every dir was mirrored
+      // through the same code path. The default helper is fine here
+      // because we have a UI gate (`skill-item-<slug>` visibility)
+      // that masks the fast-path race waitForAssistantTurn guards.
+      const [runSlug] = createdSlugs;
+      await page.goto("/skills");
+      const skillRow = page.getByTestId(`skill-item-${runSlug}`);
+      await expect(
+        skillRow,
+        "newly-bridged skill must surface in /skills — proves /api/config/refresh triggered the registry rescan after the mirror",
+      ).toBeVisible({ timeout: ONE_MINUTE_MS });
+
+      // (3) Run via the detail-pane button → slash dispatch →
+      // agent loads the bridged SKILL.md body → echoes the marker.
+      // Click order matches L-22's Run leg exactly so a regression
+      // in the detail-pane / Run wiring trips both.
+      await skillRow.click();
+      await page.getByTestId("skill-run-btn").click();
+      await page.waitForURL(SESSION_URL_PATTERN);
+      runSessionId = getCurrentSessionId(page);
+      await waitForAssistantResponseComplete(page, 2 * ONE_MINUTE_MS);
+      await expect(
+        page.getByTestId("text-response-assistant-body").last(),
+        "assistant must echo the marker on Run — proves slash-dispatch loaded the bridged skill body into the agent context",
+      ).toContainText(replyMarker, { timeout: 2 * ONE_MINUTE_MS });
     } finally {
-      if (sessionId !== null) await deleteSession(page, sessionId);
+      if (runSessionId !== null) await deleteSession(page, runSessionId);
+      if (creationSessionId !== null) await deleteSession(page, creationSessionId);
       // Re-resolve in case the assertion failed before assigning
       // `createdSlugs` — a partial run still owns any dirs it left.
       const slugsToRemove = createdSlugs.length > 0 ? createdSlugs : await collectL32MarkedSlugs(baselineSlugs, replyMarker);
       for (const slug of slugsToRemove) {
-        await removeProjectSkill(slug);
+        await cleanupProjectSkill(page, slug);
       }
     }
   });
 });
+
+// Composite cleanup: prefer the user-facing UI delete (keeps the
+// server registry / `/skills` listing in sync) but always finish
+// with the fs-level rm so a UI hiccup or a stale staging dir cannot
+// leak state into the next run. Order matters — the API path only
+// touches the canonical dir; the staging dir under
+// `data/skills/<slug>/` is owned by the bridge (#1298) and is not
+// reachable from the UI, so the fs follow-up is mandatory.
+async function cleanupProjectSkill(page: Page, slug: string): Promise<void> {
+  try {
+    await deleteProjectSkillViaUi(page, slug);
+  } catch (err) {
+    console.warn(`cleanupProjectSkill: UI delete failed for ${slug}, falling back to fs`, err);
+  }
+  await removeProjectSkill(slug);
+}
 
 // L-32 cleanup helper. Pulled out of the spec so the assertion site
 // and the `finally` site share one predicate; otherwise drift between
