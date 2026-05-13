@@ -219,18 +219,22 @@ test.describe("settings (real disk / static)", () => {
       await placeWorkspaceFile(SETTINGS_REL, seedWithEffort(original, "low"));
 
       await startNewSession(page);
-      await sendChatMessage(page, "Reply with the single word: ok.");
-      // Capture the session id as soon as the URL flips — cleanup
-      // must work even if the assertion below fails.
-      await page.waitForURL(/\/chat\/[0-9a-f-]+/);
-      sessionIdForCleanup = getCurrentSessionId(page);
 
-      // Poll `ps` until our mulmoclaude-spawned claude process
-      // appears with `--effort low` in its args. The spawn happens
-      // synchronously on POST /api/agent and lives until the
-      // assistant turn ends, giving us a multi-second window even
-      // for a one-word reply.
-      await expect(async () => {
+      // Start the ps poll BEFORE firing the chat so the polling loop
+      // is already running by the time the server spawns claude. On
+      // a fast Anthropic API turn (cache hit, short reply), the
+      // entire process lifetime can be <1s — kicking the poll off
+      // post-send risks missing it (codex iter-3). Early iterations
+      // find nothing and retry; the first iteration after spawn
+      // succeeds.
+      //
+      // We hold the returned promise without awaiting yet, and
+      // attach a no-op catch so a transient rejection during the
+      // pre-spawn window does not surface as an unhandled rejection
+      // at the node level. The authoritative `await psPolling`
+      // below still throws on real failure (the underlying promise
+      // is unchanged by `.catch()`).
+      const psPolling = expect(async () => {
         const procs = await findMulmoclaudeClaudeProcesses();
         expect(procs, "mulmoclaude-spawned claude process must exist while the assistant is responding").not.toEqual([]);
         // Every matching process must carry the effort flag — if
@@ -240,6 +244,19 @@ test.describe("settings (real disk / static)", () => {
           expect(cmd, `claude process must carry --effort low in its args; saw: ${cmd}`).toMatch(/--effort\s+low(\s|$)/);
         }
       }).toPass({ timeout: PS_POLL_TIMEOUT_MS, intervals: PS_POLL_INTERVALS_MS });
+      psPolling.catch(() => undefined);
+
+      await sendChatMessage(page, "Reply with the single word: ok.");
+      // Capture the session id as soon as the URL flips — cleanup
+      // must work even if the poll assertion below fails.
+      await page.waitForURL(/\/chat\/[0-9a-f-]+/);
+      sessionIdForCleanup = getCurrentSessionId(page);
+
+      // Now await the poll. The toPass loop has been running since
+      // before sendChatMessage; by here, either it has already
+      // observed the spawn, or it will observe it within the
+      // remaining timeout window.
+      await psPolling;
 
       // Drain the assistant turn so trace / video capture the full
       // round-trip rather than cutting mid-stream.
