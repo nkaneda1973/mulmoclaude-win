@@ -167,6 +167,16 @@ test.describe("wiki navigation (real workspace)", () => {
     // the load-bearing one: it fails loudly if the resolver ever
     // returns the source page again, which is the exact regression
     // shape we're protecting against.
+    //
+    // Two routes are exercised, mirroring L-15's shape:
+    //   (A) Direct URL navigation — hits resolvePagePath via the
+    //       /api/wiki request triggered by the wiki route guard.
+    //   (B) Wikilink click in the source page — `[[targetSlug]]`
+    //       renders into a `.wiki-link[data-page]` span; clicking
+    //       hands the raw slug to the SPA router, which makes the
+    //       same /api/wiki request. Both routes ultimately ask the
+    //       server to resolve the same colliding slug, so both must
+    //       land on the target page.
     const projectSlug = testInfo.project.name;
     const nonce = `${Date.now()}-${randomUUID().slice(0, 6)}`;
     const targetSlug = `日本語タイトル-${projectSlug}-${nonce}`;
@@ -179,9 +189,13 @@ test.describe("wiki navigation (real workspace)", () => {
       // source page being readdir-first when both keys partial-
       // matched. The new resolver is order-independent, so this
       // ordering is documentation, not a load-bearing setup step.
-      await placeWikiPage(sourceSlug, [`# L-15b source`, ``, sourceMarker, ``].join("\n"));
+      // Source body carries the unique sourceMarker (for the
+      // negative assertion) plus a `[[targetSlug]]` wikilink so
+      // route (B) below has something to click.
+      await placeWikiPage(sourceSlug, [`# L-15b source`, ``, sourceMarker, ``, `[[${targetSlug}]]`, ``].join("\n"));
       await placeWikiPage(targetSlug, [`# 日本語タイトル`, ``, targetMarker, ``].join("\n"));
 
+      // (A) Direct URL navigation.
       await navigateToWikiPage(page, targetSlug);
       await expect(page.getByTestId("wiki-page-body"), "target page body must render (positive assertion)").toContainText(targetMarker);
       // Negative assertion = #1194 regression sentinel. If the
@@ -194,6 +208,21 @@ test.describe("wiki navigation (real workspace)", () => {
       await expect(page).toHaveURL(new RegExp(`/wiki/pages/${encodedTargetSlug}$`));
       // Negative guard mirroring L-14 / L-15 — catch-all router
       // must not swallow non-ASCII page slugs (B-24 shape).
+      await expect(page).not.toHaveURL(/\/chat/);
+
+      // (B) Wikilink click. The [[ ]] → router-push pipeline hands
+      // the raw non-ASCII slug to the same server resolver, so the
+      // collision condition applies here too. If the resolver ever
+      // returns the source page, the click bounces back to its own
+      // page and the target marker never appears.
+      await navigateToWikiPage(page, sourceSlug);
+      await page.locator(`.wiki-link[data-page="${targetSlug}"]`).first().click();
+      await expect(page).toHaveURL(new RegExp(`/wiki/pages/${encodedTargetSlug}$`));
+      await expect(page.getByTestId("wiki-page-body"), "target page body must render after wikilink click").toContainText(targetMarker);
+      await expect(
+        page.getByTestId("wiki-page-body"),
+        "source marker must NOT appear after wikilink click — would indicate #1194 regression",
+      ).not.toContainText(sourceMarker);
       await expect(page).not.toHaveURL(/\/chat/);
     } finally {
       await removeWikiPage(sourceSlug);
