@@ -1134,6 +1134,8 @@ const koMessages = {
     stop: "■ 정지",
     playPresentation: "프레젠테이션 재생",
     regenerateMovie: "동영상 재생성",
+    movieGenerationFailed: "동영상 생성에 실패했습니다",
+    retry: "다시 시도",
     errPrefix: "⚠ 오류",
     noBeats: "스크립트에서 비트를 찾을 수 없습니다",
     editSource: "스크립트 원본 편집",

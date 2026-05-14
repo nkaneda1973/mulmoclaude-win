@@ -1148,6 +1148,8 @@ const deMessages = {
     stop: "■ Stoppen",
     playPresentation: "Präsentation abspielen",
     regenerateMovie: "Video neu generieren",
+    movieGenerationFailed: "Videoerstellung fehlgeschlagen",
+    retry: "Erneut versuchen",
     errPrefix: "⚠ Fehler",
     noBeats: "Keine Beats im Skript gefunden",
     editSource: "Skript-Quelle bearbeiten",

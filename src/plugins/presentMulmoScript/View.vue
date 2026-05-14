@@ -89,6 +89,29 @@
       </div>
     </div>
 
+    <!--
+      Inline error chip for movie-generation failures (#1197).
+      Previously the catch arm of `generateMovie` raised an `alert()` —
+      blocking, no retry path, and many users just dismissed the modal
+      and saw a stalled spinner with no explanation. The chip stays
+      visible until the next generate attempt clears it.
+    -->
+    <div v-if="movieError" class="bg-red-50 border border-red-200 text-red-800 text-xs px-3 py-2 mx-4 mt-3 mb-1 rounded flex items-start gap-2">
+      <span class="material-icons text-base shrink-0 mt-px">error_outline</span>
+      <div class="flex-1 min-w-0">
+        <div class="font-medium">{{ t("pluginMulmoScript.movieGenerationFailed") }}</div>
+        <div class="break-words whitespace-pre-wrap mt-0.5">{{ movieError }}</div>
+      </div>
+      <button
+        class="shrink-0 h-7 px-2 text-xs rounded border border-red-300 text-red-700 hover:bg-red-100 disabled:opacity-50"
+        :disabled="movieGenerating"
+        data-testid="mulmo-script-movie-retry-button"
+        @click="generateMovie"
+      >
+        {{ t("pluginMulmoScript.retry") }}
+      </button>
+    </div>
+
     <!-- Characters section -->
     <div v-if="characterKeys.length > 0" class="border-b border-gray-100 shrink-0 px-4 py-3">
       <div class="flex items-center justify-between mb-2">
@@ -510,6 +533,10 @@ const localOverrides = reactive<Record<number, Beat>>({});
 const movieGenerating = ref(false);
 const movieDownloading = ref(false);
 const moviePath = ref<string | null>(null);
+// Persists the most-recent movie-generation failure so the spinner
+// area can surface it inline with a retry button (#1197). Cleared
+// at the start of every generate / regenerate attempt.
+const movieError = ref<string | null>(null);
 const beatAudios = reactive<Record<number, string>>({});
 const audioState = reactive<Record<number, "generating" | "done" | "error">>({});
 const audioErrors = reactive<Record<number, string>>({});
@@ -1275,6 +1302,7 @@ async function refreshMoviePath(): Promise<void> {
 
 async function generateMovie() {
   movieGenerating.value = true;
+  movieError.value = null;
   try {
     const res = await apiFetchRaw(endpoints.generateMovie.url, {
       method: "POST",
@@ -1296,7 +1324,10 @@ async function generateMovie() {
       },
     });
   } catch (err) {
-    alert(extractErrorMessage(err));
+    // Surface inline (instead of `alert()` which blocks + has no
+    // retry affordance). The error chip with a retry button lives
+    // next to the generate button in the template (#1197).
+    movieError.value = extractErrorMessage(err);
   } finally {
     movieGenerating.value = false;
   }

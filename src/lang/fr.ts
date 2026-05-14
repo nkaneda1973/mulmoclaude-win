@@ -1139,6 +1139,8 @@ const frMessages = {
     stop: "■ Arrêter",
     playPresentation: "Lire la présentation",
     regenerateMovie: "Régénérer la vidéo",
+    movieGenerationFailed: "Échec de la génération de la vidéo",
+    retry: "Réessayer",
     errPrefix: "⚠ Erreur",
     noBeats: "Aucun beat trouvé dans le script",
     editSource: "Modifier la source du script",
