@@ -127,12 +127,14 @@
               <div
                 v-for="item in itemsForDay(day)"
                 :key="item.id"
-                class="text-xs px-1.5 py-0.5 rounded cursor-pointer truncate"
-                :class="selectedId === item.id ? 'bg-blue-500 text-white' : 'bg-blue-100 text-blue-800 hover:bg-blue-200'"
+                class="text-xs px-1.5 py-0.5 cursor-pointer truncate"
+                :class="[segmentClasses(item, day), selectedId === item.id ? 'bg-blue-500 text-white' : 'bg-blue-100 text-blue-800 hover:bg-blue-200']"
                 :title="item.title"
                 @click="selectItem(item)"
               >
-                <span v-if="itemTime(item)" class="font-medium">{{ itemTime(item) }} </span>{{ item.title }}
+                <span :class="{ invisible: isContinuationSegment(item, day) }">
+                  <span v-if="itemTime(item)" class="font-medium">{{ itemTime(item) }} </span>{{ item.title }}
+                </span>
               </div>
             </div>
           </div>
@@ -173,12 +175,12 @@
               <div
                 v-for="item in itemsForDay(day).slice(0, MAX_MONTH_ITEMS)"
                 :key="item.id"
-                class="text-[10px] leading-tight px-1 py-0.5 rounded cursor-pointer truncate"
-                :class="selectedId === item.id ? 'bg-blue-500 text-white' : 'bg-blue-100 text-blue-800 hover:bg-blue-200'"
+                class="text-[10px] leading-tight px-1 py-0.5 cursor-pointer truncate"
+                :class="[segmentClasses(item, day), selectedId === item.id ? 'bg-blue-500 text-white' : 'bg-blue-100 text-blue-800 hover:bg-blue-200']"
                 :title="item.title"
                 @click="selectItem(item)"
               >
-                {{ item.title }}
+                <span :class="{ invisible: isContinuationSegment(item, day) }">{{ item.title }}</span>
               </div>
               <div v-if="itemsForDay(day).length > MAX_MONTH_ITEMS" class="text-[10px] text-gray-400 px-1">
                 {{ t("pluginScheduler.moreCount", { count: itemsForDay(day).length - MAX_MONTH_ITEMS }) }}
@@ -261,6 +263,7 @@ import TasksTab from "./TasksTab.vue";
 import { isToday, formatShortDate, formatMonthYear } from "../../utils/format/date";
 import { errorMessage } from "../../utils/errors";
 import { SCHEDULER_VIEW, SCHEDULER_VIEW_MODES as VIEW_MODES, SCHEDULER_TAB, type SchedulerViewMode as ViewMode, type SchedulerTab } from "./viewModes";
+import { coversDay, segmentPosition, type SegmentPosition } from "./multiDayHelpers";
 
 const { t } = useI18n();
 
@@ -367,7 +370,24 @@ function toDateString(date: Date): string {
 
 function itemsForDay(day: Date): ScheduledItem[] {
   const dateStr = toDateString(day);
-  return items.value.filter((item) => String(item.props.date) === dateStr);
+  return items.value.filter((item) => coversDay(item, dateStr));
+}
+
+const SEGMENT_BASE: Record<SegmentPosition, string> = {
+  only: "rounded",
+  start: "rounded-l",
+  middle: "",
+  end: "rounded-r",
+};
+
+function segmentClasses(item: ScheduledItem, day: Date): string {
+  const pos = segmentPosition(item, toDateString(day));
+  return pos ? SEGMENT_BASE[pos] : "rounded";
+}
+
+function isContinuationSegment(item: ScheduledItem, day: Date): boolean {
+  const pos = segmentPosition(item, toDateString(day));
+  return pos === "middle" || pos === "end";
 }
 
 const unscheduledItems = computed(() => items.value.filter((item) => !item.props.date));

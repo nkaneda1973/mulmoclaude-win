@@ -1,6 +1,15 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { dispatchScheduler, handleAdd, handleDelete, handleReplace, handleShow, handleUpdate, sortItems } from "../../server/api/routes/schedulerHandlers.js";
+import {
+  dispatchScheduler,
+  handleAdd,
+  handleDelete,
+  handleReplace,
+  handleShow,
+  handleUpdate,
+  sanitizeProps,
+  sortItems,
+} from "../../server/api/routes/schedulerHandlers.js";
 import type { ScheduledItem } from "../../server/api/routes/scheduler.js";
 
 function makeItem(overrides: Partial<ScheduledItem> = {}): ScheduledItem {
@@ -256,6 +265,88 @@ describe("handleReplace", () => {
     assert.equal(result.kind, "success");
     if (result.kind !== "success") return;
     assert.equal(result.items[0]?.id, "a");
+  });
+});
+
+describe("multi-day events (endDate)", () => {
+  it("sanitizeProps keeps a well-formed range untouched", () => {
+    const props = { date: "2026-05-27", endDate: "2026-05-29" };
+    assert.equal(sanitizeProps(props), props);
+  });
+
+  it("sanitizeProps drops endDate when it is before date", () => {
+    const props = { date: "2026-05-27", endDate: "2026-05-25" };
+    const cleaned = sanitizeProps(props);
+    assert.equal(cleaned.endDate, undefined);
+    assert.equal(cleaned.date, "2026-05-27");
+  });
+
+  it("sanitizeProps drops endDate when start date is missing", () => {
+    const props = { endDate: "2026-05-29" };
+    const cleaned = sanitizeProps(props);
+    assert.equal(cleaned.endDate, undefined);
+  });
+
+  it("sanitizeProps drops endDate when it is not an ISO string", () => {
+    const props = { date: "2026-05-27", endDate: "next Friday" };
+    const cleaned = sanitizeProps(props);
+    assert.equal(cleaned.endDate, undefined);
+  });
+
+  it("sanitizeProps keeps an equal-day endDate (single-day explicit range)", () => {
+    const props = { date: "2026-05-27", endDate: "2026-05-27" };
+    assert.equal(sanitizeProps(props).endDate, "2026-05-27");
+  });
+
+  it("handleAdd persists a valid endDate", () => {
+    const result = handleAdd([], { title: "Trip", props: { date: "2026-05-27", endDate: "2026-05-29" } });
+    assert.equal(result.kind, "success");
+    if (result.kind !== "success") return;
+    assert.equal(result.items[0]?.props.endDate, "2026-05-29");
+  });
+
+  it("handleAdd drops a malformed endDate but still saves the event", () => {
+    const result = handleAdd([], { title: "Trip", props: { date: "2026-05-27", endDate: "2026-05-25" } });
+    assert.equal(result.kind, "success");
+    if (result.kind !== "success") return;
+    assert.equal(result.items[0]?.props.date, "2026-05-27");
+    assert.equal(result.items[0]?.props.endDate, undefined);
+  });
+
+  it("handleUpdate accepts a valid endDate patch", () => {
+    const original = makeItem({ id: "a", props: { date: "2026-05-27" } });
+    const result = handleUpdate([original], { id: "a", props: { endDate: "2026-05-29" } });
+    assert.equal(result.kind, "success");
+    if (result.kind !== "success") return;
+    assert.equal(result.items[0]?.props.endDate, "2026-05-29");
+  });
+
+  it("handleUpdate drops an invalid endDate patch but keeps other patched props", () => {
+    const original = makeItem({ id: "a", props: { date: "2026-05-27" } });
+    const result = handleUpdate([original], { id: "a", props: { endDate: "2026-05-25", location: "Tokyo" } });
+    assert.equal(result.kind, "success");
+    if (result.kind !== "success") return;
+    assert.equal(result.items[0]?.props.endDate, undefined);
+    assert.equal(result.items[0]?.props.location, "Tokyo");
+  });
+
+  it("handleUpdate honours a null patch to remove endDate", () => {
+    const original = makeItem({ id: "a", props: { date: "2026-05-27", endDate: "2026-05-29" } });
+    const result = handleUpdate([original], { id: "a", props: { endDate: null } });
+    assert.equal(result.kind, "success");
+    if (result.kind !== "success") return;
+    assert.equal(result.items[0]?.props.endDate, undefined);
+  });
+
+  it("handleReplace sanitizes every item", () => {
+    const good = makeItem({ id: "a", props: { date: "2026-05-27", endDate: "2026-05-29" } });
+    const bad = makeItem({ id: "b", props: { date: "2026-05-27", endDate: "2026-05-25" } });
+    const result = handleReplace([], { items: [good, bad] });
+    assert.equal(result.kind, "success");
+    if (result.kind !== "success") return;
+    const byId = Object.fromEntries(result.items.map((i) => [i.id, i]));
+    assert.equal(byId.a?.props.endDate, "2026-05-29");
+    assert.equal(byId.b?.props.endDate, undefined);
   });
 });
 

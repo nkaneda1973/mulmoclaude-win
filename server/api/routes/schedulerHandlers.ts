@@ -28,6 +28,27 @@ export type SchedulerActionResult =
       jsonData: Record<string, unknown>;
     };
 
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+function isoDate(value: unknown): string | null {
+  return typeof value === "string" && ISO_DATE.test(value) ? value : null;
+}
+
+// Drops `endDate` when it would create an invalid range — either
+// the start `date` itself isn't a clean ISO string, or `endDate`
+// isn't ISO, or `endDate < date`. Single-day events (no `endDate`)
+// pass through unchanged. Returns a new object only when something
+// had to be removed.
+export function sanitizeProps(props: ScheduledItem["props"]): ScheduledItem["props"] {
+  if (!("endDate" in props)) return props;
+  const start = isoDate(props.date);
+  const end = isoDate(props.endDate);
+  if (start && end && end >= start) return props;
+  const next = { ...props };
+  Reflect.deleteProperty(next, "endDate");
+  return next;
+}
+
 export function sortItems(items: ScheduledItem[]): ScheduledItem[] {
   return [...items].sort((left, right) => {
     const leftDate = typeof left.props.date === "string" ? left.props.date : null;
@@ -57,7 +78,7 @@ export function handleAdd(items: ScheduledItem[], input: SchedulerActionInput): 
     id: makeId("sched"),
     title: input.title,
     createdAt: Date.now(),
-    props: input.props ?? {},
+    props: sanitizeProps(input.props ?? {}),
   };
   const next = sortItems([...items, item]);
   return {
@@ -107,10 +128,11 @@ export function handleUpdate(items: ScheduledItem[], input: SchedulerActionInput
       jsonData: {},
     };
   }
+  const mergedProps = input.props !== undefined ? applyPropPatch(target.props, input.props) : target.props;
   const updated: ScheduledItem = {
     ...target,
     title: input.title !== undefined ? input.title : target.title,
-    props: input.props !== undefined ? applyPropPatch(target.props, input.props) : target.props,
+    props: sanitizeProps(mergedProps),
   };
   const next = sortItems(items.map((i) => (i.id === input.id ? updated : i)));
   return {
@@ -125,7 +147,7 @@ export function handleReplace(_items: ScheduledItem[], input: SchedulerActionInp
   if (!Array.isArray(input.items)) {
     return { kind: "error", status: 400, error: "items array required" };
   }
-  const next = sortItems(input.items);
+  const next = sortItems(input.items.map((item) => ({ ...item, props: sanitizeProps(item.props) })));
   return {
     kind: "success",
     items: next,
