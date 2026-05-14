@@ -1,20 +1,22 @@
-// Test-only LLM backend. Echoes the user's message verbatim as the
-// assistant reply, with no Claude / Docker spawn. Loaded lazily by
-// `getActiveBackend()` only when `MULMOCLAUDE_FAKE_AGENT=1` — keeps
-// this code (and its `randomUUID` etc. imports) out of the production
-// runtime path entirely.
+// Test-only LLM backend. Loaded by `getActiveBackend()` only when
+// `MULMOCLAUDE_FAKE_AGENT=1` (CI workflow boot wiring), and re-usable
+// from unit tests via `setFakeResponse()` / `resetFakeResponse()`.
 //
-// What this unlocks in CI without a Claude binary / API key:
-//   - L-LINKIFY-CODESPAN — needs the assistant to echo a codespan
-//   - L-23 (workspace-link-routing) — needs the assistant to echo a
-//     markdown link
-//   - L-19 (ui stack layout) — needs *any* completed turn
-//   - L-06..L-09 (roles) — same; one tool-free turn per role
-//   - L-11 (session reload) — same
+// Default behavior:
+//   - emits a synthesized `claudeSessionId` so the orchestrator's
+//     resume bookkeeping sees the same shape as a real run
+//   - inspects the user prompt for "use X tool" / "presentY ツール"
+//     phrasings (see detectToolCalls below) and emits the matching
+//     tool_call + tool_call_result events, so plugin Views land in
+//     the canvas without a real LLM
+//   - emits the concatenated per-session message history as the
+//     assistant text reply, so context-recall tests (session L-12)
+//     see prior turn content
 //
-// What it does NOT unlock: tests that pin on the LLM actually
-// reasoning / calling tools (presentForm, generateImage, skills, ...).
-// Those stay gated on `E2E_LIVE_NO_LLM=1`.
+// The pattern detector is intentionally narrow — only the prompts
+// e2e-live actually ships. Tests that need different behavior call
+// `setFakeResponse(fn)` to swap in a custom generator and
+// `resetFakeResponse()` in teardown.
 
 import { randomUUID } from "node:crypto";
 
@@ -22,37 +24,145 @@ import { EVENT_TYPES } from "../../../src/types/events.js";
 import type { AgentEvent } from "../stream.js";
 import type { AgentInput, LLMBackend } from "./types.js";
 
-// Per-session conversation memory so context-recall tests (session
-// L-12: "what was the 6-digit code from earlier?") see prior turn
-// content in the reply. Keyed by mulmoclaude's chat session id so
-// resume across page reloads keeps working. The map grows for the
-// process lifetime — fine for CI runs which boot a fresh server.
+export interface FakeToolCall {
+  toolName: string;
+  args: unknown;
+  /** Result string emitted in the matching `tool_call_result`.
+   *  Defaults to `{ ok: true }` JSON. */
+  result?: string;
+}
+
+export interface FakeResponse {
+  /** Tool calls emitted before the text block. */
+  toolCalls?: readonly FakeToolCall[];
+  /** Assistant text. Omit to skip the text event entirely. */
+  text?: string;
+}
+
+export type FakeResponseFn = (input: AgentInput) => FakeResponse | Promise<FakeResponse>;
+
+// Per-session conversation memory so context-recall tests see prior
+// turn content in the reply. Cleared by `resetFakeResponse()`.
 const sessionTurns = new Map<string, string[]>();
 
-async function* runFakeEchoAgent(input: AgentInput): AsyncGenerator<AgentEvent> {
-  // Synthesize a claude session id so the orchestrator's resume
-  // bookkeeping (and any session-store side-effects) sees the same
-  // shape as a real run.
-  yield { type: EVENT_TYPES.claudeSessionId, id: randomUUID() };
-
-  // Append the current turn and emit ALL session messages joined
-  // back as the assistant reply. Tests that only inspect the
-  // latest turn (linkify, role-smoke) still see their content;
-  // tests that ask the assistant to recall an earlier turn (L-12)
-  // see the prior text inside the same reply.
+function defaultResponse(input: AgentInput): FakeResponse {
   const history = sessionTurns.get(input.sessionId) ?? [];
   history.push(input.message);
   sessionTurns.set(input.sessionId, history);
 
-  yield { type: EVENT_TYPES.text, message: history.join("\n\n") };
+  const toolCalls = detectToolCalls(input.message);
+  return {
+    toolCalls,
+    text: history.join("\n\n"),
+  };
+}
+
+// ── Tool-call pattern detectors ───────────────────────────────────
+//
+// Each detector matches one e2e-live prompt shape. Keep them
+// narrow + commented: a regex collision could quietly swallow a
+// chat-text test by emitting an unexpected tool call.
+
+function detectPresentMulmoScript(message: string): FakeToolCall | null {
+  if (!/presentMulmoScript/i.test(message)) return null;
+  // L-EDIT: `presentMulmoScript ツールに filePath: "<path>" を渡して`
+  const filePathMatch = message.match(/filePath:\s*["']([^"']+)["']/);
+  if (!filePathMatch) return null;
+  return { toolName: "presentMulmoScript", args: { filePath: filePathMatch[1] } };
+}
+
+function detectPresentHtml(message: string): FakeToolCall | null {
+  // L-01: `以下の HTML を presentHtml ツールで...` followed by inline HTML.
+  if (!/presentHtml/i.test(message)) return null;
+  // Heuristic: HTML is everything from the first `<` onward.
+  const idx = message.indexOf("<");
+  if (idx < 0) return null;
+  return { toolName: "presentHtml", args: { html: message.slice(idx).trim() } };
+}
+
+function detectPresentForm(message: string): FakeToolCall | null {
+  // L-18: `Use the presentForm tool to display a single-field form
+  // titled 'Quick check'. Add one required text field with
+  // id='nickname', label='Nickname', ...`
+  if (!/presentForm/i.test(message)) return null;
+  const titleMatch = message.match(/titled\s+['"]([^'"]+)['"]/i);
+  const idMatch = message.match(/id\s*=\s*['"]([^'"]+)['"]/i);
+  const labelMatch = message.match(/label\s*=\s*['"]([^'"]+)['"]/i);
+  return {
+    toolName: "presentForm",
+    args: {
+      title: titleMatch?.[1] ?? "Quick check",
+      fields: [
+        {
+          id: idMatch?.[1] ?? "field1",
+          type: "text",
+          label: labelMatch?.[1] ?? "Field",
+          required: /required/i.test(message),
+          description: "auto-generated by fake-echo",
+        },
+      ],
+    },
+  };
+}
+
+function detectToolCalls(message: string): FakeToolCall[] | undefined {
+  const calls: FakeToolCall[] = [];
+  for (const detector of [detectPresentMulmoScript, detectPresentHtml, detectPresentForm]) {
+    const call = detector(message);
+    if (call) calls.push(call);
+  }
+  return calls.length > 0 ? calls : undefined;
+}
+
+// ── Backend wiring ────────────────────────────────────────────────
+
+let responseFn: FakeResponseFn = defaultResponse;
+
+/** Replace the default echo+detect generator. Useful for unit tests
+ *  that want full control over what the fake backend emits. Pair
+ *  with `resetFakeResponse()` in teardown so the next test sees a
+ *  clean state. */
+export function setFakeResponse(generator: FakeResponseFn): void {
+  responseFn = generator;
+}
+
+/** Restore the default generator AND clear per-session history. */
+export function resetFakeResponse(): void {
+  responseFn = defaultResponse;
+  sessionTurns.clear();
+}
+
+async function* runFakeEchoAgent(input: AgentInput): AsyncGenerator<AgentEvent> {
+  yield { type: EVENT_TYPES.claudeSessionId, id: randomUUID() };
+
+  const response = await responseFn(input);
+
+  for (const call of response.toolCalls ?? []) {
+    const toolUseId = `fake-${randomUUID()}`;
+    yield {
+      type: EVENT_TYPES.toolCall,
+      toolUseId,
+      toolName: call.toolName,
+      args: call.args,
+    };
+    yield {
+      type: EVENT_TYPES.toolCallResult,
+      toolUseId,
+      content: call.result ?? '{"ok":true}',
+    };
+  }
+
+  if (response.text !== undefined) {
+    yield { type: EVENT_TYPES.text, message: response.text };
+  }
 }
 
 export const fakeEchoBackend: LLMBackend = {
   id: "fake-echo",
-  // Resume-by-token / MCP aren't meaningfully replayable from an
-  // echo stub. Flag them as unsupported so callers that depend on
-  // the real Claude semantics opt out instead of getting silently
-  // wrong behavior.
+  // Resume-by-token / MCP aren't meaningfully replayable from a
+  // stub. Flag them unsupported so callers that depend on the real
+  // Claude semantics opt out instead of getting silently wrong
+  // behavior.
   capabilities: { sessionResume: false, mcp: false },
   runAgent: runFakeEchoAgent,
 };
