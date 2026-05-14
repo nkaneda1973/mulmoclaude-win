@@ -600,5 +600,14 @@ async function deleteSkill(): Promise<void> {
   }
   selectedName.value = skills.value[0]?.name ?? null;
   detail.value = null;
+  // Refresh the catalog so a deleted star reverts to ☆ Star.
+  // `alreadyActive` is computed from disk at list time — without
+  // this call the badge + right-pane state would lag until the
+  // next mount. (#1335 PR-B2 follow-up.)
+  await loadCatalog();
+  if (selectedCatalog.value?.slug === name) {
+    const refreshed = catalogPresets.value.find((candidate) => candidate.slug === name);
+    if (refreshed) selectedCatalog.value = refreshed;
+  }
 }
 </script>
