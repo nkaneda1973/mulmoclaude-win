@@ -152,6 +152,118 @@ test.describe("wiki navigation (real workspace)", () => {
     }
   });
 
+  test("L-15b: 非 ASCII slug fuzzy resolve が衝突候補から正しい target を決定的に選ぶ (#1194)", async ({ page }, testInfo) => {
+    // L-15 と同じ shape のテストなので timeout 定数も共用 (plan
+    // file の方針)。
+    test.setTimeout(L15_TIMEOUT_MS);
+    // End-to-end repro of the #1194 collision condition. L-15 keeps
+    // a `nonascii-target` token in the target slug as a redundancy
+    // belt; this spec strips that belt off and exercises the
+    // resolver under the exact shape the original bug needed:
+    //
+    //   target slug = `日本語タイトル-${projectSlug}-${nonce}`
+    //   source slug = `e2e-live-l15b-source-${projectSlug}-${nonce}`
+    //
+    // wikiSlugify(target) drops the Japanese chars → leaves a tail
+    // like `-${projectSlug}-${nonce}`. That tail is a substring of
+    // BOTH on-disk filenames, so the resolver's fuzzy fallback has
+    // two equally-includes-eligible candidates. Pre-#1319, the
+    // fuzzy loop returned whichever key Map iteration (= readdir
+    // order, = creation order) surfaced first — typically the
+    // source page, since we seed it first below — and the SPA
+    // silently rendered the wrong page. Post-#1319 `pickFuzzyMatch`
+    // scores `min/max` of slug-vs-key lengths; the target key (≈
+    // Japanese 7 chars + shared suffix) is closer in length to the
+    // slug than the source key (≈ "e2e-live-l15b-source-" 21 chars
+    // + shared suffix), so target wins deterministically regardless
+    // of seed order.
+    //
+    // The negative `not.toContainText(sourceMarker)` assertion is
+    // the load-bearing one: it fails loudly if the resolver ever
+    // returns the source page again, which is the exact regression
+    // shape we're protecting against.
+    //
+    // Two routes are exercised, mirroring L-15's shape:
+    //   (A) Direct URL navigation — hits resolvePagePath via the
+    //       /api/wiki request triggered by the wiki route guard.
+    //   (B) Wikilink click in the source page — `[[targetSlug]]`
+    //       renders into a `.wiki-link[data-page]` span; clicking
+    //       hands the raw slug to the SPA router, which makes the
+    //       same /api/wiki request. Both routes ultimately ask the
+    //       server to resolve the same colliding slug, so both must
+    //       land on the target page.
+    const projectSlug = testInfo.project.name;
+    // `testInfo.title` を nonce に織り込む (Sourcery review #1347)。
+    // 失敗時に `data/wiki/pages/` に残った slug ファイルを見ただけ
+    // で「どのテストが書いた fixture か」が分かるため、parallel
+    // 実行中の triage と stale 検出が楽になる。`.split(":")[0]` で
+    // テスト名先頭の short id (例: "L-15b") だけ取り出して slug に
+    // 安全な ASCII プレフィックスに揃える。
+    const testLabel = testInfo.title.split(":")[0].trim();
+    const nonce = `${testLabel}-${Date.now()}-${randomUUID().slice(0, 6)}`;
+    const targetSlug = `日本語タイトル-${projectSlug}-${nonce}`;
+    const sourceSlug = `e2e-live-l15b-source-${projectSlug}-${nonce}`;
+    const targetMarker = `L-15b target body marker ${nonce}`;
+    const sourceMarker = `L-15b source body marker ${nonce}`;
+    const encodedTargetSlug = encodeURIComponent(targetSlug);
+    try {
+      // Seed source first — the original bug's repro relied on the
+      // source page being readdir-first when both keys partial-
+      // matched. The new resolver is order-independent, so this
+      // ordering is documentation, not a load-bearing setup step.
+      // Source body carries the unique sourceMarker (for the
+      // negative assertion) plus a `[[targetSlug]]` wikilink so
+      // route (B) below has something to click.
+      await placeWikiPage(sourceSlug, [`# L-15b source`, ``, sourceMarker, ``, `[[${targetSlug}]]`, ``].join("\n"));
+      await placeWikiPage(targetSlug, [`# 日本語タイトル`, ``, targetMarker, ``].join("\n"));
+
+      // Each route is wrapped in `test.step` so the Playwright
+      // trace viewer renders (A) and (B) as separate, named nodes
+      // and CI failures attribute to the correct route without
+      // hunting through a flat assertion log (Sourcery review
+      // #1347). The four assertions inside each step are
+      // intentionally duplicated rather than extracted into a
+      // helper — collision repro semantics differ subtly between
+      // routes (e.g. the "click into a colliding wikilink" shape
+      // is route-(B)-only), and a helper would obscure that.
+      await test.step("(A) direct URL navigation to target slug", async () => {
+        await navigateToWikiPage(page, targetSlug);
+        await expect(page.getByTestId("wiki-page-body"), "target page body must render (positive assertion)").toContainText(targetMarker);
+        // Negative assertion = #1194 regression sentinel. If the
+        // fuzzy resolver ever silently picks the source page again,
+        // this is the line that fails.
+        await expect(
+          page.getByTestId("wiki-page-body"),
+          "source marker must NOT appear — would indicate #1194 regression (fuzzy resolver returned colliding page)",
+        ).not.toContainText(sourceMarker);
+        await expect(page).toHaveURL(new RegExp(`/wiki/pages/${encodedTargetSlug}$`));
+        // Negative guard mirroring L-14 / L-15 — catch-all router
+        // must not swallow non-ASCII page slugs (B-24 shape).
+        await expect(page).not.toHaveURL(/\/chat/);
+      });
+
+      await test.step("(B) wikilink click from source page → target", async () => {
+        // The [[ ]] → router-push pipeline hands the raw non-ASCII
+        // slug to the same server resolver, so the collision
+        // condition applies here too. If the resolver ever returns
+        // the source page, the click bounces back to its own page
+        // and the target marker never appears.
+        await navigateToWikiPage(page, sourceSlug);
+        await page.locator(`.wiki-link[data-page="${targetSlug}"]`).first().click();
+        await expect(page).toHaveURL(new RegExp(`/wiki/pages/${encodedTargetSlug}$`));
+        await expect(page.getByTestId("wiki-page-body"), "target page body must render after wikilink click").toContainText(targetMarker);
+        await expect(
+          page.getByTestId("wiki-page-body"),
+          "source marker must NOT appear after wikilink click — would indicate #1194 regression",
+        ).not.toContainText(sourceMarker);
+        await expect(page).not.toHaveURL(/\/chat/);
+      });
+    } finally {
+      await removeWikiPage(sourceSlug);
+      await removeWikiPage(targetSlug);
+    }
+  });
+
   test("L-16: /wiki index に並んだ entry をクリックすると各ページが 404 にならず開ける", async ({ page }, testInfo) => {
     test.setTimeout(L16_TIMEOUT_MS);
     // Covers B-23: the wiki index used to drop or mis-link entries
