@@ -38,15 +38,14 @@ jobs:
       fail-fast: false
       matrix:
         spec:
-          - wiki
-          - wiki-nav
-          - workspace-link-routing
-          - media
-          - mulmo-script-edit
-          - roles
-          - session
-          - skills
-          - ui
+          # Specs that have at least one Claude-free test. The other
+          # 5 (media / mulmo-script-edit / roles / session / skills)
+          # are all-LLM, so they would 100% skip under
+          # E2E_LIVE_NO_LLM=1 — not worth a job slot.
+          - wiki                     # all 4 tests run
+          - wiki-nav                 # 7/8 run (L-15b skipped, see TODO)
+          - workspace-link-routing   # L-24 runs (L-23 LLM-only, skipped)
+          - ui                       # L-20 runs (L-18 / L-19 LLM-only, skipped)
 
     steps:
       - uses: actions/checkout@v6

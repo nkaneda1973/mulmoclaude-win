@@ -19,9 +19,8 @@ const PRESENT_FORM_RAW_KEY_PREFIX = "pluginPresentForm.";
 test.describe.configure({ mode: "parallel" });
 
 test.describe("ui (real LLM / static)", () => {
-  test.skip(process.env.E2E_LIVE_NO_LLM === "1", "E2E_LIVE_NO_LLM=1 — Claude-dependent suite");
-
   test("L-18: presentForm の i18n キーが raw 文字列として DOM に漏れない", async ({ page }) => {
+    test.skip(process.env.E2E_LIVE_NO_LLM === "1", "E2E_LIVE_NO_LLM=1 — needs LLM-authored form fields");
     test.setTimeout(L18_TIMEOUT_MS);
     // Covers B-34: when presentForm was promoted from external
     // plugin to built-in, the i18n keys (pluginPresentForm.submit
@@ -80,6 +79,7 @@ test.describe("ui (real LLM / static)", () => {
   });
 
   test("L-19: stack layout で 1 ターン後 reload しても stack-scroll が再描画される", async ({ page }) => {
+    test.skip(process.env.E2E_LIVE_NO_LLM === "1", "E2E_LIVE_NO_LLM=1 — needs a real chat turn to seed stack layout");
     test.setTimeout(L19_TIMEOUT_MS);
     // Covers B-31: tool-call history used to drop on reload because
     // the stack view's `toolResults` was rebuilt from the in-memory
