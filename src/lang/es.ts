@@ -1145,6 +1145,8 @@ const esMessages = {
     stop: "■ Detener",
     playPresentation: "Reproducir presentación",
     regenerateMovie: "Regenerar vídeo",
+    movieGenerationFailed: "Error al generar el vídeo",
+    retry: "Reintentar",
     errPrefix: "⚠ Error",
     noBeats: "No se encontraron beats en el script",
     editSource: "Editar fuente del script",

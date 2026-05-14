@@ -1134,6 +1134,8 @@ const ptBRMessages = {
     stop: "■ Parar",
     playPresentation: "Reproduzir apresentação",
     regenerateMovie: "Regenerar vídeo",
+    movieGenerationFailed: "Falha ao gerar o vídeo",
+    retry: "Tentar novamente",
     errPrefix: "⚠ Erro",
     noBeats: "Nenhum beat encontrado no script",
     editSource: "Editar fonte do script",

@@ -1133,6 +1133,8 @@ const enMessages = {
     stop: "■ Stop",
     playPresentation: "Play presentation",
     regenerateMovie: "Regenerate movie",
+    movieGenerationFailed: "Movie generation failed",
+    retry: "Retry",
     errPrefix: "⚠ Error",
     noBeats: "No beats found in script",
     editSource: "Edit Script Source",
