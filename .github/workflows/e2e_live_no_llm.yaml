@@ -52,6 +52,7 @@ jobs:
           - session                  # L-11 / L-12 (history-aware fake-echo)
           - mulmo-script-edit        # L-EDIT via fake presentMulmoScript
           - media                    # L-01 / L-02 only (L-03..L-05 need real binaries)
+          - skills                   # L-21 (presentChart) / L-22 (slash command → seeded skill body)
 
     steps:
       - uses: actions/checkout@v6

@@ -19,6 +19,8 @@
 // `resetFakeResponse()` in teardown.
 
 import { randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 
 import { EVENT_TYPES } from "../../../src/types/events.js";
 import type { AgentEvent } from "../stream.js";
@@ -45,7 +47,21 @@ export type FakeResponseFn = (input: AgentInput) => FakeResponse | Promise<FakeR
 // turn content in the reply. Cleared by `resetFakeResponse()`.
 const sessionTurns = new Map<string, string[]>();
 
-function defaultResponse(input: AgentInput): FakeResponse {
+async function defaultResponse(input: AgentInput): Promise<FakeResponse> {
+  // Slash-command turn shape: the SPA's "Run" button on a skill row
+  // (e2e-live L-22) starts a new chat with `/<slug>` as the only
+  // user message. Real Claude resolves this through its skill
+  // pipeline and uses the SKILL.md body as system prompt; here we
+  // short-circuit to read the seeded body and apply the
+  // "respond with this exact line" heuristic the e2e-live canaries
+  // rely on. Falls through to default-echo on no match (so a stray
+  // /text in a real chat doesn't break unrelated tests).
+  const slashMatch = input.message.trim().match(/^\/([a-z0-9][a-z0-9-]*)$/i);
+  if (slashMatch) {
+    const skillReply = await replyFromSeededSkill(input.workspacePath, slashMatch[1]);
+    if (skillReply !== null) return { text: skillReply };
+  }
+
   const history = sessionTurns.get(input.sessionId) ?? [];
   history.push(input.message);
   sessionTurns.set(input.sessionId, history);
@@ -55,6 +71,28 @@ function defaultResponse(input: AgentInput): FakeResponse {
     toolCalls,
     text: history.join("\n\n"),
   };
+}
+
+// Look up a project-scope skill seeded by `placeProjectSkill` in
+// e2e-live, and extract the line the seeded canary asks the model
+// to echo back ("respond with this exact line and nothing else: X").
+// Returns null when the file is missing or the marker shape is
+// absent — caller falls through to default echo.
+async function replyFromSeededSkill(workspacePath: string, slug: string): Promise<string | null> {
+  const skillFile = path.join(workspacePath, ".claude/skills", slug, "SKILL.md");
+  let body: string;
+  try {
+    body = await readFile(skillFile, "utf8");
+  } catch {
+    return null;
+  }
+  // Line-by-line scan to avoid backtracking surprises. Locates the
+  // canary phrase and returns the rest of the same line.
+  for (const line of body.split(/\r?\n/)) {
+    const match = line.match(/respond with this exact line(?: and nothing else)?:\s*(.+)/i);
+    if (match) return match[1].trim();
+  }
+  return null;
 }
 
 // ── Tool-call pattern detectors ───────────────────────────────────
@@ -105,9 +143,45 @@ function detectPresentForm(message: string): FakeToolCall | null {
   };
 }
 
+function detectPresentChart(message: string): FakeToolCall | null {
+  // L-21: `Use the presentChart tool to render a bar chart titled
+  // 'L-21 sales' with data Jan 100, Feb 150, Mar 120.`
+  // Detector is conservative — only fires when presentChart is named.
+  if (!/presentChart/i.test(message)) return null;
+  const titleMatch = message.match(/titled\s+['"]([^'"]+)['"]/i);
+  // Collect (label, value) pairs of the shape `Mon 100`. The series-
+  // category extraction is best-effort: if the prompt drifts and we
+  // can't find any pairs, we still emit a chart with placeholder
+  // data so the canvas mounts (the test asserts on the chart-canvas
+  // testid, not on specific values).
+  const pairs = Array.from(message.matchAll(/\b([A-Za-z]{3,})\s+(\d{1,6})\b/g)).map(([, label, value]) => ({ label, value: Number(value) }));
+  const labels = pairs.length > 0 ? pairs.map((pair) => pair.label) : ["A", "B", "C"];
+  const values = pairs.length > 0 ? pairs.map((pair) => pair.value) : [1, 2, 3];
+  const title = titleMatch?.[1] ?? "Untitled";
+  return {
+    toolName: "presentChart",
+    args: {
+      document: {
+        title,
+        charts: [
+          {
+            title,
+            type: "bar",
+            option: {
+              xAxis: { type: "category", data: labels },
+              yAxis: { type: "value" },
+              series: [{ type: "bar", data: values }],
+            },
+          },
+        ],
+      },
+    },
+  };
+}
+
 function detectToolCalls(message: string): FakeToolCall[] | undefined {
   const calls: FakeToolCall[] = [];
-  for (const detector of [detectPresentMulmoScript, detectPresentHtml, detectPresentForm]) {
+  for (const detector of [detectPresentMulmoScript, detectPresentHtml, detectPresentForm, detectPresentChart]) {
     const call = detector(message);
     if (call) calls.push(call);
   }
