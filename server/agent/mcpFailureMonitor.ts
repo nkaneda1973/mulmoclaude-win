@@ -28,13 +28,20 @@ import { log } from "../system/logger/index.js";
 
 export const MCP_FAILURE_THRESHOLD = 3;
 
-// Server-id contract — must match `isMcpServerId` in
-// `server/system/config.ts`. Both ends agreeing on this shape is
+// Server-id contract — mirrors `isMcpServerId` in
+// `server/system/config.ts`. Single `_` is allowed; consecutive
+// `__` is forbidden because it would collide with the
+// `mcp__<server>__<tool>` delimiter and make the parser ambiguous
+// (Codex iter-2 on #1356). Both ends agreeing on this shape is
 // what lets the monitor attribute failures back to the right
-// server entry in `mcp.json` (Codex review on #1356).
+// server entry in `mcp.json`.
 const MCP_SERVER_ID_PATTERN = /^[a-z][a-z0-9_-]{0,63}$/;
 const MCP_PREFIX = "mcp__";
 const MCP_DELIM = "__";
+
+function isValidServerId(value: string): boolean {
+  return MCP_SERVER_ID_PATTERN.test(value) && !value.includes("__");
+}
 
 /** Minimal AgentEvent surface the monitor needs. Defined locally to
  *  avoid a circular import; structurally matches the relevant fields
@@ -85,7 +92,7 @@ export function mcpServerFromToolName(toolName: string): string | null {
   // `__` of its own (some MCP authors use `__` in tool names) — we
   // only care that something is there.
   if (rest.length <= delim + MCP_DELIM.length) return null;
-  return MCP_SERVER_ID_PATTERN.test(serverId) ? serverId : null;
+  return isValidServerId(serverId) ? serverId : null;
 }
 
 /** Build a session-scoped monitor. Returns the same shape as

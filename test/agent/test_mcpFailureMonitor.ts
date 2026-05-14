@@ -90,6 +90,24 @@ describe("mcpServerFromToolName", () => {
     assert.equal(mcpServerFromToolName("mcp__1foo__tool"), null); // leading digit
     assert.equal(mcpServerFromToolName("mcp__foo!bar__tool"), null); // `!` forbidden
   });
+
+  // Codex iter-2 on #1356: `isMcpServerId` was tightened to forbid
+  // consecutive `__` because the `mcp__<server>__<tool>` encoding
+  // would otherwise be ambiguous. For input `mcp__foo__bar__tool`:
+  //   - First-`__` split → server `"foo"`, tool `"bar__tool"`  ✓ taken
+  //   - Hypothetical alt   → server `"foo__bar"`, tool `"tool"` — but
+  //     `foo__bar` is no longer a valid id, so the alt is dead.
+  // Pin both: parser returns the unambiguous first-segment server,
+  // AND the would-be-`__`-containing alt fails validation if anyone
+  // tried to construct it directly.
+  it("treats `__`-containing strings as the unambiguous first-segment server only", () => {
+    assert.equal(mcpServerFromToolName("mcp__foo__bar__tool"), "foo");
+    // A double-underscore name like `foo__bar` is not a legal server
+    // id (config-time isMcpServerId rejects it), so even if a tool
+    // name happens to be exactly `mcp__foo__bar` (server `foo`, tool
+    // `bar`), the parser resolves it unambiguously.
+    assert.equal(mcpServerFromToolName("mcp__foo__bar"), "foo");
+  });
 });
 
 describe("createMcpFailureMonitor — threshold + notification", () => {
