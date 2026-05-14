@@ -99,18 +99,56 @@ async function restoreSettings(original: string | null): Promise<void> {
   await placeWorkspaceFile(SETTINGS_REL, original);
 }
 
-// Read the process table and return the full command line of every
-// claude subprocess mulmoclaude spawned. `-A` includes processes from
-// all users (we only care about the current user's, but cross-user
-// noise is filtered out by the mulmoclaude marker). `-ww` requests
-// non-truncated args on Linux; macOS ps already prints full args
-// when stdout is a pipe.
-async function findMulmoclaudeClaudeProcesses(): Promise<string[]> {
-  const { stdout } = await execFileAsync("ps", ["-A", "-ww", "-o", "command="]);
-  return stdout
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0 && line.includes(MULMOCLAUDE_CLAUDE_MARKER));
+// One mulmoclaude-spawned claude subprocess, identified by pid so a
+// caller can distinguish processes that existed before the test from
+// new ones spawned during it.
+interface MulmoclaudeClaudeProcess {
+  pid: number;
+  cmd: string;
+}
+
+// `ps -o pid=,command=` emits `<pid><whitespace><command>` per line.
+// The whitespace run before the command is variable width (right-aligned
+// pid column on macOS); we split on the first non-digit boundary rather
+// than a regex to keep the parse linear and to satisfy sonarjs/slow-regex
+// without contorting the pattern.
+function parsePsLine(line: string): MulmoclaudeClaudeProcess | null {
+  const trimmed = line.trimStart();
+  if (trimmed.length === 0) return null;
+  const digitEnd = trimmed.search(/\D/);
+  if (digitEnd <= 0) return null;
+  const pid = Number(trimmed.slice(0, digitEnd));
+  if (!Number.isFinite(pid)) return null;
+  const cmd = trimmed.slice(digitEnd).trimStart();
+  if (cmd.length === 0) return null;
+  return { pid, cmd };
+}
+
+// Read the process table and return every claude subprocess mulmoclaude
+// spawned. `-A` includes processes from all users; cross-user noise
+// (and the user's own concurrent Claude Code CLI in another terminal)
+// is filtered out by the `mcp__mulmoclaude` marker that only mulmoclaude
+// passes via `--allowedTools`. `-ww` requests non-truncated args on
+// Linux; macOS ps already prints full args when stdout is a pipe.
+//
+// Wrapped in try/catch so a `ps` invocation failure (binary missing,
+// permission denied) surfaces with the test context attached — without
+// this, the raw `ENOENT` from `execFile` makes the failure hard to
+// triage (CodeRabbit iter-2 nit).
+async function findMulmoclaudeClaudeProcesses(): Promise<MulmoclaudeClaudeProcess[]> {
+  let stdout: string;
+  try {
+    ({ stdout } = await execFileAsync("ps", ["-A", "-ww", "-o", "pid=,command="]));
+  } catch (err) {
+    throw new Error(`Failed to run ps while polling for mulmoclaude-spawned claude: ${err instanceof Error ? err.message : String(err)}`);
+  }
+  const procs: MulmoclaudeClaudeProcess[] = [];
+  for (const line of stdout.split("\n")) {
+    if (!line.includes(MULMOCLAUDE_CLAUDE_MARKER)) continue;
+    const parsed = parsePsLine(line);
+    if (parsed !== null) procs.push(parsed);
+  }
+  return procs;
 }
 
 test.describe("settings (real disk / static)", () => {
@@ -220,6 +258,15 @@ test.describe("settings (real disk / static)", () => {
 
       await startNewSession(page);
 
+      // Snapshot the set of mulmoclaude-spawned claude processes that
+      // already exist BEFORE we trigger our own spawn. The assertion
+      // below scopes itself to PIDs missing from this set so an
+      // unrelated session — eg. a tab the developer left open from a
+      // previous chat where settings.json carried a different
+      // effortLevel — cannot couple this test to its arg list
+      // (codex GHA iter-2: "every match must be low" was too strict).
+      const baselinePids = new Set((await findMulmoclaudeClaudeProcesses()).map((proc) => proc.pid));
+
       // Start the ps poll BEFORE firing the chat so the polling loop
       // is already running by the time the server spawns claude. On
       // a fast Anthropic API turn (cache hit, short reply), the
@@ -236,12 +283,13 @@ test.describe("settings (real disk / static)", () => {
       // is unchanged by `.catch()`).
       const psPolling = expect(async () => {
         const procs = await findMulmoclaudeClaudeProcesses();
-        expect(procs, "mulmoclaude-spawned claude process must exist while the assistant is responding").not.toEqual([]);
-        // Every matching process must carry the effort flag — if
-        // the user happens to run multiple concurrent mulmoclaude
-        // sessions, all of them load the same on-disk settings.
-        for (const cmd of procs) {
-          expect(cmd, `claude process must carry --effort low in its args; saw: ${cmd}`).toMatch(/--effort\s+low(\s|$)/);
+        const newProcs = procs.filter((proc) => !baselinePids.has(proc.pid));
+        expect(newProcs, "this test must spawn at least one new mulmoclaude claude process").not.toEqual([]);
+        // Only NEW processes (PIDs not in the pre-send baseline) need
+        // to carry the flag — pre-existing processes loaded a stale
+        // settings.json and their args reflect that older state.
+        for (const proc of newProcs) {
+          expect(proc.cmd, `newly-spawned claude must carry --effort low; saw pid ${proc.pid}: ${proc.cmd}`).toMatch(/--effort\s+low(\s|$)/);
         }
       }).toPass({ timeout: PS_POLL_TIMEOUT_MS, intervals: PS_POLL_INTERVALS_MS });
       psPolling.catch(() => undefined);
