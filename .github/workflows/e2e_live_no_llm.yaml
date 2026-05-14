@@ -44,12 +44,14 @@ jobs:
           # real reasoning LLM (presentForm tool-call, session
           # resume context recall, skills/media tool dispatch, etc.)
           # still self-skip on `E2E_LIVE_NO_LLM=1`.
-          - wiki                     # all 4 tests run
-          - wiki-nav                 # 7/8 run (L-15b skipped, see TODO)
-          - workspace-link-routing   # L-23 / L-24 / linkify
-          - ui                       # L-19 / L-20 (L-18 skipped)
-          - roles                    # all 4 turns via fake-echo
-          - session                  # L-11 (L-12 skipped)
+          - wiki                     # 4 tests, no Claude needed
+          - wiki-nav                 # 7 tests + L-15b (test.fail in CI)
+          - workspace-link-routing   # L-23 / L-24 / linkify-codespan
+          - ui                       # L-18 / L-19 / L-20 (all via fake-echo)
+          - roles                    # 4 turns via fake-echo
+          - session                  # L-11 / L-12 (history-aware fake-echo)
+          - mulmo-script-edit        # L-EDIT via fake presentMulmoScript
+          - media                    # L-01 / L-02 only (L-03..L-05 need real binaries)
 
     steps:
       - uses: actions/checkout@v6
