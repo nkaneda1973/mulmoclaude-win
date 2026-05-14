@@ -23,10 +23,13 @@ export interface McpHint {
   requiredKeys: string[];
 }
 
-// `[A-Za-z0-9-]+` matches all current catalog ids (e.g. `notion`,
-// `google-maps`, `weather-open-meteo`). No underscore — the trailing
-// `__<tool>` separator would otherwise be ambiguous.
-const MCP_TOOL_NAME_PATTERN = /^mcp__([A-Za-z0-9-]+)__/;
+// Allow `[A-Za-z0-9_-]+` for the server segment so a future catalog
+// id with an underscore (none today, all current ids use `-`) is
+// still recognised. The greedy match works because `findCatalogEntry`
+// is the actual gatekeeper — anything that fails the catalog lookup
+// returns `null` upstream regardless of how the regex grouped it.
+// (Sourcery review on #1357.)
+const MCP_TOOL_NAME_PATTERN = /^mcp__([A-Za-z0-9_-]+)__/;
 
 /** Returns a structured hint when `toolName` references an MCP
  *  server present in the catalog; `null` otherwise. */

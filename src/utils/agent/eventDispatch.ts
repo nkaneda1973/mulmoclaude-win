@@ -25,6 +25,10 @@ function applyToolCallResult(history: ToolCallHistoryItem[], event: SseToolCallR
   const entry = findPendingToolCall(history, event.toolUseId);
   if (!entry) return;
   if (event.isError === true) {
+    // Clear any prior success content so the UI never shows a stale
+    // green `result` chip next to a fresh red `error` chip for the
+    // same toolUseId. (Sourcery review on #1357.)
+    entry.result = undefined;
     entry.error = event.content;
     const hint = extractMcpHint(entry.toolName);
     if (hint !== null) entry.mcpHint = hint;
