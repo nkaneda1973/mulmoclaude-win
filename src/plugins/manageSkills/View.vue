@@ -397,6 +397,12 @@ watch(
     selectedCatalog.value = null;
     catalogDetail.value = null;
     catalogDetailLoading.value = false;
+    // Drop the in-flight gate and any previous error banner so a
+    // fresh tool-result context starts from a clean catalog state
+    // — neither a stuck "busy" star/run-once button nor a stale
+    // error from the previous result. (Codex review round 3.)
+    catalogActioningSlug.value = null;
+    catalogError.value = null;
   },
 );
 
