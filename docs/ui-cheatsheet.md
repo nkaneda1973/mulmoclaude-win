@@ -366,32 +366,39 @@ The preview pane reuses plugin views — clicking a `config/scheduler/items.json
 
 ## /skills — workspace skills list
 
-Two-pane layout (`<ManageSkillsView>`): left sidebar groups skills by
-category, right pane renders the selected skill's `SKILL.md`. Only
-**Project (Yours)** skills expose Edit/Delete; the other categories
-are read-only (Run only). Collapse state per group is persisted to
-`localStorage` (`skills:groupCollapsed`); `system` is closed by
-default since users rarely need to inspect bundled skills. The
-"system" wording mirrors the system-origin tasks on `/automations`.
+Two-pane layout (`<ManageSkillsView>`): left sidebar = two collapsible
+sections, **Active** (skills in `.claude/skills/`, discovered by Claude
+Code and loaded into the prompt) and **Catalog** (launcher-managed
+presets the user can browse / ★ star / ▶ run once without bloating the
+prompt). Right pane renders the selected skill's `SKILL.md` (active) or
+the preset detail with Star / Run once actions (catalog). Within Active,
+provenance (System `mc-` bundled / Project / User) is a per-row badge,
+not its own group; only **Project** skills expose Edit/Delete, the rest
+are read-only. Collapse state per section is persisted to `localStorage`
+(`skills:sectionCollapsed`); both sections are open by default. Aligns
+with the #1335 catalog/active model — Anthropic + Community sub-catalogs
+land with #1335 PR-C.
 
 ```text
 ┌─[<ManageSkillsView>]───────────────────────────────────────────────┐
 │ Skills                              N available · click · Run = /…│
 │ ┌─Sidebar (w-64)──────────┬─Detail pane──────────────────────────┐ │
-│ │ ▶ SYSTEM            12  │  <skill name>                         │ │
-│ │ ▼ PROJECT            3  │  description                          │ │
-│ │ ├ [skill-item-foo]      │                            ✏ Edit  ✕ ⏵│ │
-│ │ ├ [skill-item-bar]      │                                       │ │
-│ │ └ [skill-item-baz]      │  rendered SKILL.md (marked + sanitize)│ │
-│ │ ▼ USER               8  │                                       │ │
-│ │ ├ …                     │                                       │ │
+│ │ ▼ ACTIVE            11  │  <skill name>                         │ │
+│ │ ├ [skill-item-foo] 🏠   │  description                          │ │
+│ │ ├ [skill-item-bar] 📁   │                            ✏ Edit  ✕ ⏵│ │
+│ │ └ [skill-item-baz] 📁   │  rendered SKILL.md (marked + sanitize)│ │
+│ │ ▼ CATALOG            4  │                                       │ │
+│ │   MulmoClaude presets   │  (catalog row → preset detail with    │ │
+│ │ ├ [skill-catalog-…] ★   │   ★ Star / ▶ Run once)                │ │
 │ └─────────────────────────┴───────────────────────────────────────┘ │
 └────────────────────────────────────────────────────────────────────┘
 ```
 
-Testids: `skill-group-{key}` / `skill-group-toggle-{key}` /
-`skill-group-count-{key}` for the three category headers
-(`system` / `project` / `user`); `skill-item-{name}` per row.
+Testids: `skill-section-{key}` / `skill-section-toggle-{key}` /
+`skill-section-count-{key}` for the two section headers
+(`active` / `catalog`); `skill-item-{name}` per active row;
+`skill-catalog-item-{slug}` per catalog row; `skill-catalog-empty`
+when the catalog has no presets.
 
 ## /roles — role configuration
 

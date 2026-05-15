@@ -1,62 +1,80 @@
-# feat: /skills ページに skill カテゴリのグルーピング/開閉を追加
+# feat: /skills ページを #1335 の Active/Catalog 2 セクション構造に揃える
 
 ## 背景
 
-`/skills` ページ ([src/plugins/manageSkills/View.vue](../src/plugins/manageSkills/View.vue)) は現状、全 skill を**アルファベット順フラットリスト**で表示している。実際には次の 3 種類が混在しており、ユーザーは「何が編集可能で、何が触らない方が良いか」をぱっと見で判別できない。
+当初この PR は `/skills` のサイドバーを **System / Project / User の 3 カテゴリ**で
+グルーピングする案だった。並行して進む #1335
+(skill catalog + star-to-activate model) が、サイドバーを
+**★ Active / 📚 Catalog / 🛠 My Skills** という *prompt 包含状況 × 出自* 軸の
+階層に再編する設計を持っており、main にはすでにその catalog 基盤
+(`catalogPresets` / Star / Run once / Preview 右ペイン) がマージ済み。
 
-1. **Project (System)** — `mc-` プレフィックスを持つ project skill（mulmoclaude が同梱）
-2. **Project (Yours)** — それ以外の project skill（ユーザーが作成、編集/削除可能）
-3. **User (Global)** — `~/.claude/skills/` 配下の user skill（編集不可）
-
-バックエンド (`server/workspace/skills/types.ts`) は `source: "user" | "project"` の 2 値しか返さない。System / Yours の判別は **フロント側で `name` の `mc-` プレフィックスを見る**だけで完結する。ラベルの "System" は `/automations` の system-origin タスクと表記を揃えている。
+3 カテゴリ案と #1335 の階層を同じ `View.vue` に併存させると PR-B 本実装で
+必ず作り直しになるため、本 PR を #1335 の **トップフレームに直接合わせる**
+方針に変更した（#1301 でのレビューやり取り経緯参照）。
 
 ## 仕様
 
-### カテゴリ判定
+### サイドバー = 2 つの折りたたみセクション
 
-| キー | 条件 | 初期状態 |
-|---|---|---|
-| `system` | `source === "project"` && `name.startsWith("mc-")` | closed |
-| `project` | `source === "project"` && それ以外 | open |
-| `user` | `source === "user"` | open |
+| キー | 中身 | prompt 入り | 初期状態 |
+|---|---|---|---|
+| `active` | `.claude/skills/` の skill（Claude Code が discover） | ✅ | open |
+| `catalog` | launcher 管理 preset（閲覧 / ★star / ▶run once） | ❌ | open |
 
-セクション順は固定: `system` → `project` → `user`。
+- 出自（System `mc-` 同梱 / Project / User）は **Active 内の行バッジ**
+  (`sourceMeta` アイコン) として表示。独立した折りたたみグループにはしない
+  （#1335 の `slug-a (mine)` / `mc-library (preset, starred)` 表記に合わせる）。
+- 編集ガードは従来どおり `categorizeSkill` で provenance を判定し、
+  Project のみ Edit/Delete を表示（UI + method 二段構え）。
+- 折りたたみ状態は `localStorage` (`skills:sectionCollapsed`) に `string[]`
+  で保存。両セクション初期 open。旧 `skills:groupCollapsed` は別キーなので
+  読まない（移行はせず両 open から再開）。
 
-各セクション内は `localeCompare` で名前順。
+### #1335 PR-C 送り
 
-### サイドバー UI
-
-- 各カテゴリの先頭にクリック可能なセクションヘッダー（chevron + ラベル + count）
-- ヘッダークリックで開閉
-- 開閉状態は `localStorage` (`skills:groupCollapsed`) に `string[]` で保存
-- 空カテゴリのヘッダーは描画しない
-- 現在の `source` 小文字バッジ (View.vue line 31-33) は冗長なので削除
+- 📚 Catalog の Anthropic / Community サブカタログ（backend 未実装）
+- 🛠 My Skills を Active と独立ノードにする案 — 現 backend では
+  user/project skill は既に Active に含まれるため、当面 Active 内
+  `(mine)` バッジに畳む
 
 ### 触らないもの
 
-- バックエンド API（`/api/skills`, `/api/skills/:name`）形状
-- `SkillSummary` / `Skill` 型
-- E2E セレクタ `data-testid="skill-item-{name}"`（既存 e2e に影響なし）
+- バックエンド API 形状、`SkillSummary` / `Skill` 型
+- 既存 e2e セレクタ `data-testid="skill-item-{name}"`
+- main 由来の catalog Star / Run once / Preview ロジック
 
-### 追加 testid
+### testid
 
-- `skill-group-{key}` — セクションコンテナ
-- `skill-group-toggle-{key}` — 開閉ボタン
-- `skill-group-count-{key}` — count バッジ
+- `skill-section-{key}` / `skill-section-toggle-{key}` /
+  `skill-section-count-{key}`（`active` / `catalog`）
+- `skill-item-{name}`（active 行・温存）
+- `skill-catalog-item-{slug}`（catalog 行・main 由来）
+- `skill-catalog-empty`（preset 0 件）
 
 ## 変更ファイル
 
-- `src/plugins/manageSkills/View.vue` — 唯一のロジック変更
-- `src/lang/{en,ja,zh,ko,es,pt-BR,fr,de}.ts` — 4 キー追加（`categorySystem` / `categoryProject` / `categoryUser` / `categoryLegend`）
-- `docs/ui-cheatsheet.md` — `/skills` 節のレイアウト図を実装に追従させる（既存ブロックは旧 `<SkillsManager>` プロトタイプを示しており現状とズレている）
+- `src/plugins/manageSkills/categories.ts` — section モデルへ書き換え
+  （`SKILL_SECTION_KEYS` / `loadCollapsedSections` 等）。`categorizeSkill`
+  + `SYSTEM_SKILL_PREFIX` は編集ガード用に維持
+- `src/plugins/manageSkills/View.vue` — 左カラムを Active/Catalog
+  2 セクションに再構成
+- `src/lang/{en,ja,zh,ko,es,pt-BR,fr,de}.ts` — `categorySystem/Project/User`
+  + `categoryLegend` を撤去し `sectionActive` / `sectionCatalog` /
+  `sectionLegend` / `catalogEmpty` を 8 ロケール lockstep で追加。
+  `catalogPresetHeading` を "MulmoClaude presets" 相当に更新
+- `test/plugins/manageSkills/test_categories.ts` — section API へ書き換え
+  （`categorizeSkill` のエッジケースは維持）
+- `docs/ui-cheatsheet.md` — `/skills` 節を Active/Catalog 図に更新
 
 ## テスト
 
-- `yarn typecheck` — i18n キーは全 8 ロケールで揃える（vue-tsc が拾う）
-- `yarn lint` / `yarn format` / `yarn build`
-- 既存 e2e `skill-item-{name}` セレクタが温存されることをローカル確認
+- `yarn format` / `yarn lint` / `yarn typecheck`（vue-tsc + 全 workspace tsc）
+  / `yarn build`
+- `npx tsx --test test/plugins/manageSkills/test_categories.ts`
 
 ## スコープ外（別 PR）
 
-- backend が `source: "system" | "project" | "user"` を返すように拡張する案 — 今回は不要（mc- 判定で十分かつフロント完結が望ましい）
-- カテゴリのカスタム並び替え、検索/フィルタ
+- #1335 PR-C: Anthropic skills の git sparse checkout + scheduler sync
+  + update バッジ、Community catalog
+- backend が provenance を明示返却する案（現状 `mc-` フロント判定で十分）

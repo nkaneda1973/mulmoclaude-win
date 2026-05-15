@@ -1,7 +1,7 @@
-// Pure helpers behind the /skills page sidebar grouping. Lifted out of
-// View.vue so the categorization rule (mc- prefix split, user/project
-// source mapping) lives in exactly one place and can be unit-tested in
-// node:test without a DOM or a Vue runtime.
+// Pure helpers behind the /skills page sidebar. Lifted out of View.vue
+// so the section-collapse state and the provenance rule (mc- prefix
+// split, user/project source mapping) live in exactly one place and can
+// be unit-tested in node:test without a DOM or a Vue runtime.
 
 import type { SkillSummary } from "./index";
 
@@ -10,80 +10,82 @@ import type { SkillSummary } from "./index";
 // fixtures without padding placeholder descriptions everywhere.
 export type SkillIdentity = Pick<SkillSummary, "name" | "source">;
 
-export const SKILL_CATEGORY_KEYS = ["system", "project", "user"] as const;
-export type SkillCategoryKey = (typeof SKILL_CATEGORY_KEYS)[number];
-
 // `mc-` is the launcher-managed namespace (see
-// server/workspace/skills-preset.ts). Skills under this prefix are
-// shipped with mulmoclaude and overwritten on every boot, so the UI
-// treats them as the "system" category and gates editing accordingly.
-// Matches the wording used for system-origin tasks on /automations.
+// server/workspace/skills-preset.ts). Skills under this prefix ship
+// with mulmoclaude and are overwritten on every boot, so the UI treats
+// them as the read-only "system" provenance and gates editing
+// accordingly. This is NOT the sidebar grouping axis — provenance only
+// drives the per-row badge tooltip and the edit/delete gate. The
+// sidebar groups by section (active vs catalog), see SKILL_SECTION_KEYS.
 export const SYSTEM_SKILL_PREFIX = "mc-";
-export const COLLAPSED_GROUPS_STORAGE_KEY = "skills:groupCollapsed";
-export const DEFAULT_CLOSED_CATEGORIES: readonly SkillCategoryKey[] = ["system"];
+export type SkillProvenance = "system" | "project" | "user";
 
-export const CATEGORY_LABEL_KEYS: Record<SkillCategoryKey, string> = {
-  system: "pluginManageSkills.categorySystem",
-  project: "pluginManageSkills.categoryProject",
-  user: "pluginManageSkills.categoryUser",
-};
-
-/** Group a skill into one of the three buckets shown in the sidebar. */
-export function categorizeSkill(skill: SkillIdentity): SkillCategoryKey {
+/** Map a skill to its provenance bucket (badge + edit-gate, not layout). */
+export function categorizeSkill(skill: SkillIdentity): SkillProvenance {
   if (skill.source === "user") return "user";
   if (skill.name.startsWith(SYSTEM_SKILL_PREFIX)) return "system";
   return "project";
 }
 
+// Sidebar collapsible sections, aligned with the #1335 catalog/active
+// model: "active" = skills in `.claude/skills/` (discovered by Claude
+// Code, loaded into the system prompt); "catalog" = launcher-managed
+// presets the user can browse / ★ star / ▶ run once without bloating
+// the prompt. Provenance (system/project/user) is shown as a per-row
+// badge inside the Active section, not as its own collapsible group.
+export const SKILL_SECTION_KEYS = ["active", "catalog"] as const;
+export type SkillSectionKey = (typeof SKILL_SECTION_KEYS)[number];
+
+export const SECTION_LABEL_KEYS: Record<SkillSectionKey, string> = {
+  active: "pluginManageSkills.sectionActive",
+  catalog: "pluginManageSkills.sectionCatalog",
+};
+
+// Both sections open by default — #1335 shows Active and Catalog
+// expanded; the user collapses whichever they don't want to see.
+export const DEFAULT_CLOSED_SECTIONS: readonly SkillSectionKey[] = [];
+export const COLLAPSED_SECTIONS_STORAGE_KEY = "skills:sectionCollapsed";
+
 /**
  * @internal exported only so the unit tests can target the type guard
- * directly. Not part of the View-layer helper surface; call sites
- * should reach the guard via loadCollapsedGroups instead.
+ * directly. Call sites should reach it via loadCollapsedSections.
  */
-export function isSkillCategoryKey(value: unknown): value is SkillCategoryKey {
-  return typeof value === "string" && (SKILL_CATEGORY_KEYS as readonly string[]).includes(value);
+export function isSkillSectionKey(value: unknown): value is SkillSectionKey {
+  return typeof value === "string" && (SKILL_SECTION_KEYS as readonly string[]).includes(value);
 }
 
 /** Read the persisted collapse state, falling back to defaults on any error. */
-export function loadCollapsedGroups(): Set<SkillCategoryKey> {
-  const defaults = new Set<SkillCategoryKey>(DEFAULT_CLOSED_CATEGORIES);
+export function loadCollapsedSections(): Set<SkillSectionKey> {
+  const defaults = new Set<SkillSectionKey>(DEFAULT_CLOSED_SECTIONS);
   if (typeof window === "undefined") return defaults;
   try {
-    const raw = window.localStorage.getItem(COLLAPSED_GROUPS_STORAGE_KEY);
+    const raw = window.localStorage.getItem(COLLAPSED_SECTIONS_STORAGE_KEY);
     if (raw === null) return defaults;
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return defaults;
-    // Migrate the legacy "builtin" key to "system" so users who collapsed
-    // that group before the rename keep their preference instead of being
-    // silently reset on next load.
-    const migrated = parsed.map((value) => (value === "builtin" ? "system" : value));
-    return new Set<SkillCategoryKey>(migrated.filter(isSkillCategoryKey));
+    return new Set<SkillSectionKey>(parsed.filter(isSkillSectionKey));
   } catch {
     return defaults;
   }
 }
 
 /** Persist the collapse state. Failures (e.g. localStorage disabled) are swallowed. */
-export function persistCollapsedGroups(state: ReadonlySet<SkillCategoryKey>): void {
+export function persistCollapsedSections(state: ReadonlySet<SkillSectionKey>): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(COLLAPSED_GROUPS_STORAGE_KEY, JSON.stringify([...state]));
+    window.localStorage.setItem(COLLAPSED_SECTIONS_STORAGE_KEY, JSON.stringify([...state]));
   } catch {
     // localStorage may be unavailable (private mode) — swallow silently.
   }
 }
 
 /**
- * Pick the first skill whose category is currently open, so the sidebar
- * never auto-selects a row hidden under a collapsed header. Falls back to
- * the very first skill if every group is collapsed.
+ * Auto-select the first active skill so the right pane isn't empty on
+ * open. Returns null when the Active section is collapsed (don't select
+ * a row the user can't see) or when there are no active skills.
  */
-export function pickInitialSelection(skillList: readonly SkillIdentity[], collapsed: ReadonlySet<SkillCategoryKey>): string | null {
+export function pickInitialSelection(skillList: readonly SkillIdentity[], collapsed: ReadonlySet<SkillSectionKey>): string | null {
   if (skillList.length === 0) return null;
-  for (const key of SKILL_CATEGORY_KEYS) {
-    if (collapsed.has(key)) continue;
-    const firstInCategory = skillList.find((skill) => categorizeSkill(skill) === key);
-    if (firstInCategory) return firstInCategory.name;
-  }
+  if (collapsed.has("active")) return null;
   return skillList[0].name;
 }

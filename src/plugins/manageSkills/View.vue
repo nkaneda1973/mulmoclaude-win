@@ -5,7 +5,7 @@
       <div>
         <h2 class="text-lg font-semibold text-gray-800">{{ t("pluginManageSkills.heading") }}</h2>
         <p class="text-xs text-gray-400 mt-0.5">{{ t("pluginManageSkills.subheading", { count: skills.length }) }}</p>
-        <p class="text-xs text-gray-400 mt-0.5">{{ t("pluginManageSkills.categoryLegend") }}</p>
+        <p class="text-xs text-gray-400 mt-0.5">{{ t("pluginManageSkills.sectionLegend") }}</p>
       </div>
     </div>
 
@@ -15,108 +15,124 @@
     </div>
 
     <div class="flex-1 min-h-0 flex overflow-hidden">
-      <!-- Left: skill list, grouped by category (system / project / user) -->
+      <!-- Left: two collapsible sections — Active (discovered by
+           Claude Code, loaded into the prompt) and Catalog (browse /
+           ★ star / ▶ run once without bloating the prompt). Aligns
+           with the #1335 catalog/active model. -->
       <div class="w-64 shrink-0 border-r border-gray-100 overflow-y-auto bg-gray-50">
-        <template v-for="group in skillGroups" :key="group.key">
-          <div v-if="group.skills.length > 0" :data-testid="`skill-group-${group.key}`">
-            <button
-              type="button"
-              :data-testid="`skill-group-toggle-${group.key}`"
-              class="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide hover:bg-gray-100 border-b border-gray-100"
-              :aria-expanded="group.open"
-              :aria-controls="`skill-group-panel-${group.key}`"
-              @click="toggleGroup(group.key)"
-            >
-              <span class="flex items-center gap-1">
-                <span class="material-icons text-base">{{ group.open ? "expand_more" : "chevron_right" }}</span>
-                {{ t(group.labelKey) }}
-              </span>
-              <span :data-testid="`skill-group-count-${group.key}`" class="text-gray-400 font-normal normal-case">
-                {{ group.skills.length }}
-              </span>
-            </button>
-            <div v-show="group.open" :id="`skill-group-panel-${group.key}`" role="group">
-              <div
-                v-for="skill in group.skills"
-                :key="skill.name"
-                :data-testid="`skill-item-${skill.name}`"
-                class="cursor-pointer px-4 py-3 border-b border-gray-100 text-sm hover:bg-white transition-colors focus:outline-none focus:bg-white focus:border-l-2 focus:border-l-blue-400"
-                :class="selectedName === skill.name && !selectedCatalog ? 'bg-white border-l-2 border-l-blue-500' : ''"
-                role="button"
-                tabindex="0"
-                :aria-pressed="selectedName === skill.name && !selectedCatalog"
-                @click="selectActiveSkill(skill.name)"
-                @keydown.enter.prevent="selectActiveSkill(skill.name)"
-                @keydown.space.prevent="selectActiveSkill(skill.name)"
-              >
-                <div class="flex items-center gap-2">
-                  <div class="flex-1 min-w-0">
-                    <div class="font-medium text-gray-800 truncate">{{ skill.name }}</div>
-                    <div class="text-xs text-gray-500 truncate mt-0.5">
-                      {{ skill.description }}
-                    </div>
-                  </div>
-                  <span
-                    class="shrink-0 material-icons text-sm"
-                    :class="sourceMeta(skill.source).colour"
-                    :title="sourceMeta(skill.source).title"
-                    aria-hidden="true"
-                    >{{ sourceMeta(skill.source).icon }}</span
-                  >
-                </div>
-              </div>
-            </div>
-          </div>
-        </template>
-        <i18n-t v-if="skills.length === 0" keypath="pluginManageSkills.emptyWithPath" tag="p" class="p-4 text-sm text-gray-400 italic">
-          <template #path>
-            <code class="text-[11px]">{{ t("pluginManageSkills.emptySkillPath") }}</code>
-          </template>
-        </i18n-t>
-
-        <!-- Catalog: launcher-managed presets. Rows behave like the
-             active list above — click selects an entry, which loads
-             its detail (description + body) into the right pane
-             along with ★ Star / ▶ Run once actions. Inline icon
-             buttons were removed; the right pane is now the single
-             place to read + act on a catalog entry. (#1335 PR-B2
-             follow-up.) -->
-        <div v-if="catalogPresets.length > 0" class="border-t border-gray-200 mt-2">
-          <div class="px-4 py-2 text-[11px] uppercase tracking-wide text-gray-500 font-semibold" data-testid="skill-catalog-section-heading">
-            {{ t("pluginManageSkills.catalogPresetHeading") }}
-          </div>
-          <div
-            v-for="entry in catalogPresets"
-            :key="`catalog-preset-${entry.slug}`"
-            :data-testid="`skill-catalog-item-${entry.slug}`"
-            class="cursor-pointer px-4 py-3 border-b border-gray-100 text-sm hover:bg-white transition-colors focus:outline-none focus:bg-white focus:border-l-2 focus:border-l-blue-400"
-            :class="selectedCatalog?.slug === entry.slug ? 'bg-white border-l-2 border-l-blue-500' : ''"
-            role="button"
-            tabindex="0"
-            :aria-pressed="selectedCatalog?.slug === entry.slug"
-            @click="selectCatalogEntry(entry)"
-            @keydown.enter.prevent="selectCatalogEntry(entry)"
-            @keydown.space.prevent="selectCatalogEntry(entry)"
+        <!-- ★ Active -->
+        <div data-testid="skill-section-active">
+          <button
+            type="button"
+            data-testid="skill-section-toggle-active"
+            class="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide hover:bg-gray-100 border-b border-gray-100"
+            :aria-expanded="isSectionOpen('active')"
+            aria-controls="skill-section-panel-active"
+            @click="toggleSection('active')"
           >
-            <div class="flex items-center gap-2">
-              <div class="flex-1 min-w-0">
-                <div class="font-medium text-gray-700 truncate">{{ entry.name }}</div>
-                <div class="text-xs text-gray-500 truncate mt-0.5">{{ entry.description }}</div>
+            <span class="flex items-center gap-1">
+              <span class="material-icons text-base">{{ isSectionOpen("active") ? "expand_more" : "chevron_right" }}</span>
+              {{ t("pluginManageSkills.sectionActive") }}
+            </span>
+            <span data-testid="skill-section-count-active" class="text-gray-400 font-normal normal-case">{{ activeSkills.length }}</span>
+          </button>
+          <div v-show="isSectionOpen('active')" id="skill-section-panel-active" role="group">
+            <div
+              v-for="skill in activeSkills"
+              :key="skill.name"
+              :data-testid="`skill-item-${skill.name}`"
+              class="cursor-pointer px-4 py-3 border-b border-gray-100 text-sm hover:bg-white transition-colors focus:outline-none focus:bg-white focus:border-l-2 focus:border-l-blue-400"
+              :class="selectedName === skill.name && !selectedCatalog ? 'bg-white border-l-2 border-l-blue-500' : ''"
+              role="button"
+              tabindex="0"
+              :aria-pressed="selectedName === skill.name && !selectedCatalog"
+              @click="selectActiveSkill(skill.name)"
+              @keydown.enter.prevent="selectActiveSkill(skill.name)"
+              @keydown.space.prevent="selectActiveSkill(skill.name)"
+            >
+              <div class="flex items-center gap-2">
+                <div class="flex-1 min-w-0">
+                  <div class="font-medium text-gray-800 truncate">{{ skill.name }}</div>
+                  <div class="text-xs text-gray-500 truncate mt-0.5">
+                    {{ skill.description }}
+                  </div>
+                </div>
+                <span
+                  class="shrink-0 material-icons text-sm"
+                  :class="sourceMeta(skill.source).colour"
+                  :title="sourceMeta(skill.source).title"
+                  aria-hidden="true"
+                  >{{ sourceMeta(skill.source).icon }}</span
+                >
               </div>
-              <span
-                v-if="entry.alreadyActive"
-                class="shrink-0 material-icons text-sm text-yellow-500"
-                :title="t('pluginManageSkills.catalogStarred')"
-                :data-testid="`skill-catalog-starred-indicator-${entry.slug}`"
-                aria-hidden="true"
-                >star</span
-              >
-              <span class="shrink-0 material-icons text-sm" :class="presetSourceMeta.colour" :title="presetSourceMeta.title" aria-hidden="true">{{
-                presetSourceMeta.icon
-              }}</span>
             </div>
+            <i18n-t v-if="activeSkills.length === 0" keypath="pluginManageSkills.emptyWithPath" tag="p" class="p-4 text-sm text-gray-400 italic">
+              <template #path>
+                <code class="text-[11px]">{{ t("pluginManageSkills.emptySkillPath") }}</code>
+              </template>
+            </i18n-t>
           </div>
-          <div v-if="catalogError" class="px-4 py-2 text-xs text-red-600">{{ catalogError }}</div>
+        </div>
+
+        <!-- 📚 Catalog: launcher-managed presets. Rows behave like the
+             active list — click selects an entry, loading its detail
+             into the right pane with ★ Star / ▶ Run once actions.
+             Anthropic + Community sub-catalogs land with #1335 PR-C. -->
+        <div data-testid="skill-section-catalog" class="border-t border-gray-200">
+          <button
+            type="button"
+            data-testid="skill-section-toggle-catalog"
+            class="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide hover:bg-gray-100 border-b border-gray-100"
+            :aria-expanded="isSectionOpen('catalog')"
+            aria-controls="skill-section-panel-catalog"
+            @click="toggleSection('catalog')"
+          >
+            <span class="flex items-center gap-1">
+              <span class="material-icons text-base">{{ isSectionOpen("catalog") ? "expand_more" : "chevron_right" }}</span>
+              {{ t("pluginManageSkills.sectionCatalog") }}
+            </span>
+            <span data-testid="skill-section-count-catalog" class="text-gray-400 font-normal normal-case">{{ catalogPresets.length }}</span>
+          </button>
+          <div v-show="isSectionOpen('catalog')" id="skill-section-panel-catalog" role="group">
+            <div class="px-4 py-2 text-[11px] uppercase tracking-wide text-gray-500 font-semibold" data-testid="skill-catalog-section-heading">
+              {{ t("pluginManageSkills.catalogPresetHeading") }}
+            </div>
+            <div
+              v-for="entry in catalogPresets"
+              :key="`catalog-preset-${entry.slug}`"
+              :data-testid="`skill-catalog-item-${entry.slug}`"
+              class="cursor-pointer px-4 py-3 border-b border-gray-100 text-sm hover:bg-white transition-colors focus:outline-none focus:bg-white focus:border-l-2 focus:border-l-blue-400"
+              :class="selectedCatalog?.slug === entry.slug ? 'bg-white border-l-2 border-l-blue-500' : ''"
+              role="button"
+              tabindex="0"
+              :aria-pressed="selectedCatalog?.slug === entry.slug"
+              @click="selectCatalogEntry(entry)"
+              @keydown.enter.prevent="selectCatalogEntry(entry)"
+              @keydown.space.prevent="selectCatalogEntry(entry)"
+            >
+              <div class="flex items-center gap-2">
+                <div class="flex-1 min-w-0">
+                  <div class="font-medium text-gray-700 truncate">{{ entry.name }}</div>
+                  <div class="text-xs text-gray-500 truncate mt-0.5">{{ entry.description }}</div>
+                </div>
+                <span
+                  v-if="entry.alreadyActive"
+                  class="shrink-0 material-icons text-sm text-yellow-500"
+                  :title="t('pluginManageSkills.catalogStarred')"
+                  :data-testid="`skill-catalog-starred-indicator-${entry.slug}`"
+                  aria-hidden="true"
+                  >star</span
+                >
+                <span class="shrink-0 material-icons text-sm" :class="presetSourceMeta.colour" :title="presetSourceMeta.title" aria-hidden="true">{{
+                  presetSourceMeta.icon
+                }}</span>
+              </div>
+            </div>
+            <p v-if="catalogPresets.length === 0 && !catalogError" class="px-4 py-3 text-xs text-gray-400 italic" data-testid="skill-catalog-empty">
+              {{ t("pluginManageSkills.catalogEmpty") }}
+            </p>
+            <div v-if="catalogError" class="px-4 py-2 text-xs text-red-600">{{ catalogError }}</div>
+          </div>
         </div>
       </div>
 
@@ -297,15 +313,7 @@ import { sanitizeMarkdownHtml } from "../../utils/markdown/sanitize";
 import { pluginEndpoints } from "../api";
 import { buildRouteUrl } from "../meta-types";
 import type { SkillsEndpoints } from "./definition";
-import {
-  CATEGORY_LABEL_KEYS,
-  SKILL_CATEGORY_KEYS,
-  categorizeSkill,
-  loadCollapsedGroups,
-  persistCollapsedGroups,
-  pickInitialSelection,
-  type SkillCategoryKey,
-} from "./categories";
+import { categorizeSkill, loadCollapsedSections, persistCollapsedSections, pickInitialSelection, type SkillSectionKey } from "./categories";
 
 const { t } = useI18n();
 
@@ -326,38 +334,33 @@ const props = defineProps<{
 // Re-seeded whenever the underlying tool result changes.
 const skills = ref<SkillSummary[]>(props.selectedResult?.data?.skills ?? []);
 
-// Collapsed-group state for the sidebar. Persisted to localStorage so
-// each user's preference (typically: system collapsed) survives reloads.
-// shallowRef because we always replace the Set wholesale (toggleGroup
+// Collapsed-section state for the sidebar (active / catalog). Persisted
+// to localStorage so each user's preference survives reloads.
+// shallowRef because we always replace the Set wholesale (toggleSection
 // builds a fresh Set), avoiding the deep-proxy that ref() would create.
-const collapsedGroups = shallowRef<Set<SkillCategoryKey>>(loadCollapsedGroups());
+const collapsedSections = shallowRef<Set<SkillSectionKey>>(loadCollapsedSections());
 
-const skillGroups = computed(() =>
-  SKILL_CATEGORY_KEYS.map((key) => {
-    const groupSkills = skills.value
-      .filter((skill) => categorizeSkill(skill) === key)
-      .sort((leftSkill, rightSkill) => leftSkill.name.localeCompare(rightSkill.name));
-    return {
-      key,
-      labelKey: CATEGORY_LABEL_KEYS[key],
-      skills: groupSkills,
-      open: !collapsedGroups.value.has(key),
-    };
-  }),
-);
+// Active skills, alphabetised. Provenance (system / project / user) is
+// shown as a per-row badge via sourceMeta, not as its own collapsible
+// group — the sidebar groups by section, not by provenance.
+const activeSkills = computed(() => [...skills.value].sort((leftSkill, rightSkill) => leftSkill.name.localeCompare(rightSkill.name)));
 
-function toggleGroup(key: SkillCategoryKey): void {
-  const next = new Set(collapsedGroups.value);
+function isSectionOpen(key: SkillSectionKey): boolean {
+  return !collapsedSections.value.has(key);
+}
+
+function toggleSection(key: SkillSectionKey): void {
+  const next = new Set(collapsedSections.value);
   if (next.has(key)) {
     next.delete(key);
   } else {
     next.add(key);
   }
-  collapsedGroups.value = next;
-  persistCollapsedGroups(next);
+  collapsedSections.value = next;
+  persistCollapsedSections(next);
 }
 
-const selectedName = ref<string | null>(pickInitialSelection(skills.value, collapsedGroups.value));
+const selectedName = ref<string | null>(pickInitialSelection(activeSkills.value, collapsedSections.value));
 const detail = ref<SkillDetail | null>(null);
 const detailLoading = ref(false);
 const detailError = ref<string | null>(null);
@@ -457,7 +460,7 @@ watch(
   () => props.selectedResult?.uuid,
   () => {
     skills.value = props.selectedResult?.data?.skills ?? [];
-    selectedName.value = pickInitialSelection(skills.value, collapsedGroups.value);
+    selectedName.value = pickInitialSelection(activeSkills.value, collapsedSections.value);
     selectedCatalog.value = null;
     catalogDetail.value = null;
     catalogDetailLoading.value = false;
@@ -583,7 +586,7 @@ onMounted(async () => {
   }
   if (Array.isArray(response.data.skills)) {
     skills.value = response.data.skills;
-    selectedName.value = pickInitialSelection(skills.value, collapsedGroups.value);
+    selectedName.value = pickInitialSelection(activeSkills.value, collapsedSections.value);
   }
 });
 
@@ -695,7 +698,7 @@ async function deleteSkill(): Promise<void> {
   if (idx >= 0) {
     skills.value.splice(idx, 1);
   }
-  selectedName.value = pickInitialSelection(skills.value, collapsedGroups.value);
+  selectedName.value = pickInitialSelection(activeSkills.value, collapsedSections.value);
   detail.value = null;
   // Refresh the catalog so a deleted star reverts to ☆ Star.
   // `alreadyActive` is computed from disk at list time — without
