@@ -75,6 +75,10 @@ const ptBRMessages = {
     intraBody:
       'Os plugins "{first}" e "{second}" registram o mesmo {dimension} "{key}". "{first}" o reivindicou primeiro, portanto o registro de "{second}" é ignorado.',
   },
+  optionalDeps: {
+    missingTitle: "Dependência opcional ausente",
+    missingBody: "{command} não encontrado — recursos relacionados foram desativados. Instale-o e reinicie para habilitá-los.",
+  },
   pluginErrorBoundary: {
     title: "O plugin {pkg} travou",
     subtitle: "O plugin falhou ao renderizar. O erro foi registrado no console.",

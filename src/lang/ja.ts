@@ -82,6 +82,10 @@ const jaMessages = {
     intraBody:
       "プラグイン「{first}」と「{second}」が同じ {dimension}「{key}」を登録しています。「{first}」が先に確保したため、「{second}」の登録は無視されます。",
   },
+  optionalDeps: {
+    missingTitle: "任意の依存コマンドが見つかりません",
+    missingBody: "{command} が見つかりません — 関連機能を無効化しました。インストールして再起動すると有効になります。",
+  },
   pluginErrorBoundary: {
     title: "プラグイン {pkg} がクラッシュしました",
     subtitle: "プラグインのレンダリングに失敗しました。エラーはコンソールに記録されています。",
