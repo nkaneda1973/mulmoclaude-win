@@ -124,7 +124,7 @@ git checkout -b feat/e2e-live-<topic>
 
 **先に読むべき docs**:
 - [`docs/ui-cheatsheet.md`](../../../docs/ui-cheatsheet.md) — 既存 testid の ASCII リファレンス。 触る surface が既にカバーされているか先に確認
-- [`docs/e2e-live-testing.md`](../../../docs/e2e-live-testing.md) §2 — testid 命名規約（「Functional names, not positional / text-content」）
+- [`docs/e2e-live-testing.md`](../../../docs/e2e-live-testing.md#writing-a-new-e2e-live-spec) — 「Writing a new e2e-live spec」 §2 が testid 命名規約（「Functional names, not positional / text-content」）
 
 手順:
 
