@@ -26,7 +26,7 @@ import { log } from "../../../system/logger/index.js";
 import { errorMessage } from "../../../utils/errors.js";
 import { writeFileAtomic } from "../../../utils/files/index.js";
 import { cloneOrUpdate, defaultCacheRoot, type CloneDeps, type CloneResult } from "./clone.js";
-import { deriveRepoId, isSafeRepoId, sanitiseSubpath, urlCacheKey } from "./id.js";
+import { deriveRepoId, safeRepoId, sanitiseSubpath, urlCacheKey } from "./id.js";
 
 const SOURCE_METADATA_FILE = ".source.json";
 
@@ -251,8 +251,13 @@ export type UninstallResult = { kind: "uninstalled"; repoId: string } | { kind: 
 /** Uninstall a repo: remove `data/skills/catalog/external/<repoId>/`
  *  and the matching scratch clone keyed by the recorded URL. Active
  *  copies under `.claude/skills/` are left in place. */
-export async function uninstallExternalRepo(repoId: string, deps: ExternalInstallOptions = {}): Promise<UninstallResult> {
-  if (!isSafeRepoId(repoId)) return { kind: "invalid-repo-id", repoId };
+export async function uninstallExternalRepo(repoIdRaw: string, deps: ExternalInstallOptions = {}): Promise<UninstallResult> {
+  // `repoIdRaw` is user-controlled (DELETE /external/repos/:repoId).
+  // Launder via the `path.basename` round-trip BEFORE composing any
+  // path — CodeQL only clears `js/path-injection` taint through that
+  // sanitiser, not a bare regex `.test()`.
+  const repoId = safeRepoId(repoIdRaw);
+  if (repoId === null) return { kind: "invalid-repo-id", repoId: repoIdRaw };
   const workspaceRoot = deps.workspaceRoot ?? workspacePath;
   const { repoDir, metadataPath } = pathsForRepo(workspaceRoot, repoId);
   if (!(await isDirectory(repoDir))) return { kind: "not-found", repoId };
@@ -325,23 +330,26 @@ export async function listInstalledRepos(deps: ExternalInstallOptions = {}): Pro
   const out: InstalledRepo[] = [];
   for (const entry of entries) {
     if (entry.startsWith(".")) continue;
-    if (!isSafeRepoId(entry)) continue;
-    const repoDir = path.join(root, entry);
+    // `entry` is `readdir`-sourced (tainted). Launder through the
+    // `path.basename` round-trip before any join.
+    const repoId = safeRepoId(entry);
+    if (repoId === null) continue;
+    const repoDir = path.join(root, repoId);
     if (!(await isDirectory(repoDir))) continue;
     const metadataPath = path.join(repoDir, SOURCE_METADATA_FILE);
     let parsed: unknown;
     try {
       parsed = JSON.parse(await readFile(metadataPath, "utf-8"));
     } catch {
-      log.warn("skills-external", "metadata missing or unreadable; skipping repo", { repoId: entry });
+      log.warn("skills-external", "metadata missing or unreadable; skipping repo", { repoId });
       continue;
     }
     if (!isRepoMetadata(parsed)) {
-      log.warn("skills-external", "metadata failed shape check; skipping repo", { repoId: entry });
+      log.warn("skills-external", "metadata failed shape check; skipping repo", { repoId });
       continue;
     }
     out.push({
-      repoId: entry,
+      repoId,
       url: parsed.url,
       subpath: parsed.subpath,
       ref: parsed.ref,

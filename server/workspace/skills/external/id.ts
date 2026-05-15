@@ -112,11 +112,21 @@ export function urlCacheKey(url: string): string {
 // eslint-disable-next-line security/detect-unsafe-regex -- non-overlapping classes
 const SAFE_REPO_ID_RE = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
 
-/** True when `value` has the shape `deriveRepoId` produces. Used to
- *  gate `readdir`-sourced directory names before they reach
- *  `path.join`. */
+/** True when `value` has the shape `deriveRepoId` produces. */
 export function isSafeRepoId(value: string): boolean {
   return SAFE_REPO_ID_RE.test(value);
+}
+
+/** Launder a (possibly user-supplied) repo id into a safe directory
+ *  leaf, or `null` if it fails the shape check or isn't a basename.
+ *  The `path.basename` round-trip is CodeQL's recognised
+ *  `js/path-injection` sanitiser — callers MUST compose paths from
+ *  the returned value (not the raw input) so the taint flow ends
+ *  here. A regex `.test()` alone is NOT recognised as a sanitiser. */
+export function safeRepoId(raw: string): string | null {
+  if (!SAFE_REPO_ID_RE.test(raw)) return null;
+  const basename = path.basename(raw);
+  return basename === raw ? basename : null;
 }
 
 // A single safe path segment: alnum plus `.`, `-`, `_`. `..` is
