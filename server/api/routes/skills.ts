@@ -296,6 +296,11 @@ bindRoute(
       badRequest(res, "url must be a github.com HTTPS URL: https://github.com/<owner>/<repo>");
       return;
     }
+    if (result.kind === "invalid-subpath") {
+      log.warn("skills", "external install: invalid subpath", { subpath: result.subpath });
+      badRequest(res, "subpath must be a relative path with no '..', leading '/', or backslash segments");
+      return;
+    }
     log.warn("skills", "external install: error", { reason: result.reason });
     res.status(502).json({ error: `external install failed: ${result.reason}` });
   },

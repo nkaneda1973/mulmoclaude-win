@@ -63,6 +63,37 @@ export interface CloneDeps {
   runGit?: RunGit;
 }
 
+/** First-time scratch-dir setup: `git init`, remote, and (when a
+ *  subpath is requested) sparse-checkout config. No-op once `.git/`
+ *  exists. Caller guarantees `subpath` is already sanitised. */
+async function initScratchDir(cacheDir: string, opts: CloneOptions, runGit: RunGit): Promise<void> {
+  if (existsSync(path.join(cacheDir, ".git"))) return;
+  await runGit(["init", cacheDir]);
+  await runGit(["-C", cacheDir, "remote", "add", "origin", opts.url]);
+  if (!opts.subpath) return;
+  await runGit(["-C", cacheDir, "config", "core.sparseCheckout", "true"]);
+  // sparse-checkout pattern is one entry per line; we want the
+  // entire subpath subtree.
+  const sparseFile = path.join(cacheDir, ".git", "info", "sparse-checkout");
+  await mkdir(path.dirname(sparseFile), { recursive: true });
+  await writeFile(sparseFile, `${opts.subpath}/*\n`);
+}
+
+/** Fetch `ref` at depth 1, check it out, and return the resolved
+ *  40-hex SHA. Throws if `rev-parse` yields anything unexpected. */
+async function fetchAndResolveSha(cacheDir: string, ref: string, runGit: RunGit): Promise<string> {
+  // `--depth=1` keeps the scratch dir small; we only need the current
+  // tree, never history. `--no-tags` avoids pulling release-tag noise.
+  await runGit(["-C", cacheDir, "fetch", "--depth=1", "--no-tags", "origin", ref]);
+  await runGit(["-C", cacheDir, "checkout", "FETCH_HEAD"]);
+  const { stdout: shaRaw } = await runGit(["-C", cacheDir, "rev-parse", "HEAD"]);
+  const sha = shaRaw.trim();
+  if (!/^[0-9a-f]{40}$/.test(sha)) {
+    throw new Error(`git rev-parse returned unexpected output: ${JSON.stringify(shaRaw)}`);
+  }
+  return sha;
+}
+
 /** Initialise (or refresh) a scratch clone for the given URL and
  *  return the cache dir + resolved SHA. Idempotent: a second call
  *  with the same URL only fetches new commits and re-checks-out. */
@@ -72,32 +103,7 @@ export async function cloneOrUpdate(opts: CloneOptions, deps: CloneDeps = {}): P
   const cacheDir = path.join(cacheRoot, urlCacheKey(opts.url));
 
   await mkdir(cacheDir, { recursive: true });
-
-  const isFresh = !existsSync(path.join(cacheDir, ".git"));
-  if (isFresh) {
-    await runGit(["init", cacheDir]);
-    await runGit(["-C", cacheDir, "remote", "add", "origin", opts.url]);
-    if (opts.subpath) {
-      await runGit(["-C", cacheDir, "config", "core.sparseCheckout", "true"]);
-      // sparse-checkout pattern is one entry per line; we want the
-      // entire subpath subtree.
-      const sparseFile = path.join(cacheDir, ".git", "info", "sparse-checkout");
-      await mkdir(path.dirname(sparseFile), { recursive: true });
-      await writeFile(sparseFile, `${opts.subpath}/*\n`);
-    }
-  }
-
-  const ref = opts.ref ?? "HEAD";
-  // `--depth=1` keeps the scratch dir small; we only need the
-  // current tree, never history. `--no-tags` avoids pulling release
-  // tag noise.
-  await runGit(["-C", cacheDir, "fetch", "--depth=1", "--no-tags", "origin", ref]);
-  await runGit(["-C", cacheDir, "checkout", "FETCH_HEAD"]);
-
-  const { stdout: shaRaw } = await runGit(["-C", cacheDir, "rev-parse", "HEAD"]);
-  const sha = shaRaw.trim();
-  if (!/^[0-9a-f]{40}$/.test(sha)) {
-    throw new Error(`git rev-parse returned unexpected output: ${JSON.stringify(shaRaw)}`);
-  }
+  await initScratchDir(cacheDir, opts, runGit);
+  const sha = await fetchAndResolveSha(cacheDir, opts.ref ?? "HEAD", runGit);
   return { cacheDir, sha };
 }

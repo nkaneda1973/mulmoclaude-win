@@ -102,3 +102,28 @@ export function deriveActiveId(url: string, skillFolder: string | null): string 
 export function urlCacheKey(url: string): string {
   return createHash("sha256").update(url).digest("hex").slice(0, 16);
 }
+
+// A single safe path segment: alnum plus `.`, `-`, `_`. `..` is
+// rejected explicitly by the caller before this is consulted, so the
+// dot allowance can't yield a traversal token.
+const SUBPATH_SEGMENT_PATTERN = /^[A-Za-z0-9._-]+$/;
+
+/** Sanitise a caller-supplied repo subpath (`POST /external/repos`
+ *  body). The raw value flows into `path.join(cacheDir, subpath)` and
+ *  into the git sparse-checkout pattern, so an un-validated `../../etc`
+ *  / `\0` / newline would escape the scratch dir or inject extra
+ *  sparse patterns. Returns a normalised `a/b/c` string (no leading or
+ *  trailing slash, no `.`/`..`/empty segments) or `null` on rejection. */
+export function sanitiseSubpath(raw: string): string | null {
+  if (raw.length === 0) return null;
+  if (raw.includes("\0") || raw.includes("\\") || raw.includes("\n") || raw.includes("\r")) return null;
+  if (raw.startsWith("/")) return null;
+  const safe: string[] = [];
+  for (const segment of raw.split("/")) {
+    if (segment === "" || segment === ".") continue;
+    if (segment === ".." || !SUBPATH_SEGMENT_PATTERN.test(segment)) return null;
+    safe.push(segment);
+  }
+  if (safe.length === 0) return null;
+  return safe.join("/");
+}

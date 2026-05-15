@@ -65,6 +65,17 @@ describe("installExternalRepo", () => {
     assert.equal(result.kind, "invalid-url");
   });
 
+  it("rejects a path-traversal subpath before any git op", async () => {
+    let called = false;
+    const runGit: RunGit = async () => {
+      called = true;
+      return { stdout: "", stderr: "" };
+    };
+    const result = await installExternalRepo({ url: "https://github.com/foo/bar", subpath: "../../../etc" }, { workspaceRoot: workdir, cacheRoot, runGit });
+    assert.equal(result.kind, "invalid-subpath");
+    assert.equal(called, false);
+  });
+
   it("clones, discovers a single root SKILL.md, writes catalog + metadata", async () => {
     const url = "https://github.com/foo/cool-skill";
     const cacheDir = path.join(cacheRoot, urlCacheKey(url));

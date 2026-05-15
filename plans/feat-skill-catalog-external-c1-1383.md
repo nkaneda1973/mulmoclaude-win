@@ -15,7 +15,7 @@ Backend foundation for installing arbitrary GitHub skill repositories into the c
 
 ### 1. Storage
 
-```
+```text
 ~/mulmoclaude/data/skills/catalog/
 ├── preset/                           (PR-A, unchanged)
 └── external/                         (NEW)

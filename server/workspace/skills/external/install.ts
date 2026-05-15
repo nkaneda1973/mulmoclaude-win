@@ -25,7 +25,7 @@ import { parseSkillFrontmatter } from "../parser.js";
 import { log } from "../../../system/logger/index.js";
 import { errorMessage } from "../../../utils/errors.js";
 import { cloneOrUpdate, defaultCacheRoot, type CloneDeps, type CloneResult } from "./clone.js";
-import { deriveRepoId, urlCacheKey } from "./id.js";
+import { deriveRepoId, sanitiseSubpath, urlCacheKey } from "./id.js";
 
 const SOURCE_METADATA_FILE = ".source.json";
 
@@ -178,6 +178,7 @@ async function copyDirContents(srcDir: string, destDir: string, skip: readonly s
 export type InstallExternalRepoResult =
   | { kind: "installed"; detail: InstallResult }
   | { kind: "invalid-url"; url: string }
+  | { kind: "invalid-subpath"; subpath: string }
   | { kind: "no-skills"; repoId: string; sha: string }
   | { kind: "error"; reason: string };
 
@@ -186,16 +187,26 @@ export async function installExternalRepo(opts: InstallRepoOptions, deps: Extern
   const repoId = deriveRepoId(opts.url);
   if (!repoId) return { kind: "invalid-url", url: opts.url };
 
+  // Sanitise the subpath BEFORE it reaches `path.join` / the git
+  // sparse-checkout pattern. `path.join` collapses `..`, so an
+  // un-validated subpath could escape the scratch cache dir.
+  let subpath: string | undefined;
+  if (opts.subpath !== undefined) {
+    const clean = sanitiseSubpath(opts.subpath);
+    if (clean === null) return { kind: "invalid-subpath", subpath: opts.subpath };
+    subpath = clean;
+  }
+
   const workspaceRoot = deps.workspaceRoot ?? workspacePath;
   let clone: CloneResult;
   try {
-    clone = await cloneOrUpdate({ url: opts.url, subpath: opts.subpath, ref: opts.ref }, deps);
+    clone = await cloneOrUpdate({ url: opts.url, subpath, ref: opts.ref }, deps);
   } catch (err) {
     log.warn("skills-external", "git clone failed", { url: opts.url, error: errorMessage(err) });
     return { kind: "error", reason: errorMessage(err, "git clone failed") };
   }
 
-  const skills = await discoverSkills(clone.cacheDir, opts.subpath);
+  const skills = await discoverSkills(clone.cacheDir, subpath);
   const { repoDir, metadataPath } = pathsForRepo(workspaceRoot, repoId);
   // Wipe the previous catalog tree for this repoId so a re-install
   // starts clean (removed skills don't linger). Cache dir is kept
@@ -211,7 +222,7 @@ export async function installExternalRepo(opts: InstallRepoOptions, deps: Extern
   const detail: InstallResult = {
     repoId,
     url: opts.url,
-    subpath: opts.subpath,
+    subpath,
     ref: opts.ref,
     sha: clone.sha,
     installedAt,
@@ -219,14 +230,14 @@ export async function installExternalRepo(opts: InstallRepoOptions, deps: Extern
   };
   await writeMetadata(metadataPath, {
     url: opts.url,
-    subpath: opts.subpath,
+    subpath,
     ref: opts.ref,
     sha: clone.sha,
     installedAt,
   });
 
   if (skills.length === 0) {
-    log.warn("skills-external", "install completed with no skills discovered", { repoId, url: opts.url, subpath: opts.subpath });
+    log.warn("skills-external", "install completed with no skills discovered", { repoId, url: opts.url, subpath });
     return { kind: "no-skills", repoId, sha: clone.sha };
   }
 
