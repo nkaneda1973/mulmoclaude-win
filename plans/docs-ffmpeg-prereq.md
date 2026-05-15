@@ -14,6 +14,17 @@ Tracks: [#1049](https://github.com/receptron/mulmoclaude/issues/1049) — 依存
 
 ### PR 一覧
 
+> **進捗管理ルール**: この `plans/docs-ffmpeg-prereq.md` を `#1049` umbrella の進捗ハブとして扱う。
+>
+> umbrella の各 PR の作業を始める際:
+>
+> 1. その PR 用の plan ファイルを `plans/<branch-name>.md` (例: `plans/feat-pr-4a-docker-auto-fallback.md`) に新規作成する
+> 2. **下記表の該当行の「別 PR」列に作成した plan ファイルへの相対リンクを追記する** (例: `⏳ [plan](feat-pr-4a-docker-auto-fallback.md)`)
+> 3. PR が立ったら同じ列に PR 番号も追記 (例: `🚧 [plan](feat-pr-4a-docker-auto-fallback.md) / #1380`)
+> 4. PR がマージされたら `✅ #1380` に書き換え、対応する plan を `plans/done/` に移動 (`/archive-shipped-plans` skill で自動化)
+>
+> 表を update し忘れると umbrella 全体の進捗が見えなくなるので、新規 plan を作ったら **必ずこの表に行を update する** こと。
+
 | ID        | 内容                                                                                                                                                                               | この PR                                                      | 別 PR           |
 | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ | --------------- |
 | **PR-A**  | README に Prerequisites を明記 (ffmpeg / Docker / claude CLI / Node)                                                                                                               | ✅ #1367                                                     |                 |
