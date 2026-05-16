@@ -116,3 +116,14 @@ export function _resetOptionalDepsCacheForTest(): void {
   cache = null;
   inFlight = null;
 }
+
+/** Test-only: seed the probe cache directly so route guards and
+ *  `announceOptionalDeps` behave deterministically without invoking
+ *  the real `which` / daemon probe (CI has no control over whether
+ *  ffmpeg/docker are installed on the runner). `probeOptionalDeps()`
+ *  returns this seeded cache untouched (its first line is
+ *  `if (cache) return cache;`). */
+export function _setOptionalDepsCacheForTest(seed: Record<string, DepStatus>): void {
+  cache = seed;
+  inFlight = null;
+}
