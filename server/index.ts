@@ -91,6 +91,7 @@ import { logBackgroundError } from "./utils/logBackgroundError.js";
 import { errorMessage } from "./utils/errors.js";
 import { registerScheduledSkills } from "./workspace/skills/scheduler.js";
 import { registerUserTasks } from "./workspace/skills/user-tasks.js";
+import { registerEncoreTick } from "./encore/boot.js";
 import { API_ROUTES } from "../src/config/apiRoutes.js";
 import { EVENT_TYPES } from "../src/types/events.js";
 import { SESSION_ORIGINS } from "../src/types/session.js";
@@ -1098,6 +1099,8 @@ async function startRuntimeServices(httpServer: ReturnType<typeof app.listen>, p
       }
     })
     .catch(logBackgroundError("user-tasks", "failed to register user tasks"));
+
+  registerEncoreTick(taskManager);
 
   taskManager.start();
 

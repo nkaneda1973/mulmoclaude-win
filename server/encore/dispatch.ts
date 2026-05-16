@@ -1,31 +1,34 @@
 // Encore plugin — server-side handler module.
 //
-// Step 3 of plans/feat-encore-as-builtin.md: setup / amendDefinition
-// / query / appendNote land here. The remaining kinds (markStepDone
-// / markTargetSkipped / recordValues / snooze / resolveNotification)
-// still return "not implemented" stubs — Steps 4 and 5 fill them in.
+// Step 4 of plans/feat-encore-as-builtin.md: setup / amendDefinition
+// / query / appendNote / markStepDone / markTargetSkipped /
+// recordValues / snooze are all implemented. `resolveNotification`
+// is still a Step-5 stub (the /encore page hasn't been wired yet).
 //
 // `dispatch(body)` is the single entry point; the Express adapter in
-// `server/api/routes/encore.ts` calls it. Each handler returns a
-// `{ ok, message, ... }` object; the route serialises it as JSON to
-// both the browser (for in-page dispatch) and the MCP bridge (for
-// LLM tool calls).
-//
-// Mutex serialisation lands in Step 4. For now handlers run in
-// parallel — Step 3 doesn't kick the tick, so the race surface is
-// just `writeFileAtomic` overlap, which the underlying tmp+rename
-// already tolerates for serialised same-key writes.
+// `server/api/routes/encore.ts` calls it. The dispatch wrapper
+// acquires the per-plugin mutex before each handler runs so two
+// concurrent mutations can't race on writeFileAtomic, and so a
+// kick-the-tick from a handler can't double-publish with the hourly
+// heartbeat. State-mutating handlers (setup, amend, markStepDone,
+// markTargetSkipped, snooze) kick the tick after persisting — the
+// tick re-evaluates the obligation and surfaces newly-due
+// notifications within the same SSE turn, rather than waiting up to
+// an hour for the next heartbeat.
 
 import { z } from "zod";
 
 import { EncoreDslInput, type EncoreDsl } from "./dsl/schema.js";
-import { buildCycleState, parseCycleFile, serializeCycleFile, type CycleState } from "./cycle.js";
+import { applyValues, buildCycleState, closeStep, parseCycleFile, serializeCycleFile, skipTarget, snoozeStep, type CycleState } from "./cycle.js";
 import { parseIndexFile, serializeIndexFile } from "./obligation.js";
 import { currentCycleSlot } from "./dsl/cadence.js";
-import { obligationDir, obligationIndexPath, cycleFilePath, slugify, OBLIGATIONS_DIRNAME } from "./paths.js";
-import { exists, readDir, readTextOrNull, writeText } from "../utils/files/encore-io.js";
+import { obligationDir, obligationIndexPath, cycleFilePath, pendingClearPath, slugify, OBLIGATIONS_DIRNAME } from "./paths.js";
+import { exists, readDir, readTextOrNull, writeText, unlink } from "../utils/files/encore-io.js";
 import { WORKSPACE_DIRS } from "../workspace/paths.js";
 import { log } from "../system/logger/index.js";
+import { tickUnlocked, withLock } from "./lock.js";
+import * as encoreNotifier from "./notifier.js";
+import type { PendingClearTicket } from "./tick.js";
 
 // ── error types + envelope ────────────────────────────────────────
 
@@ -78,6 +81,42 @@ const AppendNoteArgs = z.object({
   body: z.string().min(1),
 });
 
+const MarkStepDoneArgs = z.object({
+  kind: z.literal("markStepDone"),
+  obligationId: z.string(),
+  cycleId: z.string(),
+  targetId: z.string(),
+  stepId: z.string(),
+  values: z.record(z.string(), z.unknown()).optional(),
+  pendingId: z.string().optional(),
+});
+
+const MarkTargetSkippedArgs = z.object({
+  kind: z.literal("markTargetSkipped"),
+  obligationId: z.string(),
+  cycleId: z.string(),
+  targetId: z.string(),
+  pendingId: z.string().optional(),
+});
+
+const RecordValuesArgs = z.object({
+  kind: z.literal("recordValues"),
+  obligationId: z.string(),
+  cycleId: z.string(),
+  targetId: z.string(),
+  values: z.record(z.string(), z.unknown()),
+  pendingId: z.string().optional(),
+});
+
+const SnoozeArgs = z.object({
+  kind: z.literal("snooze"),
+  obligationId: z.string(),
+  cycleId: z.string(),
+  targetId: z.string(),
+  stepId: z.string(),
+  pendingId: z.string().optional(),
+});
+
 // ── path / id helpers ─────────────────────────────────────────────
 
 async function generateUniqueObligationId(displayName: string): Promise<string> {
@@ -117,6 +156,11 @@ async function handleSetup(args: z.infer<typeof SetupArgs>): Promise<EncoreDispa
 
   await writeText(obligationIndexPath(obligationId), serializeIndexFile(fullDsl, ""));
   await writeText(cycleFilePath(obligationId, cycle.cycleId), serializeCycleFile(cycle, ""));
+
+  // Kick the tick so that if the firingPlan's first phase is
+  // already due (cycle-start with no offset, for example), the bell
+  // surfaces the notification within the same SSE turn.
+  await tickUnlocked({ now: new Date() }, `setup ${obligationId}`);
 
   log.info("encore", "setup: obligation created", { obligationId, cycleId: cycle.cycleId });
 
@@ -173,6 +217,10 @@ async function handleAmend(args: z.infer<typeof AmendArgs>): Promise<EncoreDispa
   }
 
   await writeText(indexPath, serializeIndexFile(validated, body));
+  // A definition change may shift step deadlines / firingPlan so a
+  // newly-eligible phase could fire. Tick after the write so the
+  // user sees it in the same turn.
+  await tickUnlocked({ now: new Date() }, `amendDefinition ${args.obligationId}`);
   log.info("encore", "amendDefinition: obligation updated", { obligationId: args.obligationId });
 
   return {
@@ -329,6 +377,143 @@ function appendBody(existing: string, addition: string): string {
   return `${existing}${sep}\n${tail}`;
 }
 
+// ── per-cycle mutating handlers ───────────────────────────────────
+
+async function loadCycle(obligationId: string, cycleId: string): Promise<{ rel: string; raw: string; state: CycleState; body: string }> {
+  const rel = cycleFilePath(obligationId, cycleId);
+  const raw = await readTextOrNull(rel);
+  if (raw === null) {
+    throw new EncoreError(404, `cycle file ${obligationId}/${cycleId}.md not found`);
+  }
+  const { state, body } = parseCycleFile(raw);
+  return { rel, raw, state, body };
+}
+
+/** When a handler is the resolution of a notification-seeded chat,
+ *  the pending-clear ticket carries the bell-entry id. Clear the
+ *  bell and remove the ticket atomically (best-effort: the bell
+ *  clear is fire-and-forget; an exception there shouldn't block
+ *  the state mutation that's already persisted). */
+async function clearPendingNotification(pendingId: string | undefined): Promise<void> {
+  if (!pendingId) return;
+  const ticketRel = pendingClearPath(pendingId);
+  const raw = await readTextOrNull(ticketRel);
+  if (!raw) {
+    // Ticket already swept or never existed — clearing has no
+    // referent. Not an error condition.
+    return;
+  }
+  let ticket: PendingClearTicket;
+  try {
+    ticket = JSON.parse(raw) as PendingClearTicket;
+  } catch (err) {
+    log.warn("encore", "pending-clear ticket unparseable; removing", { pendingId, error: err instanceof Error ? err.message : String(err) });
+    await unlink(ticketRel);
+    return;
+  }
+  try {
+    await encoreNotifier.clear(ticket.notificationId);
+  } catch (err) {
+    log.warn("encore", "notifier.clear failed", { pendingId, notificationId: ticket.notificationId, error: err instanceof Error ? err.message : String(err) });
+  }
+  await unlink(ticketRel);
+}
+
+async function persistAndKickTick(rel: string, state: CycleState, body: string, reason: string): Promise<void> {
+  await writeText(rel, serializeCycleFile(state, body));
+  // Run the tick inside the SAME lock that wraps the dispatch
+  // (which is why we use `tickUnlocked`, not `kickTickLocked` —
+  // the latter would deadlock by trying to re-acquire the lock we
+  // already hold). The hourly heartbeat goes through
+  // `kickTickLocked` from the host's task-manager scheduler;
+  // handlers go through this path.
+  await tickUnlocked({ now: new Date() }, reason);
+}
+
+async function handleMarkStepDone(args: z.infer<typeof MarkStepDoneArgs>): Promise<EncoreDispatchResult> {
+  const { rel, state, body } = await loadCycle(args.obligationId, args.cycleId);
+  const nextState = closeStep(state, args.targetId, args.stepId, args.values);
+  await persistAndKickTick(rel, nextState, body, `markStepDone ${args.obligationId}/${args.cycleId}/${args.targetId}/${args.stepId}`);
+  await clearPendingNotification(args.pendingId);
+  log.info("encore", "markStepDone: step closed", { obligationId: args.obligationId, cycleId: args.cycleId, targetId: args.targetId, stepId: args.stepId });
+  return {
+    ok: true,
+    message: `Encore: marked ${args.stepId} done for ${args.targetId} in cycle ${args.cycleId} of ${args.obligationId}.`,
+    obligationId: args.obligationId,
+    cycleId: args.cycleId,
+    targetId: args.targetId,
+    stepId: args.stepId,
+    cyclePath: workspaceRelativePath(rel),
+  };
+}
+
+async function handleMarkTargetSkipped(args: z.infer<typeof MarkTargetSkippedArgs>): Promise<EncoreDispatchResult> {
+  const { rel, state, body } = await loadCycle(args.obligationId, args.cycleId);
+  const nextState = skipTarget(state, args.targetId);
+  await persistAndKickTick(rel, nextState, body, `markTargetSkipped ${args.obligationId}/${args.cycleId}/${args.targetId}`);
+  await clearPendingNotification(args.pendingId);
+  log.info("encore", "markTargetSkipped: target skipped", { obligationId: args.obligationId, cycleId: args.cycleId, targetId: args.targetId });
+  return {
+    ok: true,
+    message: `Encore: skipped ${args.targetId} for cycle ${args.cycleId} of ${args.obligationId}.`,
+    obligationId: args.obligationId,
+    cycleId: args.cycleId,
+    targetId: args.targetId,
+    cyclePath: workspaceRelativePath(rel),
+  };
+}
+
+async function handleRecordValues(args: z.infer<typeof RecordValuesArgs>): Promise<EncoreDispatchResult> {
+  const { rel, state, body } = await loadCycle(args.obligationId, args.cycleId);
+  const nextState = applyValues(state, args.targetId, args.values);
+  // No tick kick — recording partial values doesn't close anything
+  // and doesn't change firing eligibility.
+  await writeText(rel, serializeCycleFile(nextState, body));
+  log.info("encore", "recordValues: values recorded", {
+    obligationId: args.obligationId,
+    cycleId: args.cycleId,
+    targetId: args.targetId,
+    keys: Object.keys(args.values),
+  });
+  return {
+    ok: true,
+    message: `Encore: recorded ${Object.keys(args.values).length} value(s) on ${args.targetId} in cycle ${args.cycleId}.`,
+    obligationId: args.obligationId,
+    cycleId: args.cycleId,
+    targetId: args.targetId,
+    cyclePath: workspaceRelativePath(rel),
+  };
+}
+
+async function handleSnooze(args: z.infer<typeof SnoozeArgs>): Promise<EncoreDispatchResult> {
+  const { rel, state, body } = await loadCycle(args.obligationId, args.cycleId);
+  // Clear the bell entry tied to this step (we need its id from
+  // the cycle state) and reset the lastPublishedSeverity so the
+  // next tick re-fires from the appropriate phase.
+  const stepBefore = state.records[args.targetId]?.steps[args.stepId];
+  const activeId = stepBefore?.activeNotificationId ?? null;
+  const nextState = snoozeStep(state, args.targetId, args.stepId);
+  await persistAndKickTick(rel, nextState, body, `snooze ${args.obligationId}/${args.cycleId}/${args.targetId}/${args.stepId}`);
+  if (activeId) {
+    try {
+      await encoreNotifier.clear(activeId);
+    } catch (err) {
+      log.warn("encore", "snooze: notifier.clear failed", { activeId, error: err instanceof Error ? err.message : String(err) });
+    }
+  }
+  await clearPendingNotification(args.pendingId);
+  log.info("encore", "snooze: step snoozed", { obligationId: args.obligationId, cycleId: args.cycleId, targetId: args.targetId, stepId: args.stepId });
+  return {
+    ok: true,
+    message: `Encore: snoozed ${args.stepId} for ${args.targetId} in cycle ${args.cycleId} of ${args.obligationId}.`,
+    obligationId: args.obligationId,
+    cycleId: args.cycleId,
+    targetId: args.targetId,
+    stepId: args.stepId,
+    cyclePath: workspaceRelativePath(rel),
+  };
+}
+
 // ── shared helpers ────────────────────────────────────────────────
 
 function formatZodError(err: z.ZodError): string {
@@ -346,38 +531,36 @@ function workspaceRelativePath(rel: string): string {
 
 // ── dispatch ──────────────────────────────────────────────────────
 
-const KIND_ARGS = {
-  setup: SetupArgs,
-  amendDefinition: AmendArgs,
-  query: QueryArgs,
-  appendNote: AppendNoteArgs,
-} as const;
-
 async function handleNotImplemented(kind: string): Promise<EncoreDispatchResult> {
   return {
     ok: false,
-    message: `Encore ${JSON.stringify(kind)} is not implemented yet — Steps 4-5 of plans/feat-encore-as-builtin.md fill the remaining actions in.`,
+    message: `Encore ${JSON.stringify(kind)} is not implemented yet — Step 5 of plans/feat-encore-as-builtin.md wires it in.`,
   };
+}
+
+async function dispatchInner(body: EncoreDispatchBody): Promise<EncoreDispatchResult> {
+  const { kind } = body;
+  if (kind === "setup") return handleSetup(SetupArgs.parse(body));
+  if (kind === "amendDefinition") return handleAmend(AmendArgs.parse(body));
+  if (kind === "query") return handleQuery(QueryArgs.parse(body));
+  if (kind === "appendNote") return handleAppendNote(AppendNoteArgs.parse(body));
+  if (kind === "markStepDone") return handleMarkStepDone(MarkStepDoneArgs.parse(body));
+  if (kind === "markTargetSkipped") return handleMarkTargetSkipped(MarkTargetSkippedArgs.parse(body));
+  if (kind === "recordValues") return handleRecordValues(RecordValuesArgs.parse(body));
+  if (kind === "snooze") return handleSnooze(SnoozeArgs.parse(body));
+  if (kind === "resolveNotification") return handleNotImplemented(kind);
+  throw new EncoreError(400, `unknown kind ${JSON.stringify(kind)}`);
 }
 
 export async function dispatch(body: EncoreDispatchBody): Promise<EncoreDispatchResult> {
   if (!body || typeof body !== "object") {
     throw new EncoreError(400, "request body must be an object with a string `kind` field");
   }
-  const { kind } = body;
-  if (typeof kind !== "string") {
+  if (typeof body.kind !== "string") {
     throw new EncoreError(400, "missing or non-string `kind`");
   }
-
-  if (kind === "setup") return handleSetup(KIND_ARGS.setup.parse(body));
-  if (kind === "amendDefinition") return handleAmend(KIND_ARGS.amendDefinition.parse(body));
-  if (kind === "query") return handleQuery(KIND_ARGS.query.parse(body));
-  if (kind === "appendNote") return handleAppendNote(KIND_ARGS.appendNote.parse(body));
-
-  // Step 4 / Step 5 surface area.
-  if (kind === "markStepDone" || kind === "markTargetSkipped" || kind === "recordValues" || kind === "snooze" || kind === "resolveNotification") {
-    return handleNotImplemented(kind);
-  }
-
-  throw new EncoreError(400, `unknown kind ${JSON.stringify(kind)}`);
+  // Serialise every dispatch through the per-plugin mutex (Resolved
+  // #22). The mutex also covers handler-side `tickUnlocked` calls
+  // since we run them from inside this same critical section.
+  return withLock(() => dispatchInner(body));
 }
