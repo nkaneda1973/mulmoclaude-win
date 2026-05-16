@@ -23,7 +23,7 @@ Tracks: [#1049](https://github.com/receptron/mulmoclaude/issues/1049) — 依存
 > 1. その PR 用の plan ファイルを `plans/<branch-name>.md` (例: `plans/feat-pr-4a-docker-auto-fallback.md`) に新規作成する
 > 2. **下表の該当行の「状態」列に plan ファイルへの相対リンクを追記する** (例: `⏳ [plan](feat-pr-4a-docker-auto-fallback.md)`)
 > 3. PR が立ったら同じセルに PR 番号も追記 (例: `🚧 [plan](feat-pr-4a-docker-auto-fallback.md) / #1380`)
-> 4. PR がマージされたら `✅ #1380` に書き換え、対応する plan を `plans/done/` に移動 (`/archive-shipped-plans` skill で自動化)
+> 4. PR がマージされたら状態を `✅` にして PR 番号を併記する (例: `✅ [plan](done/feat-pr-4a-docker-auto-fallback.md) / #1380`)。同時に plan を `plans/done/` に移動し、リンク先も `done/` プレフィックスに更新する (`/archive-shipped-plans` skill で自動化)。完了スライスでも plan リンクを保持することで、後から「なぜそう実装したか」を辿れるようにする
 >
 > 表の更新を怠ると umbrella 全体の進捗が見えなくなる。新規 plan を作成したら、対応する行を必ず更新すること。
 
@@ -43,7 +43,7 @@ Tracks: [#1049](https://github.com/receptron/mulmoclaude/issues/1049) — 依存
 
 ### PR-1b ノート (新 skill `/check-prereqs`)
 
-「主要な依存を集めて事前確認 → 不足を対話で 1 件ずつ案内」する独立 skill。Codex cross-review で分割推奨 (#1367 デザイン相談、`/tmp/codex-cross-review-local-docs-ffmpeg-prereq/design-skill-split.md`):
+「主要な依存を集めて事前確認 → 不足を対話で 1 件ずつ案内」する独立 skill。#1367 デザイン相談での Codex cross-review で分割推奨:
 
 - **発動経路 3 つ**: (1) ユーザーが直接呼ぶ pre-flight check、(2) `setup-mulmoclaude` の Step 3 から委譲、(3) PR-4 の bell 通知から「`/check-prereqs` 実行」誘導
 - **対話フロー**: 各依存に対して `probe → 結果表示 → (不足時) 入れる/後で/入れない 分岐 → install コマンド案内 (README から取得) → 再確認 → 次の依存へ`
