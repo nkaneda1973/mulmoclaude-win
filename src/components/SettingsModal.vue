@@ -11,7 +11,7 @@
       <div class="px-5 py-4 border-b border-gray-200 flex items-center justify-between">
         <div>
           <h2 id="settings-modal-title" class="text-base font-semibold text-gray-900">{{ t("settingsModal.title") }}</h2>
-          <p v-if="appVersion" class="text-[11px] text-gray-400 mt-0.5" data-testid="settings-app-version">
+          <p v-if="appVersion" class="text-xs text-gray-600 mt-0.5" data-testid="settings-app-version">
             {{ t("settingsModal.version", { version: appVersion }) }}
           </p>
         </div>
