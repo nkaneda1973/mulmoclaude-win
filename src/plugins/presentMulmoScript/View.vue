@@ -3,10 +3,10 @@
     <!-- Header -->
     <div class="flex items-start justify-between px-6 py-4 border-b border-gray-100 shrink-0">
       <div class="min-w-0 flex-1">
-        <h2 class="text-lg font-semibold text-gray-800 truncate">
+        <h2 class="text-lg font-semibold text-gray-800 truncate" data-testid="mulmo-script-title">
           {{ script.title || "Untitled Script" }}
         </h2>
-        <p v-if="script.description" class="text-sm text-gray-500 mt-0.5 truncate">
+        <p v-if="script.description" class="text-sm text-gray-500 mt-0.5 truncate" data-testid="mulmo-script-description">
           {{ script.description }}
         </p>
         <div class="flex items-center gap-3 mt-1 text-xs text-gray-400">
