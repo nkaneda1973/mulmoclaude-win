@@ -46,7 +46,10 @@ CI 側は workflow step で対応済み:
 
 ## 検証
 
-1. ローカル: 一度 `~/Library/Caches/ms-playwright/webkit-*` を消した状態で `yarn test:e2e:live:media` → 自動 install が走り pass することを確認
+1. ローカル: 自分の OS の Playwright WebKit cache を消した状態で `yarn test:e2e:live:media` → 自動 install が走り pass することを確認
+   - macOS: `~/Library/Caches/ms-playwright/webkit-*`
+   - Linux: `~/.cache/ms-playwright/webkit-*`
+   - Windows: `%LOCALAPPDATA%\ms-playwright\webkit-*`
 2. もう一度同じ script を実行 → fast no-op (1s 以下) で先に進むことを確認
 3. `yarn format` / `yarn lint` / `yarn typecheck` / `yarn build` 全 green
 
