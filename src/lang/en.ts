@@ -305,6 +305,7 @@ const enMessages = {
     htmlPreview: "HTML preview",
     pdfPreview: "PDF preview",
     parseError: "parse error",
+    editJson: "Edit JSON",
   },
   filesView: {
     chatPlaceholder: "Ask about this file…",

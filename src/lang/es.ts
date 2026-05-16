@@ -291,6 +291,7 @@ const esMessages = {
     htmlPreview: "Vista previa HTML",
     pdfPreview: "Vista previa PDF",
     parseError: "error al analizar",
+    editJson: "Editar JSON",
   },
   filesView: {
     chatPlaceholder: "Pregunta sobre este archivo…",

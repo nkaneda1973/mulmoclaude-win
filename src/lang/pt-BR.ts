@@ -284,6 +284,7 @@ const ptBRMessages = {
     htmlPreview: "Pré-visualização HTML",
     pdfPreview: "Pré-visualização PDF",
     parseError: "erro de análise",
+    editJson: "Editar JSON",
   },
   filesView: {
     chatPlaceholder: "Pergunte sobre este arquivo…",

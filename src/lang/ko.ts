@@ -290,6 +290,7 @@ const koMessages = {
     htmlPreview: "HTML 미리보기",
     pdfPreview: "PDF 미리보기",
     parseError: "파싱 오류",
+    editJson: "JSON 편집",
   },
   filesView: {
     chatPlaceholder: "이 파일에 대해 질문하세요…",

@@ -288,6 +288,7 @@ const deMessages = {
     htmlPreview: "HTML-Vorschau",
     pdfPreview: "PDF-Vorschau",
     parseError: "Parse-Fehler",
+    editJson: "JSON bearbeiten",
   },
   filesView: {
     chatPlaceholder: "Frage zu dieser Datei stellen…",
