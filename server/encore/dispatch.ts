@@ -22,7 +22,7 @@ import { EncoreDslInput, type EncoreDsl } from "./dsl/schema.js";
 import { applyValues, buildCycleState, closeStep, parseCycleFile, serializeCycleFile, skipTarget, snoozeStep, type CycleState } from "./cycle.js";
 import { parseIndexFile, serializeIndexFile } from "./obligation.js";
 import { currentCycleSlot } from "./dsl/cadence.js";
-import { obligationDir, obligationIndexPath, cycleFilePath, pendingClearPath, slugify, OBLIGATIONS_DIRNAME } from "./paths.js";
+import { obligationDir, obligationIndexPath, cycleFilePath, pendingClearPath, slugify, OBLIGATIONS_DIRNAME, PENDING_CLEAR_DIRNAME } from "./paths.js";
 import { exists, readDir, readTextOrNull, writeText, unlink } from "../utils/files/encore-io.js";
 import { WORKSPACE_DIRS } from "../workspace/paths.js";
 import { log } from "../system/logger/index.js";
@@ -234,9 +234,17 @@ async function handleAmend(args: z.infer<typeof AmendArgs>): Promise<EncoreDispa
   }
 
   await writeText(indexPath, serializeIndexFile(validated, body));
-  // A definition change may shift step deadlines / firingPlan so a
-  // newly-eligible phase could fire. Tick after the write so the
-  // user sees it in the same turn.
+
+  // Force-refresh every active bell entry for this obligation:
+  // clear the current bell entries, null out the cycle file's
+  // activeNotificationId / lastPublishedSeverity, then kick the
+  // tick. The tick will see the un-fired entries and publish fresh
+  // notifications carrying the new displayName / step labels.
+  // Without this step, a title-only amend leaves the old bell in
+  // place (or worse — if the bell entry was already cleared but the
+  // cycle file still holds the id, no new notification fires at all
+  // because the tick thinks one is already active).
+  await resetActiveNotificationsForObligation(args.obligationId, `amendDefinition`);
   await tickUnlocked({ now: new Date() }, `amendDefinition ${args.obligationId}`);
   log.info("encore", "amendDefinition: obligation updated", { obligationId: args.obligationId });
 
@@ -395,6 +403,96 @@ function appendBody(existing: string, addition: string): string {
 }
 
 // ── per-cycle mutating handlers ───────────────────────────────────
+
+/** Walk the current cycle for this obligation, clear every active
+ *  bell entry, and null the activeNotificationId /
+ *  lastPublishedSeverity / pending-clear ticket pointers on each
+ *  step. Used by amendDefinition so a title (or any other amend)
+ *  produces a freshly-published notification carrying the updated
+ *  text — and to recover from "cycle file says active but the bell
+ *  doesn't have it" stuck states. */
+function collectActiveIdsAndNullThem(state: CycleState): Set<string> {
+  const ids = new Set<string>();
+  for (const record of Object.values(state.records)) {
+    for (const step of Object.values(record.steps)) {
+      if (step.activeNotificationId) {
+        ids.add(step.activeNotificationId);
+        step.activeNotificationId = null;
+      }
+      step.lastPublishedSeverity = null;
+    }
+  }
+  return ids;
+}
+
+async function clearHostBellEntries(ids: Set<string>, obligationId: string, reason: string): Promise<void> {
+  // `notifier.clear` no-ops on unknown ids so a stale id in the
+  // cycle file doesn't throw.
+  for (const notificationId of ids) {
+    try {
+      await encoreNotifier.clear(notificationId);
+    } catch (err) {
+      log.warn("encore", `${reason}: bell clear failed`, {
+        obligationId,
+        notificationId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+}
+
+async function resetActiveNotificationsForObligation(obligationId: string, reason: string): Promise<void> {
+  const rel = await pickCurrentCycleRel(obligationId);
+  if (!rel) return;
+  const raw = await readTextOrNull(rel);
+  if (raw === null) return;
+  const { state, body } = parseCycleFile(raw);
+  if (state.status !== "open") return;
+
+  const idsToClear = collectActiveIdsAndNullThem(state);
+
+  if (idsToClear.size === 0) {
+    // Nothing to clear — but still persist the lastPublishedSeverity
+    // null bumps in case any drifted.
+    await writeText(rel, serializeCycleFile(state, body));
+    return;
+  }
+
+  await clearHostBellEntries(idsToClear, obligationId, reason);
+  // Remove any pending-clear ticket pointing at one of these ids so
+  // the soon-to-be-fired replacement gets a fresh ticket (with
+  // updated seed prompt) from fireGroup.
+  await removeTicketsForNotifications(idsToClear);
+  await writeText(rel, serializeCycleFile(state, body));
+  log.info("encore", `${reason}: reset active notifications`, { obligationId, cleared: idsToClear.size });
+}
+
+async function pickCurrentCycleRel(obligationId: string): Promise<string | null> {
+  const entries = await readDir(obligationDir(obligationId));
+  const cycleFiles = entries.filter((name) => name !== "index.md" && name.endsWith(".md")).sort();
+  if (cycleFiles.length === 0) return null;
+  return `${obligationDir(obligationId)}/${cycleFiles[cycleFiles.length - 1]}`;
+}
+
+async function removeTicketsForNotifications(ids: Set<string>): Promise<void> {
+  if (ids.size === 0) return;
+  const entries = await readDir(PENDING_CLEAR_DIRNAME);
+  for (const entry of entries) {
+    if (!entry.endsWith(".json")) continue;
+    const rel = `${PENDING_CLEAR_DIRNAME}/${entry}`;
+    const raw = await readTextOrNull(rel);
+    if (!raw) continue;
+    try {
+      const ticket = JSON.parse(raw) as { notificationId?: string };
+      if (ticket.notificationId && ids.has(ticket.notificationId)) {
+        await unlink(rel);
+      }
+    } catch {
+      // Unparsable ticket — leave it; the orphan sweep handles
+      // those by age.
+    }
+  }
+}
 
 async function loadCycle(obligationId: string, cycleId: string): Promise<{ rel: string; raw: string; state: CycleState; body: string }> {
   const rel = cycleFilePath(obligationId, cycleId);
@@ -621,17 +719,34 @@ function workspaceRelativePath(rel: string): string {
 
 // ── dispatch ──────────────────────────────────────────────────────
 
+/** Wrap a Zod parse to convert validation failures into a 400
+ *  `EncoreError` with a field-path-aware message. Without this, the
+ *  caller sees a generic 500 ("encore dispatch failed") and has no
+ *  way to know whether the shape was wrong or the server actually
+ *  crashed — Claude in particular tends to spiral with retries on
+ *  generic errors. */
+function safeParse<T>(schema: z.ZodType<T>, body: unknown, kind: string): T {
+  const result = schema.safeParse(body);
+  if (result.success) return result.data;
+  const issues = result.error.issues.map((issue) => {
+    const path = issue.path.length > 0 ? issue.path.map((segment) => String(segment)).join(".") : "(root)";
+    return `${path}: ${issue.message}`;
+  });
+  const summary = issues.join("; ");
+  throw new EncoreError(400, `manageEncore(${kind}): invalid args — ${summary}. See helps/encore-dsl.md for the call shape.`, { issues: result.error.issues });
+}
+
 async function dispatchInner(body: EncoreDispatchBody): Promise<EncoreDispatchResult> {
   const { kind } = body;
-  if (kind === "setup") return handleSetup(SetupArgs.parse(body));
-  if (kind === "amendDefinition") return handleAmend(AmendArgs.parse(body));
-  if (kind === "query") return handleQuery(QueryArgs.parse(body));
-  if (kind === "appendNote") return handleAppendNote(AppendNoteArgs.parse(body));
-  if (kind === "markStepDone") return handleMarkStepDone(MarkStepDoneArgs.parse(body));
-  if (kind === "markTargetSkipped") return handleMarkTargetSkipped(MarkTargetSkippedArgs.parse(body));
-  if (kind === "recordValues") return handleRecordValues(RecordValuesArgs.parse(body));
-  if (kind === "snooze") return handleSnooze(SnoozeArgs.parse(body));
-  if (kind === "resolveNotification") return handleResolveNotification(ResolveNotificationArgs.parse(body));
+  if (kind === "setup") return handleSetup(safeParse(SetupArgs, body, kind));
+  if (kind === "amendDefinition") return handleAmend(safeParse(AmendArgs, body, kind));
+  if (kind === "query") return handleQuery(safeParse(QueryArgs, body, kind));
+  if (kind === "appendNote") return handleAppendNote(safeParse(AppendNoteArgs, body, kind));
+  if (kind === "markStepDone") return handleMarkStepDone(safeParse(MarkStepDoneArgs, body, kind));
+  if (kind === "markTargetSkipped") return handleMarkTargetSkipped(safeParse(MarkTargetSkippedArgs, body, kind));
+  if (kind === "recordValues") return handleRecordValues(safeParse(RecordValuesArgs, body, kind));
+  if (kind === "snooze") return handleSnooze(safeParse(SnoozeArgs, body, kind));
+  if (kind === "resolveNotification") return handleResolveNotification(safeParse(ResolveNotificationArgs, body, kind));
   throw new EncoreError(400, `unknown kind ${JSON.stringify(kind)}`);
 }
 

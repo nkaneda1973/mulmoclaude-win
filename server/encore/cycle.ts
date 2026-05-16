@@ -10,7 +10,7 @@
 // `values:` so user-defined field names cannot collide with the
 // structural keys (status / steps / values).
 
-import { parseFrontmatter, serializeWithFrontmatter } from "../utils/markdown/frontmatter.js";
+import { parseEncoreFrontmatter as parseFrontmatter, serializeEncoreFrontmatter as serializeWithFrontmatter } from "./yaml-fm.js";
 import { resolveAtExpression } from "./dsl/at-resolver.js";
 import { parseAtExpression } from "./dsl/at-expression.js";
 import type { EncoreDsl, Severity } from "./dsl/schema.js";

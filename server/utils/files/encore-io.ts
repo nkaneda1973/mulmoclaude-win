@@ -11,15 +11,19 @@
 import { promises as fsPromises } from "node:fs";
 import path from "node:path";
 
-import { workspacePath, WORKSPACE_DIRS } from "../../workspace/paths.js";
+import { WORKSPACE_DIRS, WORKSPACE_PATHS } from "../../workspace/paths.js";
 import { writeFileAtomic } from "./atomic.js";
 import { isEnoent } from "./safe.js";
 
-const root = (workspaceRoot?: string): string => workspaceRoot ?? workspacePath;
-
-/** Absolute path to the Encore plugin's data directory. */
+/** Absolute path to the Encore plugin's data directory. Reads
+ *  `WORKSPACE_PATHS.encore` so tests can override the absolute
+ *  location via Object.defineProperty (same pattern bookmarks
+ *  integration tests use for `pluginsData`). The optional
+ *  `workspaceRoot` is a one-off override for callers that want to
+ *  point at a custom directory without touching the global. */
 export function encoreRoot(workspaceRoot?: string): string {
-  return path.join(root(workspaceRoot), WORKSPACE_DIRS.encore);
+  if (workspaceRoot !== undefined) return path.join(workspaceRoot, WORKSPACE_DIRS.encore);
+  return WORKSPACE_PATHS.encore;
 }
 
 /** Join a workspace-relative encore path (from paths.ts) to the

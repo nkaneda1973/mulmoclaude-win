@@ -34,23 +34,32 @@ export interface PublishArgs {
 /** Map Encore's DSL-facing severity vocabulary
  *  (`info | warning | urgent`, picked for clarity in plain-language
  *  prompts the LLM composes against) to the host notifier's
- *  vocabulary (`info | nudge | urgent`). The host's `nudge` is the
- *  mid-intensity bucket; aliasing keeps the DSL stable without
- *  drifting from the host's naming. */
-function toHostSeverity(severity: Severity): "info" | "nudge" | "urgent" {
-  if (severity === "warning") return "nudge";
-  return severity;
+ *  vocabulary (`info | nudge | urgent`).
+ *
+ *  We deliberately avoid the host's `info` severity entirely:
+ *  Encore always uses `lifecycle: "action"` so the LLM (not the
+ *  bell) owns when the entry goes away — the user clicks the
+ *  bell, lands in a chat, talks with the LLM, and the LLM calls
+ *  `markStepDone` / `markTargetSkipped` to clear. The host's
+ *  publish-time coherence check rejects `action` + `info`, so we
+ *  map DSL `info` to host `nudge` (the mid-intensity bucket). We
+ *  lose the visual distinction between info and warning at the
+ *  bell level; the LLM still differentiates them in title / body /
+ *  conversation tone. */
+function toHostSeverity(severity: Severity): "nudge" | "urgent" {
+  if (severity === "urgent") return "urgent";
+  return "nudge";
 }
 
-/** Publish an Encore notification. Lifecycle is derived from
- *  severity per the host's coherence rule. Returns the host-assigned
- *  notification id. */
+/** Publish an Encore notification. Always emits
+ *  `lifecycle: "action"` so the host's bell does NOT auto-clear on
+ *  click — Encore owns the clear via markStepDone /
+ *  markTargetSkipped. Returns the host-assigned notification id. */
 export async function publish(args: PublishArgs): Promise<{ id: string }> {
-  const lifecycle = args.severity === "info" ? "fyi" : "action";
   return engine.publish({
     pluginPkg: ENCORE_PLUGIN_PKG,
     severity: toHostSeverity(args.severity),
-    lifecycle,
+    lifecycle: "action",
     title: args.title,
     body: args.body,
     navigateTarget: args.navigateTarget,

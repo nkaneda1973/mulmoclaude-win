@@ -386,9 +386,29 @@ function buildSeedPrompt(dsl: EncoreDsl, group: BundleGroup, pendingId: string, 
     })
     .join("\n");
   const fieldList = group.stepDef.fields.length === 0 ? "(no fields to record for this step)" : group.stepDef.fields.map((name) => `- ${name}`).join("\n");
+  const firstTargetId = group.members[0]?.targetId ?? "<targetId>";
+  const obligationId = dsl.id ?? "";
+
+  // Concrete sample call to anchor the LLM on the singular
+  // `targetId` shape + flat `values` map. Past mistakes the LLM
+  // has made: `targetIds: ["..."]` (plural array), and
+  // `values: { <targetId>: { ... } }` (nested under target).
+  const exampleCall = JSON.stringify(
+    {
+      kind: "markStepDone",
+      pendingId,
+      obligationId,
+      cycleId,
+      targetId: firstTargetId,
+      stepId: group.stepId,
+      values: Object.fromEntries(group.stepDef.fields.map((name) => [name, "<value>"])),
+    },
+    null,
+    2,
+  );
 
   return [
-    `An Encore reminder for the obligation "${dsl.displayName}" (id: ${dsl.id ?? "unknown"}, cycle: ${cycleId}).`,
+    `An Encore reminder for the obligation "${dsl.displayName}" (id: ${obligationId}, cycle: ${cycleId}).`,
     "",
     `Step: ${group.stepDef.displayName} (id: ${group.stepId})`,
     `Severity: ${group.severity}. Fire date: ${group.fireDate}.`,
@@ -399,13 +419,21 @@ function buildSeedPrompt(dsl: EncoreDsl, group: BundleGroup, pendingId: string, 
     `Fields to collect on each target's record:`,
     fieldList,
     "",
-    `Please help the user record what happened for each target. When done, call manageEncore with the matching kind:`,
-    `- kind: "markStepDone" — step is complete (pass any field values you collected via \`values\`)`,
-    `- kind: "markTargetSkipped" — user is skipping this target for this cycle`,
-    `- kind: "recordValues" — partial info only (no closing)`,
-    `- kind: "snooze" — defer the bell entry`,
+    `Help the user record what happened, then call manageEncore — ONCE PER TARGET — with one of:`,
+    `- kind: "markStepDone" — step is complete (pass field values via \`values\`).`,
+    `- kind: "markTargetSkipped" — user is skipping this target for this cycle.`,
+    `- kind: "recordValues" — partial info only, no closing.`,
+    `- kind: "snooze" — defer the bell entry.`,
     "",
-    `Pass \`pendingId: "${pendingId}"\` and \`obligationId: "${dsl.id ?? ""}"\` and \`cycleId: "${cycleId}"\` on every call so Encore can clear the bell entry when the cycle progresses.`,
+    `Call-shape rules (the parser will 400 on these common mistakes):`,
+    `- \`targetId\` is SINGULAR (a string), NOT \`targetIds\` (array). If the notification covers multiple targets, make one call per target.`,
+    `- \`values\` is a FLAT field-map: \`{ fieldName: value, ... }\`. NEVER nest it by target id (\`{ <targetId>: { ... } }\` is wrong).`,
+    `- Always pass \`pendingId\`, \`obligationId\`, and \`cycleId\` as shown below — they're what clears the bell entry when the cycle progresses.`,
+    "",
+    `Example for ${firstTargetId}:`,
+    "```json",
+    exampleCall,
+    "```",
   ].join("\n");
 }
 
