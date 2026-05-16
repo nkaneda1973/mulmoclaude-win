@@ -13,7 +13,7 @@ CI 側は workflow step で対応済み:
 
 ## 修正方針
 
-`test:e2e` / `test:e2e:live*` の各 npm script の先頭に `playwright install chromium webkit && ` を chain する (議論時の「案 A」)。
+新しい共通 script `ensure:playwright-browsers` (中身は `playwright install chromium webkit`) を 1 個追加し、`test:e2e` / `test:e2e:live*` の各 npm script の先頭に `yarn ensure:playwright-browsers && ` を chain する (議論時の「案 A」)。共通化することで将来ブラウザ追加 / バージョン制約変更が 1 箇所で済む。
 
 ### なぜ chain inline か (他案との比較)
 
