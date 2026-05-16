@@ -44,19 +44,19 @@ const FormField = z
     placeholder: z.string().optional(),
     options: z.array(z.string().min(1)).optional(),
   })
-  .superRefine((v, ctx) => {
-    if (v.type === "enum") {
-      if (!v.options || v.options.length === 0) {
+  .superRefine((field, ctx) => {
+    if (field.type === "enum") {
+      if (!field.options || field.options.length === 0) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message: "type=enum requires non-empty options[]",
           path: ["options"],
         });
       }
-    } else if (v.options && v.options.length > 0) {
+    } else if (field.options && field.options.length > 0) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: `options[] is only meaningful for type=enum; got type=${v.type}`,
+        message: `options[] is only meaningful for type=enum; got type=${field.type}`,
         path: ["options"],
       });
     }
@@ -143,112 +143,108 @@ const ServiceDsl = z.object({
   type: z.literal("service"),
 });
 
-/** Top-level DSL union. Input shape — the post-superRefine resolved
- *  shape lives in `EncoreDsl` below. */
-export const EncoreDslInput = z.discriminatedUnion("type", [PaymentDsl, ServiceDsl]).superRefine((doc, ctx) => {
-  // ── cross-field: target / step / field-name uniqueness ────────
+// ── cross-field validators (split out so the per-document
+// superRefine stays under the cognitive-complexity threshold) ─────
+
+interface Doc {
+  targets: TargetDef[];
+  steps: StepDef[];
+  formSchema: { fields: FormFieldDef[] };
+}
+type Ctx = z.RefinementCtx;
+
+function validateUniqueIds(doc: Doc, ctx: Ctx): { fieldNames: Set<string> } {
   const targetIds = new Set<string>();
-  for (const t of doc.targets) {
-    if (targetIds.has(t.id)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: `duplicate target id ${JSON.stringify(t.id)}`,
-        path: ["targets"],
-      });
+  for (const target of doc.targets) {
+    if (targetIds.has(target.id)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: `duplicate target id ${JSON.stringify(target.id)}`, path: ["targets"] });
     }
-    targetIds.add(t.id);
+    targetIds.add(target.id);
   }
-
   const stepIds = new Set<string>();
-  for (const s of doc.steps) {
-    if (stepIds.has(s.id)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: `duplicate step id ${JSON.stringify(s.id)}`,
-        path: ["steps"],
-      });
+  for (const step of doc.steps) {
+    if (stepIds.has(step.id)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: `duplicate step id ${JSON.stringify(step.id)}`, path: ["steps"] });
     }
-    stepIds.add(s.id);
+    stepIds.add(step.id);
   }
-
   const fieldNames = new Set<string>();
-  for (const f of doc.formSchema.fields) {
-    if (fieldNames.has(f.name)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: `duplicate formSchema field name ${JSON.stringify(f.name)}`,
-        path: ["formSchema", "fields"],
-      });
+  for (const field of doc.formSchema.fields) {
+    if (fieldNames.has(field.name)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: `duplicate formSchema field name ${JSON.stringify(field.name)}`, path: ["formSchema", "fields"] });
     }
-    fieldNames.add(f.name);
+    fieldNames.add(field.name);
   }
+  return { fieldNames };
+}
 
-  // ── each formSchema field appears in exactly one step.fields[] ─
-  const fieldClaims = new Map<string, string[]>();
-  for (const s of doc.steps) {
-    for (const fname of s.fields) {
+function validateFieldOwnership(doc: Doc, fieldNames: Set<string>, ctx: Ctx): void {
+  const claims = new Map<string, string[]>();
+  for (const step of doc.steps) {
+    for (const fname of step.fields) {
       if (!fieldNames.has(fname)) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: `step ${JSON.stringify(s.id)} references unknown formSchema field ${JSON.stringify(fname)}`,
+          message: `step ${JSON.stringify(step.id)} references unknown formSchema field ${JSON.stringify(fname)}`,
           path: ["steps"],
         });
         continue;
       }
-      const claims = fieldClaims.get(fname) ?? [];
-      claims.push(s.id);
-      fieldClaims.set(fname, claims);
+      const list = claims.get(fname) ?? [];
+      list.push(step.id);
+      claims.set(fname, list);
     }
   }
   for (const fname of fieldNames) {
-    const claims = fieldClaims.get(fname) ?? [];
-    if (claims.length === 0) {
+    const list = claims.get(fname) ?? [];
+    if (list.length === 0) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: `formSchema field ${JSON.stringify(fname)} is not claimed by any step.fields[]`,
         path: ["formSchema", "fields"],
       });
-    } else if (claims.length > 1) {
+    } else if (list.length > 1) {
+      const owners = list.map((stepId) => JSON.stringify(stepId)).join(", ");
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: `formSchema field ${JSON.stringify(fname)} is claimed by multiple steps: ${claims.map((id) => JSON.stringify(id)).join(", ")}`,
+        message: `formSchema field ${JSON.stringify(fname)} is claimed by multiple steps: ${owners}`,
         path: ["formSchema", "fields"],
       });
     }
   }
+}
 
-  // ── target.defaults keys reference real formSchema fields ─────
-  for (const t of doc.targets) {
-    if (!t.defaults) continue;
-    for (const key of Object.keys(t.defaults)) {
+function validateDefaultKeys(doc: Doc, fieldNames: Set<string>, ctx: Ctx): void {
+  for (const target of doc.targets) {
+    if (!target.defaults) continue;
+    for (const key of Object.keys(target.defaults)) {
       if (!fieldNames.has(key)) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: `target ${JSON.stringify(t.id)} default for ${JSON.stringify(key)} references unknown formSchema field`,
+          message: `target ${JSON.stringify(target.id)} default for ${JSON.stringify(key)} references unknown formSchema field`,
           path: ["targets"],
         });
       }
     }
   }
+}
 
-  // ── each step's firingPlan is chronologically ordered against a
-  // representative cycle. We use today as the cycle anchor here —
-  // the absolute date doesn't matter, only the relative ordering of
-  // phases — but we need numeric ISO comparison to pick this up.
-  // Walk in declared order and assert non-decreasing dates.
-  for (const s of doc.steps) {
+function validateFiringPlanOrder(doc: Doc, ctx: Ctx): void {
+  // Use a representative cycle (the actual date doesn't matter, only
+  // the relative ordering of phases against it).
+  const anchorsBase = { cycleStart: "2026-01-01", cycleDeadline: "2026-12-31" };
+  for (const step of doc.steps) {
     let stepDeadlineIso: string | undefined;
     try {
-      const expr = parseAtExpression(s.deadline, { allowStepDeadline: false });
-      stepDeadlineIso = resolveAtExpression(expr, { cycleStart: "2026-01-01", cycleDeadline: "2026-12-31" });
+      const expr = parseAtExpression(step.deadline, { allowStepDeadline: false });
+      stepDeadlineIso = resolveAtExpression(expr, anchorsBase);
     } catch {
-      // Schema-level parse error already raised; skip here.
       continue;
     }
-    const anchors = { cycleStart: "2026-01-01", cycleDeadline: "2026-12-31", stepDeadline: stepDeadlineIso };
+    const anchors = { ...anchorsBase, stepDeadline: stepDeadlineIso };
     let prev: string | null = null;
-    for (let i = 0; i < s.firingPlan.length; i++) {
-      const phase = s.firingPlan[i];
+    for (let i = 0; i < step.firingPlan.length; i++) {
+      const phase = step.firingPlan[i];
       let resolved: string;
       try {
         const expr = parseAtExpression(phase.at, { allowStepDeadline: true });
@@ -259,13 +255,22 @@ export const EncoreDslInput = z.discriminatedUnion("type", [PaymentDsl, ServiceD
       if (prev !== null && resolved < prev) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: `step ${JSON.stringify(s.id)}: firingPlan[${i}].at ${JSON.stringify(phase.at)} resolves before the previous phase — phases must be chronologically ordered`,
+          message: `step ${JSON.stringify(step.id)}: firingPlan[${i}].at ${JSON.stringify(phase.at)} resolves before the previous phase — phases must be chronologically ordered`,
           path: ["steps"],
         });
       }
       prev = resolved;
     }
   }
+}
+
+/** Top-level DSL union. Input shape — the post-superRefine resolved
+ *  shape lives in `EncoreDsl` below. */
+export const EncoreDslInput = z.discriminatedUnion("type", [PaymentDsl, ServiceDsl]).superRefine((doc, ctx) => {
+  const { fieldNames } = validateUniqueIds(doc, ctx);
+  validateFieldOwnership(doc, fieldNames, ctx);
+  validateDefaultKeys(doc, fieldNames, ctx);
+  validateFiringPlanOrder(doc, ctx);
 });
 
 export type EncoreDsl = z.infer<typeof EncoreDslInput>;

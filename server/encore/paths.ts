@@ -63,8 +63,8 @@ export function slugify(displayName: string): string {
     .normalize("NFKD")
     .replace(/[̀-ͯ]/g, "") // strip diacritics
     .replace(/[^a-z0-9]+/g, "-") // collapse non-alphanumerics
-    .replace(/^-+|-+$/g, "") // trim leading/trailing dashes
-    .replace(/-{2,}/g, "-");
+    .replace(/^-/, "") // trim leading dash (only one possible: collapse-step above guarantees no consecutive dashes)
+    .replace(/-$/, ""); // trim trailing dash
   if (!slug) return "obligation";
   // Slug must start with a letter (KEBAB regex in schema). If the
   // first char ended up as a digit, prefix "o-".

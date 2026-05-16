@@ -12,7 +12,7 @@
 
 import { Router, Request, Response } from "express";
 
-import { dispatch, EncoreError, type EncoreDispatchBody } from "../../../src/plugins/encore/server.js";
+import { dispatch, EncoreError, type EncoreDispatchBody } from "../../encore/dispatch.js";
 import { API_ROUTES } from "../../../src/config/apiRoutes.js";
 import { bindRoute } from "../../utils/router.js";
 import { log } from "../../system/logger/index.js";

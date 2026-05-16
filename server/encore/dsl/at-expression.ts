@@ -54,8 +54,14 @@ export function parseAtExpression(raw: string, opts: { allowStepDeadline: boolea
     return { anchor: "schedule", offsetDays: 0, date: rest };
   }
 
-  // anchor [+/-]Nd
-  const offsetMatch = raw.match(/^([a-z-]+)(?:([+-])(\d+)d)?$/);
+  // anchor [+/-]Nd. The anchor names are a closed set so we list
+  // them explicitly rather than `[a-z-]+`. The alternation is
+  // bounded and the optional offset group has no nested
+  // quantifiers, so backtracking is constant-bounded — but the
+  // security linter doesn't infer that, so we disable it inline
+  // with this rationale.
+  // eslint-disable-next-line security/detect-unsafe-regex -- alternation is a closed set of literals; optional `(\d+)d` group has no nested quantifiers, no ReDoS surface.
+  const offsetMatch = raw.match(/^(cycle-start|cycle-deadline|step-deadline)(?:([+-])(\d+)d)?$/);
   if (!offsetMatch) {
     throw new Error(`at-expression: ${JSON.stringify(raw)} does not match grammar (anchor [±Nd])`);
   }

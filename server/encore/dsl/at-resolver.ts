@@ -17,22 +17,16 @@ export interface AtAnchors {
 }
 
 export function resolveAtExpression(expr: AtExpression, anchors: AtAnchors): string {
-  switch (expr.anchor) {
-    case "cycle-start":
-      return addDays(anchors.cycleStart, expr.offsetDays);
-    case "cycle-deadline":
-      return addDays(anchors.cycleDeadline, expr.offsetDays);
-    case "step-deadline": {
-      if (!anchors.stepDeadline) {
-        throw new Error("at-resolver: step-deadline anchor used but no stepDeadline anchor provided");
-      }
-      return addDays(anchors.stepDeadline, expr.offsetDays);
+  if (expr.anchor === "cycle-start") return addDays(anchors.cycleStart, expr.offsetDays);
+  if (expr.anchor === "cycle-deadline") return addDays(anchors.cycleDeadline, expr.offsetDays);
+  if (expr.anchor === "step-deadline") {
+    if (!anchors.stepDeadline) {
+      throw new Error("at-resolver: step-deadline anchor used but no stepDeadline anchor provided");
     }
-    case "schedule": {
-      if (!expr.date) {
-        throw new Error("at-resolver: schedule anchor missing date");
-      }
-      return addDays(expr.date, expr.offsetDays);
-    }
+    return addDays(anchors.stepDeadline, expr.offsetDays);
   }
+  if (!expr.date) {
+    throw new Error("at-resolver: schedule anchor missing date");
+  }
+  return addDays(expr.date, expr.offsetDays);
 }

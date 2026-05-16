@@ -21,49 +21,49 @@ import { z } from "zod";
  *  date-only (no time-of-day), so UTC vs local mostly doesn't
  *  matter — but staying consistent in one zone makes "is today on
  *  or after deadline?" boundaries deterministic across servers. */
-export function isoDate(d: Date): string {
-  const y = d.getUTCFullYear();
-  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
-  const day = String(d.getUTCDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
+export function isoDate(date: Date): string {
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(date.getUTCDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
-function utcDate(y: number, mZero: number, d: number): Date {
-  return new Date(Date.UTC(y, mZero, d));
+function utcDate(year: number, monthZero: number, day: number): Date {
+  return new Date(Date.UTC(year, monthZero, day));
 }
 
 /** Add N calendar days to an ISO date (returns ISO). */
 export function addDays(iso: string, days: number): string {
-  const [y, m, d] = iso.split("-").map(Number);
-  const dt = utcDate(y, m - 1, d + days);
-  return isoDate(dt);
+  const [year, month, day] = iso.split("-").map(Number);
+  return isoDate(utcDate(year, month - 1, day + days));
 }
 
 /** Lexicographic ISO compare. -1 / 0 / 1. */
-export function compareIsoDates(a: string, b: string): number {
-  if (a < b) return -1;
-  if (a > b) return 1;
+export function compareIsoDates(lhs: string, rhs: string): number {
+  if (lhs < rhs) return -1;
+  if (lhs > rhs) return 1;
   return 0;
 }
 
 // ── ISO week helpers (used by weekly cadence) ───────────────────
 
+const MS_PER_WEEK = 7 * 24 * 60 * 60 * 1000;
+
 /** ISO 8601 week number for a date. The ISO week year matches the
  *  Thursday of the week — handy for the early-Jan / late-Dec edge
  *  cases where a date's calendar year and ISO-week year differ. */
-function isoWeekYearAndNumber(d: Date): { year: number; week: number } {
+function isoWeekYearAndNumber(date: Date): { year: number; week: number } {
   // Copy to avoid mutating caller.
-  const t = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
-  // Move to Thursday of this ISO week.
-  const dayNum = (t.getUTCDay() + 6) % 7; // Mon=0 … Sun=6
-  t.setUTCDate(t.getUTCDate() - dayNum + 3);
-  const firstThursday = new Date(Date.UTC(t.getUTCFullYear(), 0, 4));
+  const thursdayOfWeek = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+  const dayNum = (thursdayOfWeek.getUTCDay() + 6) % 7; // Mon=0 … Sun=6
+  thursdayOfWeek.setUTCDate(thursdayOfWeek.getUTCDate() - dayNum + 3);
+  const firstThursday = new Date(Date.UTC(thursdayOfWeek.getUTCFullYear(), 0, 4));
   const firstThursdayDayNum = (firstThursday.getUTCDay() + 6) % 7;
   const firstThursdayWeekStart = new Date(firstThursday);
   firstThursdayWeekStart.setUTCDate(firstThursday.getUTCDate() - firstThursdayDayNum);
-  const diffMs = t.getTime() - firstThursdayWeekStart.getTime();
-  const week = 1 + Math.round(diffMs / (7 * 24 * 60 * 60 * 1000));
-  return { year: t.getUTCFullYear(), week };
+  const diffMs = thursdayOfWeek.getTime() - firstThursdayWeekStart.getTime();
+  const week = 1 + Math.round(diffMs / MS_PER_WEEK);
+  return { year: thursdayOfWeek.getUTCFullYear(), week };
 }
 
 /** Monday of the given ISO week (returns ISO date). */
@@ -112,13 +112,10 @@ const daily = z.object({
   type: z.literal("daily"),
 });
 
-export const CadenceSchema = z.discriminatedUnion("type", [annual, biannual, monthly, weekly, daily]).superRefine((cad, ctx) => {
-  // The biannual ordering check is on the inner type so it composes
-  // into the discriminated union; we re-apply it here so .parse on
-  // the union surfaces the same error.
-  if (cad.type === "biannual") {
-    const [a, b] = cad.cycles;
-    if (a.month > b.month || (a.month === b.month && a.day >= b.day)) {
+export const CadenceSchema = z.discriminatedUnion("type", [annual, biannual, monthly, weekly, daily]).superRefine((cadence, ctx) => {
+  if (cadence.type === "biannual") {
+    const [first, second] = cadence.cycles;
+    if (first.month > second.month || (first.month === second.month && first.day >= second.day)) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: "biannual cycles must be in calendar order (first cycle before second)",
@@ -149,30 +146,29 @@ export type CycleSlot =
 export function currentCycleSlot(cadence: Cadence, now: Date): CycleSlot {
   const year = now.getUTCFullYear();
   if (cadence.type === "annual") {
-    const { month, day } = cadence.cycles[0];
+    const [{ month, day }] = cadence.cycles;
     const thisYearDeadline = utcDate(year, month - 1, day);
     return { kind: "annual", year: now <= thisYearDeadline ? year : year + 1 };
   }
   if (cadence.type === "biannual") {
-    const [c1, c2] = cadence.cycles;
-    const d1 = utcDate(year, c1.month - 1, c1.day);
-    const d2 = utcDate(year, c2.month - 1, c2.day);
-    if (now <= d1) return { kind: "biannual", year, half: 1 };
-    if (now <= d2) return { kind: "biannual", year, half: 2 };
+    const [first, second] = cadence.cycles;
+    const firstDeadline = utcDate(year, first.month - 1, first.day);
+    const secondDeadline = utcDate(year, second.month - 1, second.day);
+    if (now <= firstDeadline) return { kind: "biannual", year, half: 1 };
+    if (now <= secondDeadline) return { kind: "biannual", year, half: 2 };
     return { kind: "biannual", year: year + 1, half: 1 };
   }
   if (cadence.type === "monthly") {
-    const month0 = now.getUTCMonth();
-    const deadlineThisMonth = utcDate(year, month0, cadence.day);
+    const monthZero = now.getUTCMonth();
+    const deadlineThisMonth = utcDate(year, monthZero, cadence.day);
     if (now <= deadlineThisMonth) {
-      return { kind: "monthly", year, month: month0 + 1 };
+      return { kind: "monthly", year, month: monthZero + 1 };
     }
-    const next = utcDate(year, month0 + 1, 1);
+    const next = utcDate(year, monthZero + 1, 1);
     return { kind: "monthly", year: next.getUTCFullYear(), month: next.getUTCMonth() + 1 };
   }
   if (cadence.type === "weekly") {
-    const target = cadence.dayOfWeek;
-    const targetIdx = DAY_OF_WEEK.indexOf(target);
+    const targetIdx = DAY_OF_WEEK.indexOf(cadence.dayOfWeek);
     const { year: isoYear, week } = isoWeekYearAndNumber(now);
     const monday = isoWeekMonday(isoYear, week);
     const deadlineThisWeek = addDays(monday, targetIdx);
@@ -181,8 +177,8 @@ export function currentCycleSlot(cadence: Cadence, now: Date): CycleSlot {
     }
     const nextMondayIso = addDays(monday, 7);
     const nextMondayDate = new Date(`${nextMondayIso}T00:00:00Z`);
-    const { year: ny, week: nw } = isoWeekYearAndNumber(nextMondayDate);
-    return { kind: "weekly", year: ny, week: nw };
+    const next = isoWeekYearAndNumber(nextMondayDate);
+    return { kind: "weekly", year: next.year, week: next.week };
   }
   // daily
   return { kind: "daily", iso: isoDate(now) };
@@ -191,12 +187,12 @@ export function currentCycleSlot(cadence: Cadence, now: Date): CycleSlot {
 /** ISO date of the cycle's deadline. */
 export function cycleDeadline(cadence: Cadence, slot: CycleSlot): string {
   if (cadence.type === "annual" && slot.kind === "annual") {
-    const { month, day } = cadence.cycles[0];
+    const [{ month, day }] = cadence.cycles;
     return isoDate(utcDate(slot.year, month - 1, day));
   }
   if (cadence.type === "biannual" && slot.kind === "biannual") {
-    const c = cadence.cycles[slot.half - 1];
-    return isoDate(utcDate(slot.year, c.month - 1, c.day));
+    const entry = cadence.cycles[slot.half - 1];
+    return isoDate(utcDate(slot.year, entry.month - 1, entry.day));
   }
   if (cadence.type === "monthly" && slot.kind === "monthly") {
     return isoDate(utcDate(slot.year, slot.month - 1, cadence.day));
@@ -218,18 +214,18 @@ export function cycleDeadline(cadence: Cadence, slot: CycleSlot): string {
  *  deadline. */
 export function cycleStart(cadence: Cadence, slot: CycleSlot): string {
   if (cadence.type === "annual" && slot.kind === "annual") {
-    const { month, day } = cadence.cycles[0];
+    const [{ month, day }] = cadence.cycles;
     const prevDeadline = isoDate(utcDate(slot.year - 1, month - 1, day));
     return addDays(prevDeadline, 1);
   }
   if (cadence.type === "biannual" && slot.kind === "biannual") {
     if (slot.half === 1) {
-      const c2 = cadence.cycles[1];
-      const prevDeadline = isoDate(utcDate(slot.year - 1, c2.month - 1, c2.day));
+      const [, second] = cadence.cycles;
+      const prevDeadline = isoDate(utcDate(slot.year - 1, second.month - 1, second.day));
       return addDays(prevDeadline, 1);
     }
-    const c1 = cadence.cycles[0];
-    const prevDeadline = isoDate(utcDate(slot.year, c1.month - 1, c1.day));
+    const [first] = cadence.cycles;
+    const prevDeadline = isoDate(utcDate(slot.year, first.month - 1, first.day));
     return addDays(prevDeadline, 1);
   }
   if (cadence.type === "monthly" && slot.kind === "monthly") {
@@ -247,18 +243,11 @@ export function cycleStart(cadence: Cadence, slot: CycleSlot): string {
 /** On-disk cycle id string. Stable / deterministic — used as the
  *  per-cycle markdown file name under obligations/<id>/<cycleId>.md. */
 export function formatCycleId(slot: CycleSlot): string {
-  switch (slot.kind) {
-    case "annual":
-      return `${slot.year}`;
-    case "biannual":
-      return `${slot.year}-h${slot.half}`;
-    case "monthly":
-      return `${slot.year}-${String(slot.month).padStart(2, "0")}`;
-    case "weekly":
-      return `${slot.year}-W${String(slot.week).padStart(2, "0")}`;
-    case "daily":
-      return slot.iso;
-  }
+  if (slot.kind === "annual") return `${slot.year}`;
+  if (slot.kind === "biannual") return `${slot.year}-h${slot.half}`;
+  if (slot.kind === "monthly") return `${slot.year}-${String(slot.month).padStart(2, "0")}`;
+  if (slot.kind === "weekly") return `${slot.year}-W${String(slot.week).padStart(2, "0")}`;
+  return slot.iso;
 }
 
 /** Advance to the next slot after `current` for this cadence. Used
