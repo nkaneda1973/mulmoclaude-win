@@ -80,8 +80,9 @@ const zhMessages = {
     intraBody: '插件 "{first}" 和 "{second}" 都注册了 {dimension} "{key}"。"{first}" 先注册,因此 "{second}" 的注册被忽略。',
   },
   optionalDeps: {
-    missingTitle: "缺少可选依赖",
-    missingBody: "未找到 {command} — 相关功能已被禁用。安装后重启即可启用。",
+    title: "可选依赖不可用",
+    notFound: "未找到 {command} — 相关功能已被禁用。安装后重启即可启用。",
+    notResponding: "{command} 已安装但无响应 — 相关功能已被禁用。启动后重启即可启用。",
   },
   pluginErrorBoundary: {
     title: "插件 {pkg} 已崩溃",

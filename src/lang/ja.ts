@@ -83,8 +83,9 @@ const jaMessages = {
       "プラグイン「{first}」と「{second}」が同じ {dimension}「{key}」を登録しています。「{first}」が先に確保したため、「{second}」の登録は無視されます。",
   },
   optionalDeps: {
-    missingTitle: "任意の依存コマンドが見つかりません",
-    missingBody: "{command} が見つかりません — 関連機能を無効化しました。インストールして再起動すると有効になります。",
+    title: "任意の依存コマンドを利用できません",
+    notFound: "{command} が見つかりません — 関連機能を無効化しました。インストールして再起動すると有効になります。",
+    notResponding: "{command} はインストール済みですが応答しません — 関連機能を無効化しました。起動して再起動すると有効になります。",
   },
   pluginErrorBoundary: {
     title: "プラグイン {pkg} がクラッシュしました",

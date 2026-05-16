@@ -76,8 +76,9 @@ const ptBRMessages = {
       'Os plugins "{first}" e "{second}" registram o mesmo {dimension} "{key}". "{first}" o reivindicou primeiro, portanto o registro de "{second}" é ignorado.',
   },
   optionalDeps: {
-    missingTitle: "Dependência opcional ausente",
-    missingBody: "{command} não encontrado — recursos relacionados foram desativados. Instale-o e reinicie para habilitá-los.",
+    title: "Dependência opcional indisponível",
+    notFound: "{command} não encontrado — recursos relacionados foram desativados. Instale-o e reinicie para habilitá-los.",
+    notResponding: "{command} está instalado mas não responde — recursos relacionados foram desativados. Inicie-o e reinicie para habilitá-los.",
   },
   pluginErrorBoundary: {
     title: "O plugin {pkg} travou",

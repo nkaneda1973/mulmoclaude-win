@@ -81,8 +81,9 @@ const esMessages = {
       'Los plugins "{first}" y "{second}" registran ambos el {dimension} "{key}". "{first}" lo reclamó primero, por lo que el registro de "{second}" se ignora.',
   },
   optionalDeps: {
-    missingTitle: "Falta una dependencia opcional",
-    missingBody: "No se encontró {command} — las funciones relacionadas se han desactivado. Instálalo y reinicia para habilitarlas.",
+    title: "Dependencia opcional no disponible",
+    notFound: "No se encontró {command} — las funciones relacionadas se han desactivado. Instálalo y reinicia para habilitarlas.",
+    notResponding: "{command} está instalado pero no responde — las funciones relacionadas se han desactivado. Inícialo y reinicia para habilitarlas.",
   },
   pluginErrorBoundary: {
     title: "El plugin {pkg} se ha bloqueado",

@@ -97,8 +97,9 @@ const enMessages = {
     intraBody: 'Plugins "{first}" and "{second}" both register {dimension} "{key}". "{first}" claimed it first, so "{second}"\'s registration is ignored.',
   },
   optionalDeps: {
-    missingTitle: "Optional dependency missing",
-    missingBody: "{command} not found — related features have been disabled. Install it and restart to enable them.",
+    title: "Optional dependency unavailable",
+    notFound: "{command} not found — related features are disabled. Install it and restart to enable them.",
+    notResponding: "{command} is installed but not responding — related features are disabled. Start it and restart to enable them.",
   },
   pluginErrorBoundary: {
     title: "Plugin {pkg} crashed",

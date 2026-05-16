@@ -22,6 +22,11 @@ export async function announceOptionalDeps(): Promise<void> {
     const status = statuses[dep.id];
     if (!status || status.available) continue;
     const affectedPlugins = pluginsRequiring(dep.id);
+    // `not-on-path` → install it; `probe-failed` → it's installed
+    // but not responding (e.g. the docker daemon is down). The
+    // remediation differs, so the copy must be reason-aware rather
+    // than always saying "not found" (Codex review).
+    const notFound = status.reason === "not-on-path";
     log.warn("deps", `optional dependency '${dep.command}' unavailable — ${dep.enables} degraded`, {
       depId: dep.id,
       reason: status.reason,
@@ -31,11 +36,13 @@ export async function announceOptionalDeps(): Promise<void> {
       id: `optional-dep-missing:${dep.id}`,
       kind: "system",
       priority: NOTIFICATION_PRIORITIES.normal,
-      title: "Optional dependency missing",
-      body: `${dep.command} not found — some features are disabled`,
+      title: "Optional dependency unavailable",
+      body: notFound
+        ? `${dep.command} not found — some features are disabled. Install it and restart.`
+        : `${dep.command} is installed but not responding — some features are disabled. Start it and restart.`,
       i18n: {
-        titleKey: "optionalDeps.missingTitle",
-        bodyKey: "optionalDeps.missingBody",
+        titleKey: "optionalDeps.title",
+        bodyKey: notFound ? "optionalDeps.notFound" : "optionalDeps.notResponding",
         bodyParams: { command: dep.command },
       },
     });

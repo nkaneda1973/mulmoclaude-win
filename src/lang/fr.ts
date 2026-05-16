@@ -76,8 +76,9 @@ const frMessages = {
       "Les plugins « {first} » et « {second} » enregistrent tous deux le {dimension} « {key} ». « {first} » l'a réclamé en premier, donc l'enregistrement de « {second} » est ignoré.",
   },
   optionalDeps: {
-    missingTitle: "Dépendance optionnelle manquante",
-    missingBody: "{command} introuvable — les fonctionnalités associées ont été désactivées. Installez-le et redémarrez pour les activer.",
+    title: "Dépendance optionnelle indisponible",
+    notFound: "{command} introuvable — les fonctionnalités associées ont été désactivées. Installez-le et redémarrez pour les activer.",
+    notResponding: "{command} est installé mais ne répond pas — les fonctionnalités associées ont été désactivées. Démarrez-le et redémarrez pour les activer.",
   },
   pluginErrorBoundary: {
     title: "Le plugin {pkg} a planté",
