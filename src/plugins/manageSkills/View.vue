@@ -158,6 +158,8 @@
                   :data-testid="`skill-catalog-repo-update-${group.repo.repoId}`"
                   :disabled="updatingRepoId === group.repo.repoId"
                   :title="t('pluginManageSkills.catalogUpdateRepo')"
+                  :aria-label="t('pluginManageSkills.catalogUpdateRepo')"
+                  :aria-busy="updatingRepoId === group.repo.repoId"
                   @click="updateRepo(group.repo)"
                 >
                   <span class="material-icons text-sm" :class="updatingRepoId === group.repo.repoId ? 'animate-spin' : ''" aria-hidden="true">refresh</span>
@@ -168,6 +170,8 @@
                   :data-testid="`skill-catalog-repo-uninstall-${group.repo.repoId}`"
                   :disabled="uninstallingRepoId === group.repo.repoId"
                   :title="t('pluginManageSkills.catalogUninstallRepo')"
+                  :aria-label="t('pluginManageSkills.catalogUninstallRepo')"
+                  :aria-busy="uninstallingRepoId === group.repo.repoId"
                   @click="uninstallRepo(group.repo.repoId)"
                 >
                   <span class="material-icons text-sm" aria-hidden="true">delete_outline</span>
