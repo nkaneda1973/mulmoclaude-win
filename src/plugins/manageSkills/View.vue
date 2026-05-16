@@ -164,10 +164,24 @@
                 </button>
                 <button
                   type="button"
+                  class="h-8 w-8 flex items-center justify-center rounded text-gray-400 hover:text-blue-600 disabled:opacity-40"
+                  :data-testid="`skill-catalog-repo-update-${group.repo.repoId}`"
+                  :disabled="updatingRepoId === group.repo.repoId"
+                  :title="t('pluginManageSkills.catalogUpdateRepo')"
+                  :aria-label="t('pluginManageSkills.catalogUpdateRepo')"
+                  :aria-busy="updatingRepoId === group.repo.repoId"
+                  @click="updateRepo(group.repo)"
+                >
+                  <span class="material-icons text-sm" :class="updatingRepoId === group.repo.repoId ? 'animate-spin' : ''" aria-hidden="true">refresh</span>
+                </button>
+                <button
+                  type="button"
                   class="h-8 w-8 flex items-center justify-center rounded text-gray-400 hover:text-red-600 disabled:opacity-40"
                   :data-testid="`skill-catalog-repo-uninstall-${group.repo.repoId}`"
                   :disabled="uninstallingRepoId === group.repo.repoId"
                   :title="t('pluginManageSkills.catalogUninstallRepo')"
+                  :aria-label="t('pluginManageSkills.catalogUninstallRepo')"
+                  :aria-busy="uninstallingRepoId === group.repo.repoId"
                   @click="uninstallRepo(group.repo.repoId)"
                 >
                   <span class="material-icons text-sm" aria-hidden="true">delete_outline</span>
@@ -607,6 +621,7 @@ const addRepoError = ref<string | null>(null);
 const addRepoBusy = ref(false);
 const suggestions = ref<ExternalSuggestion[]>([]);
 const uninstallingRepoId = ref<string | null>(null);
+const updatingRepoId = ref<string | null>(null);
 // Single in-flight gate covers Star / Run once on the selected
 // entry so a slow request doesn't let the user fire a second
 // action mid-flight.
@@ -740,6 +755,7 @@ watch(
     addRepoOpen.value = false;
     addRepoError.value = null;
     uninstallingRepoId.value = null;
+    updatingRepoId.value = null;
   },
 );
 
@@ -787,37 +803,68 @@ async function installRepo(url: string, subpath?: string): Promise<void> {
   }
   addRepoBusy.value = true;
   addRepoError.value = null;
-  const trimmedSubpath = subpath?.trim();
-  const body: Record<string, string> = { url: trimmedUrl };
-  if (trimmedSubpath) body.subpath = trimmedSubpath;
-  const response = await apiPost<{ installed: true; repoId: string }>(endpoints.externalReposInstall.url, body);
-  addRepoBusy.value = false;
-  if (!response.ok) {
-    addRepoError.value = t("pluginManageSkills.errCatalogRepoInstallFailed", { error: response.error });
-    return;
+  try {
+    const trimmedSubpath = subpath?.trim();
+    const body: Record<string, string> = { url: trimmedUrl };
+    if (trimmedSubpath) body.subpath = trimmedSubpath;
+    const response = await apiPost<{ installed: true; repoId: string }>(endpoints.externalReposInstall.url, body);
+    if (!response.ok) {
+      addRepoError.value = t("pluginManageSkills.errCatalogRepoInstallFailed", { error: response.error });
+      return;
+    }
+    addRepoOpen.value = false;
+    await Promise.all([loadExternalRepos(), loadCatalog()]);
+  } finally {
+    addRepoBusy.value = false;
   }
-  addRepoOpen.value = false;
-  await Promise.all([loadExternalRepos(), loadCatalog()]);
 }
 
 async function uninstallRepo(repoId: string): Promise<void> {
   if (uninstallingRepoId.value !== null) return;
   if (typeof window !== "undefined" && !window.confirm(t("pluginManageSkills.catalogUninstallConfirm"))) return;
   uninstallingRepoId.value = repoId;
-  const response = await apiDelete<{ uninstalled: true }>(buildRouteUrl(endpoints.externalReposRemove, { repoId }));
-  uninstallingRepoId.value = null;
-  if (!response.ok) {
-    catalogError.value = t("pluginManageSkills.errCatalogRepoUninstallFailed", { error: response.error });
-    return;
+  try {
+    const response = await apiDelete<{ uninstalled: true }>(buildRouteUrl(endpoints.externalReposRemove, { repoId }));
+    if (!response.ok) {
+      catalogError.value = t("pluginManageSkills.errCatalogRepoUninstallFailed", { error: response.error });
+      return;
+    }
+    catalogError.value = null;
+    if (selectedCatalog.value?.repoId === repoId) {
+      selectedCatalog.value = null;
+      catalogDetail.value = null;
+    }
+    // Starred copies survive uninstall (backend-guaranteed, C1) — pull
+    // the active list so any starred-from-this-repo rows stay visible.
+    await Promise.all([loadExternalRepos(), loadCatalog(), refreshActiveList()]);
+  } finally {
+    uninstallingRepoId.value = null;
   }
-  catalogError.value = null;
-  if (selectedCatalog.value?.repoId === repoId) {
-    selectedCatalog.value = null;
-    catalogDetail.value = null;
+}
+
+// "Update" == re-install with the repo's recorded url/subpath. C1's
+// install path re-fetches upstream HEAD, wipes + re-copies the
+// catalog dir, and rewrites `.source.json` with the new SHA. Starred
+// copies under `.claude/skills/` are untouched (catalog-layer only).
+async function updateRepo(repo: ExternalRepo): Promise<void> {
+  if (updatingRepoId.value !== null) return;
+  updatingRepoId.value = repo.repoId;
+  // try/finally so the in-flight gate always clears even if the
+  // request throws — otherwise the button stays disabled forever
+  // (same hardening as runOnceCatalogEntry, Codex review #1374).
+  try {
+    const body: Record<string, string> = { url: repo.url };
+    if (repo.subpath) body.subpath = repo.subpath;
+    const response = await apiPost<{ installed: true; repoId: string }>(endpoints.externalReposInstall.url, body);
+    if (!response.ok) {
+      catalogError.value = t("pluginManageSkills.errCatalogRepoInstallFailed", { error: response.error });
+      return;
+    }
+    catalogError.value = null;
+    await Promise.all([loadExternalRepos(), loadCatalog()]);
+  } finally {
+    updatingRepoId.value = null;
   }
-  // Starred copies survive uninstall (backend-guaranteed, C1) — pull
-  // the active list so any starred-from-this-repo rows stay visible.
-  await Promise.all([loadExternalRepos(), loadCatalog(), refreshActiveList()]);
 }
 
 async function refreshActiveList(): Promise<void> {
