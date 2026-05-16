@@ -371,13 +371,19 @@ sections, **Active** (skills in `.claude/skills/`, discovered by Claude
 Code and loaded into the prompt) and **Catalog** (launcher-managed
 presets the user can browse / ★ star / ▶ run once without bloating the
 prompt). Right pane renders the selected skill's `SKILL.md` (active) or
-the preset detail with Star / Run once actions (catalog). Within Active,
-provenance (System `mc-` bundled / Project / User) is a per-row badge,
-not its own group; only **Project** skills expose Edit/Delete, the rest
-are read-only. Collapse state per section is persisted to `localStorage`
-(`skills:sectionCollapsed`); both sections are open by default. Aligns
-with the #1335 catalog/active model — Anthropic + Community sub-catalogs
-land with #1335 PR-C.
+the preset/external detail with Star / Run once actions (catalog).
+Within Active, provenance (System `mc-` bundled / Project / User) is a
+per-row badge, not its own group; only **Project** skills expose
+Edit/Delete, the rest are read-only. Collapse state per section is
+persisted to `localStorage` (`skills:sectionCollapsed`); both sections
+open by default. The Catalog section nests, under the **Presets**
+sub-list, one collapsible subgroup per installed **external repo**
+(#1383 PR-C) — repo header has a count + uninstall button, per-repo
+collapse persisted to `skills:repoCollapsed`. A **+ Add skill
+repository** button opens a modal (GitHub URL + optional subpath, plus
+one-click seed suggestions). External rows behave like preset rows
+(select → right pane Star / Run once); uninstalling a repo keeps any
+already-starred skills in Active (star = fork).
 
 ```text
 ┌─[<ManageSkillsView>]───────────────────────────────────────────────┐
@@ -388,8 +394,11 @@ land with #1335 PR-C.
 │ │ ├ [skill-item-bar] 📁   │                            ✏ Edit  ✕ ⏵│ │
 │ │ └ [skill-item-baz] 📁   │  rendered SKILL.md (marked + sanitize)│ │
 │ │ ▼ CATALOG            4  │                                       │ │
-│ │   Presets               │  (catalog row → preset detail with    │ │
-│ │ ├ [skill-catalog-…] ★   │   ★ Star / ▶ Run once)                │ │
+│ │   Presets               │  (catalog row → preset/external detail│ │
+│ │ ├ [skill-catalog-…] ★   │   with ★ Star / ▶ Run once)           │ │
+│ │ ▼ owner/repo  (n) [🗑]   │                                       │ │
+│ │ ├ [skill-catalog-…] ☁   │                                       │ │
+│ │ [+ Add skill repository]│                                       │ │
 │ └─────────────────────────┴───────────────────────────────────────┘ │
 └────────────────────────────────────────────────────────────────────┘
 ```
@@ -397,8 +406,14 @@ land with #1335 PR-C.
 Testids: `skill-section-{key}` / `skill-section-toggle-{key}` /
 `skill-section-count-{key}` for the two section headers
 (`active` / `catalog`); `skill-item-{name}` per active row;
-`skill-catalog-item-{slug}` per catalog row; `skill-catalog-empty`
-when the catalog has no presets.
+`skill-catalog-item-{slug}` per catalog row (preset + external);
+`skill-catalog-empty` when the catalog has no presets;
+`skill-catalog-repo-{repoId}` / `skill-catalog-repo-toggle-{repoId}` /
+`skill-catalog-repo-uninstall-{repoId}` per external-repo subgroup;
+`skill-catalog-add-repo` + `skill-add-repo-modal` /
+`skill-add-repo-url` / `skill-add-repo-subpath` /
+`skill-add-repo-submit` / `skill-add-repo-error` /
+`skill-add-repo-suggestion-{url}` for the add-repo modal.
 
 ## /roles — role configuration
 

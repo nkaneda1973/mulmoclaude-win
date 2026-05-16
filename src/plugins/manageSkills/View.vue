@@ -128,6 +128,86 @@
               {{ t("pluginManageSkills.catalogEmpty") }}
             </p>
             <div v-if="catalogError" class="px-4 py-2 text-xs text-red-600">{{ catalogError }}</div>
+
+            <!-- External repos (#1383 PR-C2): one collapsible subgroup
+                 per installed repo. Rows behave exactly like preset
+                 rows (select → right pane with ★ Star / ▶ Run once). -->
+            <div
+              v-for="group in externalGroups"
+              :key="`catalog-repo-${group.repo.repoId}`"
+              :data-testid="`skill-catalog-repo-${group.repo.repoId}`"
+              class="border-t border-gray-100"
+            >
+              <div class="w-full flex items-center hover:bg-gray-100">
+                <button
+                  type="button"
+                  :data-testid="`skill-catalog-repo-toggle-${group.repo.repoId}`"
+                  class="flex-1 min-w-0 flex items-center gap-1 px-4 py-2 text-[11px] uppercase tracking-wide text-gray-500 font-semibold"
+                  :aria-expanded="isRepoOpen(group.repo.repoId)"
+                  @click="toggleRepo(group.repo.repoId)"
+                >
+                  <span class="material-icons text-sm">{{ isRepoOpen(group.repo.repoId) ? "expand_more" : "chevron_right" }}</span>
+                  <span class="truncate normal-case text-gray-600">{{ repoLabel(group.repo) }}</span>
+                  <span class="text-gray-400 font-normal">({{ group.entries.length }})</span>
+                </button>
+                <button
+                  type="button"
+                  class="h-8 w-8 flex items-center justify-center rounded text-gray-400 hover:text-red-600 disabled:opacity-40"
+                  :data-testid="`skill-catalog-repo-uninstall-${group.repo.repoId}`"
+                  :disabled="uninstallingRepoId === group.repo.repoId"
+                  :title="t('pluginManageSkills.catalogUninstallRepo')"
+                  @click="uninstallRepo(group.repo.repoId)"
+                >
+                  <span class="material-icons text-sm" aria-hidden="true">delete_outline</span>
+                </button>
+              </div>
+              <div v-show="isRepoOpen(group.repo.repoId)" role="group">
+                <div
+                  v-for="entry in group.entries"
+                  :key="`catalog-ext-${entry.slug}`"
+                  :data-testid="`skill-catalog-item-${entry.slug}`"
+                  class="cursor-pointer px-4 py-3 border-b border-gray-100 text-sm hover:bg-white transition-colors focus:outline-none focus:bg-white focus:border-l-2 focus:border-l-blue-400"
+                  :class="selectedCatalog?.slug === entry.slug ? 'bg-white border-l-2 border-l-blue-500' : ''"
+                  role="button"
+                  tabindex="0"
+                  :aria-pressed="selectedCatalog?.slug === entry.slug"
+                  @click="selectCatalogEntry(entry)"
+                  @keydown.enter.prevent="selectCatalogEntry(entry)"
+                  @keydown.space.prevent="selectCatalogEntry(entry)"
+                >
+                  <div class="flex items-center gap-2">
+                    <div class="flex-1 min-w-0">
+                      <div class="font-medium text-gray-700 truncate">{{ entry.name }}</div>
+                      <div class="text-xs text-gray-500 truncate mt-0.5">{{ entry.description }}</div>
+                    </div>
+                    <span
+                      v-if="entry.alreadyActive"
+                      class="shrink-0 material-icons text-sm text-yellow-500"
+                      :title="t('pluginManageSkills.catalogStarred')"
+                      :data-testid="`skill-catalog-starred-indicator-${entry.slug}`"
+                      aria-hidden="true"
+                      >star</span
+                    >
+                    <span class="shrink-0 material-icons text-sm text-gray-400" :title="t('pluginManageSkills.sourceExternalTitle')" aria-hidden="true"
+                      >cloud</span
+                    >
+                  </div>
+                </div>
+                <p v-if="group.entries.length === 0" class="px-4 py-3 text-xs text-gray-400 italic">
+                  {{ t("pluginManageSkills.catalogRepoEmpty") }}
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              data-testid="skill-catalog-add-repo"
+              class="w-full flex items-center gap-1 px-4 py-3 text-sm text-blue-600 hover:bg-white border-t border-gray-100"
+              @click="openAddRepo"
+            >
+              <span class="material-icons text-sm" aria-hidden="true">add</span>
+              {{ t("pluginManageSkills.catalogAddRepo") }}
+            </button>
           </div>
         </div>
       </div>
@@ -293,6 +373,73 @@
         </div>
       </div>
     </div>
+
+    <!-- Add-repo modal (#1383 PR-C2). URL (+ optional subpath) or a
+         one-click seed suggestion. Backend error kinds (invalid-url /
+         invalid-subpath / id-collision / no-skills / 502) surface
+         inline. -->
+    <div
+      v-if="addRepoOpen"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      data-testid="skill-add-repo-modal"
+      @click.self="addRepoOpen = false"
+    >
+      <div class="bg-white rounded-lg shadow-xl w-full max-w-md p-5">
+        <h3 class="text-base font-semibold text-gray-800 mb-3">{{ t("pluginManageSkills.catalogAddRepoTitle") }}</h3>
+        <label class="block text-xs font-medium text-gray-600 mb-1">{{ t("pluginManageSkills.catalogRepoUrlLabel") }}</label>
+        <input
+          v-model="addRepoUrl"
+          type="text"
+          data-testid="skill-add-repo-url"
+          class="w-full h-8 px-2 mb-3 text-sm border border-gray-300 rounded focus:outline-none focus:border-blue-400"
+          :placeholder="t('pluginManageSkills.catalogRepoUrlPlaceholder')"
+          @keydown.enter="installRepo(addRepoUrl, addRepoSubpath)"
+        />
+        <label class="block text-xs font-medium text-gray-600 mb-1">{{ t("pluginManageSkills.catalogRepoSubpathLabel") }}</label>
+        <input
+          v-model="addRepoSubpath"
+          type="text"
+          data-testid="skill-add-repo-subpath"
+          class="w-full h-8 px-2 mb-3 text-sm border border-gray-300 rounded focus:outline-none focus:border-blue-400"
+          :placeholder="t('pluginManageSkills.catalogRepoSubpathPlaceholder')"
+          @keydown.enter="installRepo(addRepoUrl, addRepoSubpath)"
+        />
+        <p v-if="addRepoError" class="text-xs text-red-600 mb-3" data-testid="skill-add-repo-error">{{ addRepoError }}</p>
+        <div class="flex items-center justify-end gap-2 mb-4">
+          <button
+            type="button"
+            class="h-8 px-2.5 flex items-center text-sm rounded border border-gray-300 text-gray-600 hover:bg-gray-50"
+            @click="addRepoOpen = false"
+          >
+            {{ t("common.cancel") }}
+          </button>
+          <button
+            type="button"
+            data-testid="skill-add-repo-submit"
+            class="h-8 px-2.5 flex items-center gap-1 text-sm rounded bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-40"
+            :disabled="addRepoBusy"
+            @click="installRepo(addRepoUrl, addRepoSubpath)"
+          >
+            {{ addRepoBusy ? t("pluginManageSkills.catalogRepoInstalling") : t("pluginManageSkills.catalogAddRepoSubmit") }}
+          </button>
+        </div>
+        <div v-if="suggestions.length > 0">
+          <p class="text-xs font-medium text-gray-600 mb-2">{{ t("pluginManageSkills.catalogAddRepoSuggestions") }}</p>
+          <button
+            v-for="suggestion in suggestions"
+            :key="suggestion.url"
+            type="button"
+            :data-testid="`skill-add-repo-suggestion-${suggestion.url}`"
+            class="w-full text-left px-3 py-2 mb-1 text-sm rounded border border-gray-200 hover:bg-gray-50 disabled:opacity-40"
+            :disabled="addRepoBusy"
+            @click="installRepo(suggestion.url, suggestion.subpath)"
+          >
+            <div class="font-medium text-gray-700">{{ suggestion.displayName }}</div>
+            <div class="text-xs text-gray-500 truncate">{{ suggestion.description }}</div>
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -309,7 +456,15 @@ import { sanitizeMarkdownHtml } from "../../utils/markdown/sanitize";
 import { pluginEndpoints } from "../api";
 import { buildRouteUrl } from "../meta-types";
 import type { SkillsEndpoints } from "./definition";
-import { categorizeSkill, loadCollapsedSections, persistCollapsedSections, pickInitialSelection, type SkillSectionKey } from "./categories";
+import {
+  categorizeSkill,
+  loadCollapsedSections,
+  persistCollapsedSections,
+  loadRepoCollapsed,
+  persistRepoCollapsed,
+  pickInitialSelection,
+  type SkillSectionKey,
+} from "./categories";
 
 const { t } = useI18n();
 
@@ -391,13 +546,19 @@ const endpoints = pluginEndpoints<SkillsEndpoints>("skills");
 // star so the row updates from "★ Star" → "★ Starred".
 // `catalogActioningSlug` (declared below) disables the button
 // mid-request to prevent double-clicks across Star / Run once.
-type CatalogSource = "preset";
+type CatalogSource = "preset" | "external";
 interface CatalogEntry {
   slug: string;
   name: string;
   description: string;
   source: CatalogSource;
   alreadyActive: boolean;
+  // External entries only — identify the source repo + skill folder
+  // so star / preview / run-once can address them (slug alone is the
+  // derived activeId, not enough to locate the catalog copy).
+  repoId?: string;
+  skillFolder?: string;
+  repoUrl?: string;
 }
 interface CatalogDetail {
   slug: string;
@@ -405,8 +566,35 @@ interface CatalogDetail {
   description: string;
   body: string;
 }
+interface ExternalRepo {
+  repoId: string;
+  url: string;
+  subpath?: string;
+  sha: string;
+  installedAt: string;
+}
+interface ExternalSuggestion {
+  url: string;
+  subpath?: string;
+  displayName: string;
+  description: string;
+  license?: string;
+}
 const catalogPresets = ref<CatalogEntry[]>([]);
+const catalogExternal = ref<CatalogEntry[]>([]);
+const catalogRepos = ref<ExternalRepo[]>([]);
 const catalogError = ref<string | null>(null);
+// Per-repo collapse set (repoId ∈ set ⇒ collapsed). shallowRef: the
+// Set is replaced wholesale on toggle.
+const repoCollapsed = shallowRef<Set<string>>(loadRepoCollapsed());
+// Add-repo modal state.
+const addRepoOpen = ref(false);
+const addRepoUrl = ref("");
+const addRepoSubpath = ref("");
+const addRepoError = ref<string | null>(null);
+const addRepoBusy = ref(false);
+const suggestions = ref<ExternalSuggestion[]>([]);
+const uninstallingRepoId = ref<string | null>(null);
 // Single in-flight gate covers Star / Run once on the selected
 // entry so a slow request doesn't let the user fire a second
 // action mid-flight.
@@ -426,6 +614,51 @@ const catalogRenderedBody = computed(() => {
   if (!body) return "";
   return sanitizeMarkdownHtml(marked(body) as string);
 });
+
+// External catalog entries grouped under their repo, in the repo
+// order returned by `/external/repos`. Repos with zero discoverable
+// entries still render (header + empty state) so an install that
+// found nothing is visible rather than silently absent.
+const externalGroups = computed<{ repo: ExternalRepo; entries: CatalogEntry[] }[]>(() =>
+  catalogRepos.value.map((repo) => ({
+    repo,
+    entries: catalogExternal.value
+      .filter((entry) => entry.repoId === repo.repoId)
+      .sort((leftEntry, rightEntry) => leftEntry.slug.localeCompare(rightEntry.slug)),
+  })),
+);
+
+function repoLabel(repo: ExternalRepo): string {
+  // `https://github.com/owner/repo` → `owner/repo`; fall back to the
+  // repoId if the URL is somehow unparseable.
+  const match = /github\.com\/([^/]+\/[^/]+?)(?:\.git)?\/?$/.exec(repo.url);
+  return match ? match[1] : repo.repoId;
+}
+
+function isRepoOpen(repoId: string): boolean {
+  return !repoCollapsed.value.has(repoId);
+}
+
+function toggleRepo(repoId: string): void {
+  const next = new Set(repoCollapsed.value);
+  if (next.has(repoId)) {
+    next.delete(repoId);
+  } else {
+    next.add(repoId);
+  }
+  repoCollapsed.value = next;
+  persistRepoCollapsed(next);
+}
+
+// Body/query shape for star + preview: external entries are keyed by
+// (repoId, skillFolder); presets by slug. Centralised so the two call
+// sites can't drift.
+function catalogActionParams(entry: CatalogEntry): Record<string, string> {
+  if (entry.source === "external" && entry.repoId && entry.skillFolder) {
+    return { source: "external", repoId: entry.repoId, skillFolder: entry.skillFolder };
+  }
+  return { source: entry.source, slug: entry.slug };
+}
 
 // Visual key for the provenance badge on every active row + the
 // preset rows. Provenance is derived via categorizeSkill (NOT the raw
@@ -477,6 +710,9 @@ watch(
     catalogDetailLoading.value = false;
     catalogActioningSlug.value = null;
     catalogError.value = null;
+    addRepoOpen.value = false;
+    addRepoError.value = null;
+    uninstallingRepoId.value = null;
   },
 );
 
@@ -489,7 +725,72 @@ async function loadCatalog(): Promise<void> {
   catalogError.value = null;
   if (Array.isArray(response.data.entries)) {
     catalogPresets.value = response.data.entries.filter((entry) => entry.source === "preset");
+    catalogExternal.value = response.data.entries.filter((entry) => entry.source === "external");
   }
+}
+
+async function loadExternalRepos(): Promise<void> {
+  const response = await apiGet<{ repos: ExternalRepo[] }>(endpoints.externalReposList.url);
+  if (!response.ok) {
+    catalogError.value = t("pluginManageSkills.errCatalogRepoListFailed", { error: response.error });
+    return;
+  }
+  if (Array.isArray(response.data.repos)) catalogRepos.value = response.data.repos;
+}
+
+async function loadSuggestions(): Promise<void> {
+  const response = await apiGet<{ suggestions: ExternalSuggestion[] }>(endpoints.externalSuggestions.url);
+  if (response.ok && Array.isArray(response.data.suggestions)) suggestions.value = response.data.suggestions;
+}
+
+function openAddRepo(): void {
+  addRepoUrl.value = "";
+  addRepoSubpath.value = "";
+  addRepoError.value = null;
+  addRepoOpen.value = true;
+  if (suggestions.value.length === 0) void loadSuggestions();
+}
+
+async function installRepo(url: string, subpath?: string): Promise<void> {
+  if (addRepoBusy.value) return;
+  const trimmedUrl = url.trim();
+  if (trimmedUrl.length === 0) {
+    addRepoError.value = t("pluginManageSkills.errCatalogRepoInvalidUrl");
+    return;
+  }
+  addRepoBusy.value = true;
+  addRepoError.value = null;
+  const trimmedSubpath = subpath?.trim();
+  const body: Record<string, string> = { url: trimmedUrl };
+  if (trimmedSubpath) body.subpath = trimmedSubpath;
+  const response = await apiPost<{ installed: true; repoId: string }>(endpoints.externalReposInstall.url, body);
+  addRepoBusy.value = false;
+  if (!response.ok) {
+    addRepoError.value = t("pluginManageSkills.errCatalogRepoInstallFailed", { error: response.error });
+    return;
+  }
+  addRepoOpen.value = false;
+  await Promise.all([loadExternalRepos(), loadCatalog()]);
+}
+
+async function uninstallRepo(repoId: string): Promise<void> {
+  if (uninstallingRepoId.value !== null) return;
+  if (typeof window !== "undefined" && !window.confirm(t("pluginManageSkills.catalogUninstallConfirm"))) return;
+  uninstallingRepoId.value = repoId;
+  const response = await apiDelete<{ uninstalled: true }>(buildRouteUrl(endpoints.externalReposRemove, { repoId }));
+  uninstallingRepoId.value = null;
+  if (!response.ok) {
+    catalogError.value = t("pluginManageSkills.errCatalogRepoUninstallFailed", { error: response.error });
+    return;
+  }
+  catalogError.value = null;
+  if (selectedCatalog.value?.repoId === repoId) {
+    selectedCatalog.value = null;
+    catalogDetail.value = null;
+  }
+  // Starred copies survive uninstall (backend-guaranteed, C1) — pull
+  // the active list so any starred-from-this-repo rows stay visible.
+  await Promise.all([loadExternalRepos(), loadCatalog(), refreshActiveList()]);
 }
 
 async function refreshActiveList(): Promise<void> {
@@ -506,7 +807,7 @@ async function refreshActiveList(): Promise<void> {
 async function starCatalogEntry(entry: CatalogEntry): Promise<void> {
   if (entry.alreadyActive) return;
   catalogActioningSlug.value = entry.slug;
-  const response = await apiPost<{ starred: true; slug: string }>(endpoints.catalogStar.url, { source: entry.source, slug: entry.slug });
+  const response = await apiPost<{ starred: true; slug: string }>(endpoints.catalogStar.url, catalogActionParams(entry));
   catalogActioningSlug.value = null;
   if (!response.ok) {
     catalogError.value = t("pluginManageSkills.errCatalogStarFailed", { error: response.error });
@@ -520,13 +821,14 @@ async function starCatalogEntry(entry: CatalogEntry): Promise<void> {
   // its `alreadyActive` flag reflects reality without forcing the
   // user to re-click.
   if (selectedCatalog.value?.slug === entry.slug) {
-    const updated = catalogPresets.value.find((candidate) => candidate.slug === entry.slug);
+    const pool = entry.source === "external" ? catalogExternal.value : catalogPresets.value;
+    const updated = pool.find((candidate) => candidate.slug === entry.slug);
     if (updated) selectedCatalog.value = updated;
   }
 }
 
 async function fetchCatalogDetail(entry: CatalogEntry): Promise<CatalogDetail | null> {
-  const response = await apiGet<{ detail: CatalogDetail }>(endpoints.catalogPreview.url, { source: entry.source, slug: entry.slug });
+  const response = await apiGet<{ detail: CatalogDetail }>(endpoints.catalogPreview.url, catalogActionParams(entry));
   if (!response.ok) {
     catalogError.value = t("pluginManageSkills.errCatalogPreviewFailed", { error: response.error });
     return null;
@@ -587,8 +889,9 @@ async function runOnceCatalogEntry(entry: CatalogEntry): Promise<void> {
 onMounted(async () => {
   // Always load the catalog so the section appears even when the
   // view was opened from a tool result (which only carries the
-  // active list).
-  await loadCatalog();
+  // active list). External repos load in parallel — failure of one
+  // doesn't block the other (each sets its own inline error).
+  await Promise.all([loadCatalog(), loadExternalRepos()]);
   if (props.selectedResult || skills.value.length > 0) return;
   const response = await apiGet<{ skills: SkillSummary[] }>(endpoints.list.url);
   if (!response.ok) {
