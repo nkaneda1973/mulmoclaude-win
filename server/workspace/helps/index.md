@@ -50,6 +50,8 @@ See [Wiki](helps/wiki.md) for details on how it works.
 - [Sandbox](helps/sandbox.md) — how the Docker sandbox isolates the agent, what it can access, and how to disable it
 - [Telegram Bridge](helps/telegram.md) — how to talk to MulmoClaude from the Telegram app: creating a bot, starting the bridge, allowlisting chat IDs, commands, and troubleshooting
 - [Information Sources](helps/sources.md) — registering RSS feeds / GitHub repos / arXiv queries, the daily-brief pipeline, and where its files live on disk
+- [Encore — recurring obligations DSL](helps/encore-dsl.md) — YAML DSL for recurring obligations (payments, services, check-ins), firing plans, multi-target bundles, and the bell-click resume loop
+- [GitHub repositories in the workspace](helps/github.md) — clone-destination rules under `github/<name>/` and how to handle existing directories with matching or different remotes
 
 ## Workspace Layout
 
