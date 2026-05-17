@@ -172,7 +172,7 @@ describe("optional-deps: notification payload", () => {
     assert.deepEqual(payload.i18n?.titleParams, { command: "docker" });
     assert.equal(payload.i18n?.bodyKey, "optionalDeps.notFound");
     assert.deepEqual(payload.i18n?.bodyParams, { command: "docker" });
-    assert.match(String(payload.title), /not found/);
+    assert.match(String(payload.title), /not installed/);
   });
 
   it("emits the not-responding title/body keys when the probe fails", () => {
@@ -183,7 +183,7 @@ describe("optional-deps: notification payload", () => {
     assert.deepEqual(payload.i18n?.titleParams, { command: "docker" });
     assert.equal(payload.i18n?.bodyKey, "optionalDeps.notResponding");
     assert.deepEqual(payload.i18n?.bodyParams, { command: "docker" });
-    assert.match(String(payload.title), /not responding/);
+    assert.match(String(payload.title), /not running/);
   });
 
   it("substitutes the command name from the dep (ffmpeg, not docker)", () => {

@@ -101,10 +101,10 @@ const enMessages = {
     // history entries published before the reason-aware split below;
     // new code paths use `titleNotFound` / `titleNotResponding`.
     title: "Optional dependency unavailable",
-    titleNotFound: "{command} not found — features disabled",
-    titleNotResponding: "{command} not responding — features disabled",
+    titleNotFound: "{command} not installed",
+    titleNotResponding: "{command} not running",
     notFound: "{command} not found — related features are disabled. Install it and restart to enable them.",
-    notResponding: "{command} is installed but not responding — related features are disabled. Start it and restart to enable them.",
+    notResponding: "{command} is installed but not running — related features are disabled. Start it and restart to enable them.",
   },
   pluginErrorBoundary: {
     title: "Plugin {pkg} crashed",

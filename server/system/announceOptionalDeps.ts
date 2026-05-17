@@ -28,10 +28,10 @@ export function buildOptionalDepNotification(dep: OptionalDep, status: DepStatus
     id: `optional-dep-missing:${dep.id}`,
     kind: "system",
     priority: NOTIFICATION_PRIORITIES.normal,
-    title: notFound ? `${dep.command} not found` : `${dep.command} not responding`,
+    title: notFound ? `${dep.command} not installed` : `${dep.command} not running`,
     body: notFound
       ? `${dep.command} not found — some features are disabled. Install it and restart.`
-      : `${dep.command} is installed but not responding — some features are disabled. Start it and restart.`,
+      : `${dep.command} is installed but not running — some features are disabled. Start it and restart.`,
     i18n: {
       titleKey: notFound ? "optionalDeps.titleNotFound" : "optionalDeps.titleNotResponding",
       titleParams: { command: dep.command },

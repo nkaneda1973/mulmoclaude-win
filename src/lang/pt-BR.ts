@@ -80,10 +80,10 @@ const ptBRMessages = {
     // histórico persistidas antes da divisão por motivo; as novas
     // usam `titleNotFound` / `titleNotResponding`.
     title: "Dependência opcional indisponível",
-    titleNotFound: "{command} não encontrado — recursos desativados",
-    titleNotResponding: "{command} não responde — recursos desativados",
+    titleNotFound: "{command} não está instalado",
+    titleNotResponding: "{command} não está em execução",
     notFound: "{command} não encontrado — recursos relacionados foram desativados. Instale-o e reinicie para habilitá-los.",
-    notResponding: "{command} está instalado mas não responde — recursos relacionados foram desativados. Inicie-o e reinicie para habilitá-los.",
+    notResponding: "{command} está instalado mas não está em execução — recursos relacionados foram desativados. Inicie-o e reinicie para habilitá-los.",
   },
   pluginErrorBoundary: {
     title: "O plugin {pkg} travou",

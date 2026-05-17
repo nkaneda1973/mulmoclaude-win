@@ -81,11 +81,11 @@ const deMessages = {
     // History-Einträge vor der Aufteilung nach Grund; neue Pfade
     // verwenden `titleNotFound` / `titleNotResponding`.
     title: "Optionale Abhängigkeit nicht verfügbar",
-    titleNotFound: "{command} nicht gefunden — Funktionen deaktiviert",
-    titleNotResponding: "{command} antwortet nicht — Funktionen deaktiviert",
+    titleNotFound: "{command} ist nicht installiert",
+    titleNotResponding: "{command} läuft nicht",
     notFound: "{command} nicht gefunden — zugehörige Funktionen wurden deaktiviert. Installieren Sie es und starten Sie neu, um sie zu aktivieren.",
     notResponding:
-      "{command} ist installiert, antwortet aber nicht — zugehörige Funktionen wurden deaktiviert. Starten Sie es und starten Sie neu, um sie zu aktivieren.",
+      "{command} ist installiert, läuft aber nicht — zugehörige Funktionen wurden deaktiviert. Starten Sie es und starten Sie neu, um sie zu aktivieren.",
   },
   pluginErrorBoundary: {
     title: "Plugin {pkg} ist abgestürzt",

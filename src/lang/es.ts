@@ -85,10 +85,11 @@ const esMessages = {
     // historial persistidas antes de la división por motivo; las
     // nuevas usan `titleNotFound` / `titleNotResponding`.
     title: "Dependencia opcional no disponible",
-    titleNotFound: "{command} no encontrado — funciones desactivadas",
-    titleNotResponding: "{command} no responde — funciones desactivadas",
+    titleNotFound: "{command} no está instalado",
+    titleNotResponding: "{command} no está en ejecución",
     notFound: "No se encontró {command} — las funciones relacionadas se han desactivado. Instálalo y reinicia para habilitarlas.",
-    notResponding: "{command} está instalado pero no responde — las funciones relacionadas se han desactivado. Inícialo y reinicia para habilitarlas.",
+    notResponding:
+      "{command} está instalado pero no se está ejecutando — las funciones relacionadas se han desactivado. Inícialo y reinicia para habilitarlas.",
   },
   pluginErrorBoundary: {
     title: "El plugin {pkg} se ha bloqueado",

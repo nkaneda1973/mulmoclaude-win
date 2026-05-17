@@ -83,10 +83,10 @@ const zhMessages = {
     // 通用 `title` 键保留以便兼容已持久化的历史条目;新发布的通知改用
     // `titleNotFound` / `titleNotResponding`。
     title: "可选依赖不可用",
-    titleNotFound: "未找到 {command} — 部分功能已禁用",
-    titleNotResponding: "{command} 无响应 — 部分功能已禁用",
+    titleNotFound: "未安装 {command}",
+    titleNotResponding: "{command} 未运行",
     notFound: "未找到 {command} — 相关功能已被禁用。安装后重启即可启用。",
-    notResponding: "{command} 已安装但无响应 — 相关功能已被禁用。启动后重启即可启用。",
+    notResponding: "{command} 已安装但未运行 — 相关功能已被禁用。启动后重启即可启用。",
   },
   pluginErrorBoundary: {
     title: "插件 {pkg} 已崩溃",
