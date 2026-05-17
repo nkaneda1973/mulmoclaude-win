@@ -32,16 +32,20 @@ export async function announceOptionalDeps(): Promise<void> {
       reason: status.reason,
       affectedPlugins,
     });
+    // Title carries `{command}` + the reason so the bell history view
+    // — which renders title only — is self-explanatory without
+    // hovering for the body tooltip.
     publishNotification({
       id: `optional-dep-missing:${dep.id}`,
       kind: "system",
       priority: NOTIFICATION_PRIORITIES.normal,
-      title: "Optional dependency unavailable",
+      title: notFound ? `${dep.command} not found` : `${dep.command} not responding`,
       body: notFound
         ? `${dep.command} not found — some features are disabled. Install it and restart.`
         : `${dep.command} is installed but not responding — some features are disabled. Start it and restart.`,
       i18n: {
-        titleKey: "optionalDeps.title",
+        titleKey: notFound ? "optionalDeps.titleNotFound" : "optionalDeps.titleNotResponding",
+        titleParams: { command: dep.command },
         bodyKey: notFound ? "optionalDeps.notFound" : "optionalDeps.notResponding",
         bodyParams: { command: dep.command },
       },

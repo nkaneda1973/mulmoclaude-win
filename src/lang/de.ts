@@ -77,7 +77,8 @@ const deMessages = {
       "Die Plugins „{first}“ und „{second}“ registrieren beide {dimension} „{key}“. „{first}“ hat ihn zuerst beansprucht, daher wird die Registrierung von „{second}“ ignoriert.",
   },
   optionalDeps: {
-    title: "Optionale Abhängigkeit nicht verfügbar",
+    titleNotFound: "{command} nicht gefunden — Funktionen deaktiviert",
+    titleNotResponding: "{command} antwortet nicht — Funktionen deaktiviert",
     notFound: "{command} nicht gefunden — zugehörige Funktionen wurden deaktiviert. Installieren Sie es und starten Sie neu, um sie zu aktivieren.",
     notResponding:
       "{command} ist installiert, antwortet aber nicht — zugehörige Funktionen wurden deaktiviert. Starten Sie es und starten Sie neu, um sie zu aktivieren.",
