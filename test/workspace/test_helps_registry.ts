@@ -13,7 +13,14 @@ import { fileURLToPath } from "node:url";
 // other reference material exists if it Reads index.md.
 //
 // Required shape, per line:
-//   `- [Title](helps/<name>.md) — <one-sentence summary>`
+//   `- [Title](config/helps/<name>.md) — <one-sentence summary>`
+//
+// The `config/helps/` prefix is the workspace-relative canonical
+// path (matching `WORKSPACE_PATHS.helps` in
+// `server/workspace/paths.ts`), and is the same form role prompts
+// use when telling the LLM to Read a help file — so an LLM that
+// browses index.md sees identical paths to those it sees in the
+// system prompt.
 //
 // Test fails when:
 //   (a) a new help file is added without adding an index entry
@@ -32,7 +39,7 @@ const __dirname = path.dirname(__filename);
 const HELPS_DIR = path.resolve(__dirname, "../../server/workspace/helps");
 const INDEX_FILENAME = "index.md";
 const HELP_PAGES_HEADING_RE = /^##\s+Help Pages\s*$/;
-const HELP_LIST_LINK_PREFIX = "helps/";
+const HELP_LIST_LINK_PREFIX = "config/helps/";
 const HELP_LIST_LINK_SUFFIX = ".md";
 const SUMMARY_MAX_CHARS = 200;
 
@@ -96,7 +103,10 @@ describe("server/workspace/helps registry (index.md)", () => {
   const helpFiles = listHelpFiles();
 
   it("has a parseable `## Help Pages` section with at least one entry", () => {
-    assert.ok(registry.size > 0, `${INDEX_FILENAME} should contain at least one entry under "## Help Pages" shaped: "- [Title](helps/<name>.md) — <summary>"`);
+    assert.ok(
+      registry.size > 0,
+      `${INDEX_FILENAME} should contain at least one entry under "## Help Pages" shaped: "- [Title](config/helps/<name>.md) — <summary>"`,
+    );
   });
 
   it("has an entry for every *.md under helps/ (except index.md itself)", () => {
@@ -104,7 +114,7 @@ describe("server/workspace/helps registry (index.md)", () => {
     const detail =
       missing.length === 0
         ? ""
-        : `Missing index.md entries for: ${missing.join(", ")}. Add a line under '## Help Pages' shaped: '- [Title](helps/<name>.md) — <summary>'.`;
+        : `Missing index.md entries for: ${missing.join(", ")}. Add a line under '## Help Pages' shaped: '- [Title](config/helps/<name>.md) — <summary>'.`;
     assert.deepEqual(missing, [], detail);
   });
 
