@@ -339,4 +339,20 @@ test.describe("notification bell — history more / less toggle", () => {
     await expect(page.getByTestId(`notification-history-${history[0].id}`)).toBeVisible();
     await expect(page.getByTestId("notification-history-toggle")).toHaveCount(0);
   });
+
+  test("toggle appears with hidden count 1 at the > 5 boundary", async ({ page }) => {
+    // Triangulates the threshold (`> HISTORY_INITIAL_VISIBLE`): combined
+    // with the 5-entry "toggle absent" case above and the 8-entry
+    // expand/collapse case, this pins the boundary at exactly 5.
+    const history = Array.from({ length: HISTORY_INITIAL_VISIBLE + 1 }, (_, index) => buildHistoryEntry(index));
+    await mockAllApis(page, { sessions: [] });
+    await primeNotifierHistory(page, history);
+
+    await page.goto("/todos");
+    await page.getByTestId("notification-bell").click();
+    const toggle = page.getByTestId("notification-history-toggle");
+    await expect(toggle).toBeVisible();
+    await expect(toggle).toHaveText(/\b1\b/);
+    await expect(page.getByTestId(`notification-history-${history[HISTORY_INITIAL_VISIBLE].id}`)).toHaveCount(0);
+  });
 });

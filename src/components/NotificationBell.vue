@@ -365,7 +365,7 @@ async function clearAllFyi(): Promise<void> {
         <p v-if="visibleHistory.length === 0" class="px-3 py-3 text-gray-400 italic" data-testid="notification-empty-history">
           {{ t("notificationBell.noHistory") }}
         </p>
-        <ul v-else class="divide-y divide-gray-100">
+        <ul v-else id="notification-history-list" class="divide-y divide-gray-100">
           <li
             v-for="entry in displayedHistory"
             :key="`${entry.id}-${entry.terminalAt}`"
@@ -404,6 +404,8 @@ async function clearAllFyi(): Promise<void> {
           type="button"
           class="w-full px-3 py-1.5 text-gray-500 font-medium hover:text-gray-700 hover:bg-gray-50 border-t border-gray-100"
           data-testid="notification-history-toggle"
+          :aria-expanded="historyExpanded"
+          aria-controls="notification-history-list"
           @click="toggleHistoryExpanded"
         >
           {{ historyExpanded ? t("notificationBell.showLess") : t("notificationBell.showMore", { count: hiddenHistoryCount }) }}
