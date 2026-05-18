@@ -53,7 +53,10 @@ export async function* runAgent({
 
   // Per-invocation read so Settings UI changes apply without a server restart.
   const userMcpRaw = loadMcpConfig().mcpServers;
-  const userServers = prepareUserServers(userMcpRaw, useDocker, workspacePath);
+  // `prepareUserServers` may spawn host-side stdio→HTTP gateways for
+  // opted-in servers (#1421 Phase B); `mcpShims` MUST be torn down
+  // in the finally below or host processes / ports leak.
+  const { servers: userServers, shims: mcpShims } = await prepareUserServers(userMcpRaw, useDocker, workspacePath);
   const hasUserServers = Object.keys(userServers).length > 0;
   const hasMcp = activePlugins.length > 0 || hasUserServers;
 
@@ -145,6 +148,18 @@ export async function* runAgent({
       useDocker,
     });
   } finally {
+    // Tear down any host-side stdio→HTTP shims (#1421 Phase B)
+    // before anything else — these are real child processes
+    // holding ports; leaking them across turns is the main risk
+    // of the opt-in escape hatch.
+    for (const shim of mcpShims) {
+      try {
+        shim.close();
+      } catch {
+        // close() is best-effort + idempotent; never let a teardown
+        // failure mask the turn's real outcome.
+      }
+    }
     if (hasMcp) unlink(mcpPaths.hostPath).catch(() => {});
   }
 }
