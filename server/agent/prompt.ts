@@ -74,13 +74,20 @@ export function buildMemoryContext(snapshot: MemorySnapshot, workspacePath: stri
 
   if (snapshot.format === "topic") {
     // Post-swap (topic format active): each topic file lands in the
-    // prompt as a single block — header + section index + body.
-    // The atomic / legacy readers are intentionally skipped here:
-    // once the topic layout is in place the user has acknowledged
-    // the cluster and the atomic entries have been parked under
-    // `.atomic-backup/`.
+    // prompt as a single INDEX line — `[type] <type>/<topic>.md —
+    // sections` — not its body (#1432). The atomic / legacy readers
+    // are intentionally skipped here: once the topic layout is in
+    // place the user has acknowledged the cluster and the atomic
+    // entries have been parked under `.atomic-backup/`.
     const topic = formatTopicFiles(snapshot.files);
-    if (topic) parts.push(topic);
+    if (topic) {
+      parts.push(
+        "Topic memory index (pointers only — the bullets live in the files, not here). " +
+          "When a line's topic or section hints relate to the user's message, `Read` that " +
+          "`conversations/memory/<type>/<topic>.md` file before answering:",
+      );
+      parts.push(topic);
+    }
   } else {
     // Pre-swap: union of typed atomic entries (#1029) and the
     // legacy `memory.md` (#1029 PR-A). Same dual-mode behaviour
@@ -116,14 +123,24 @@ export function buildMemoryManagementSection(snapshot: MemorySnapshot): string {
 
 function formatTopicFiles(files: readonly TopicMemoryFile[]): string | null {
   if (files.length === 0) return null;
-  return files.map(formatTopicFileForPrompt).join("\n\n---\n\n");
+  // One pointer line per topic → join with a single newline. The
+  // old `\n\n---\n\n` rule separated multi-line bodies; with
+  // index-only (#1432) it was 4 newlines + a rule per one-liner —
+  // pure token/visual bloat. A flat list reads fine.
+  return files.map(formatTopicFileForPrompt).join("\n");
 }
 
+// Index-only (#1432): emit the pointer line — `[type] <type>/<topic>.md
+// — section1, section2` — NOT the body. Inlining every topic's full
+// body made the memory block ~78% of the system prompt while almost
+// every topic is irrelevant to any given message. The agent `Read`s
+// the topic file when the section hints indicate relevance (the
+// proactive-recall instructions already mandate this), so the body in
+// the prompt was pure redundancy. Section hints are kept — they are
+// the searchable signal that drives the Read decision.
 function formatTopicFileForPrompt(file: TopicMemoryFile): string {
   const link = `${file.type}/${file.topic}.md`;
-  const tagLine = file.sections.length > 0 ? `[${file.type}] ${link} — ${file.sections.join(", ")}` : `[${file.type}] ${link}`;
-  const body = file.body.trim();
-  return body ? `${tagLine}\n${body}` : tagLine;
+  return file.sections.length > 0 ? `[${file.type}] ${link} — ${file.sections.join(", ")}` : `[${file.type}] ${link}`;
 }
 
 function formatTypedMemoryEntries(entries: readonly MemoryEntry[]): string | null {
