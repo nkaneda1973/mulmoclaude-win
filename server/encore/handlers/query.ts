@@ -39,35 +39,15 @@ interface QueryObligationResult {
 
 export async function handleQuery(args: z.infer<typeof QueryArgs>): Promise<EncoreDispatchResult> {
   const range = args.range ?? "current";
-
-  // List of obligations to inspect: either the named one, or all of
-  // them (when no obligationId is passed).
-  let obligationIds: string[];
-  if (args.obligationId) {
-    obligationIds = [args.obligationId];
-  } else {
-    obligationIds = (await readDirSubdirs(OBLIGATIONS_DIRNAME)).sort();
-  }
+  const obligationIds = args.obligationId ? [args.obligationId] : (await readDirSubdirs(OBLIGATIONS_DIRNAME)).sort();
+  const targetedById = args.obligationId !== undefined;
 
   const results: QueryObligationResult[] = [];
   for (const obligationId of obligationIds) {
-    const indexRel = obligationIndexPath(obligationId);
-    const indexRaw = await readTextOrNull(indexRel);
-    if (indexRaw === null) {
-      if (args.obligationId) {
-        throw new EncoreError(404, `obligation ${JSON.stringify(obligationId)} not found`);
-      }
-      continue;
-    }
-    const { dsl, body } = parseIndexFile(indexRaw);
-    const cycles = await readCyclesForObligation(obligationId, range);
-    results.push({
-      obligationId,
-      indexPath: workspaceRelativePath(indexRel),
-      dsl,
-      body,
-      cycles,
-    });
+    const loaded = await loadObligationForQuery(obligationId, targetedById);
+    if (!loaded) continue;
+    loaded.cycles = await readCyclesForObligation(obligationId, range);
+    results.push(loaded);
   }
 
   return {
@@ -75,6 +55,38 @@ export async function handleQuery(args: z.infer<typeof QueryArgs>): Promise<Enco
     message: queryMessage(results, range),
     obligations: results,
   };
+}
+
+/** Load one obligation's index for the query handler. Returns null
+ *  when the file is missing or corrupt under a non-targeted query
+ *  (so the outer loop can continue with the other obligations); a
+ *  targeted query (`args.obligationId` present) throws so the caller
+ *  knows the named record is unreadable. Pulled out of `handleQuery`
+ *  to keep that function under the cognitive-complexity threshold. */
+async function loadObligationForQuery(obligationId: string, targetedById: boolean): Promise<QueryObligationResult | null> {
+  const indexRel = obligationIndexPath(obligationId);
+  const indexRaw = await readTextOrNull(indexRel);
+  if (indexRaw === null) {
+    if (targetedById) throw new EncoreError(404, `obligation ${JSON.stringify(obligationId)} not found`);
+    return null;
+  }
+  // Tolerate a single corrupt index when listing every obligation
+  // — same shape as the cycle-file skip in readCyclesForObligation.
+  try {
+    const { dsl, body } = parseIndexFile(indexRaw);
+    return { obligationId, indexPath: workspaceRelativePath(indexRel), dsl, body, cycles: [] };
+  } catch (err) {
+    if (targetedById) {
+      throw new EncoreError(500, `obligation ${JSON.stringify(obligationId)} index is unparseable`, {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+    log.warn("encore", "query: skipping unparseable obligation index", {
+      obligationId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return null;
+  }
 }
 
 async function readCyclesForObligation(obligationId: string, range: "current" | "all" | number): Promise<QueryCycleResult[]> {

@@ -1,5 +1,14 @@
 // `appendNote` handler — append free-form markdown to an obligation
 // index body, or to a specific cycle body when `cycleId` is set.
+//
+// NOTE on INVARIANTS Rule 2 (mutation funnel): this handler does NOT
+// route through `persistAndReconcile`. The reconciler reads
+// `state.records` (closures, snoozes, skips) to compute bell state;
+// it ignores the markdown body. A body-only write therefore has no
+// effect on what the reconciler would decide, and forcing it through
+// reconcile each call would only add CPU for a no-op. If a future
+// rule ever derives bell state from the body, route through the
+// funnel and revisit this comment.
 
 import { z } from "zod";
 
@@ -12,9 +21,12 @@ import { EncoreError, workspaceRelativePath, type EncoreDispatchResult } from ".
 
 export const AppendNoteArgs = z.object({
   kind: z.literal("appendNote"),
-  obligationId: z.string(),
-  cycleId: z.string().optional(),
-  body: z.string().min(1),
+  obligationId: z.string().trim().min(1),
+  cycleId: z.string().trim().min(1).optional(),
+  // `.trim().min(1)` rejects whitespace-only notes — those would
+  // pass `min(1)` and create effectively empty append calls that the
+  // user can't easily distinguish from a real note in the file.
+  body: z.string().trim().min(1),
 });
 
 export async function handleAppendNote(args: z.infer<typeof AppendNoteArgs>): Promise<EncoreDispatchResult> {

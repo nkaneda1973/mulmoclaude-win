@@ -6,6 +6,7 @@
 // re-exported from `dispatch.ts` for external callers (route adapter,
 // tests).
 
+import path from "node:path";
 import { z } from "zod";
 
 import type { EncoreDsl } from "../../../src/types/encore-dsl/schema.js";
@@ -81,7 +82,7 @@ export function coerceDefinitionToObject(value: unknown, kind: string): Record<s
 }
 
 export function workspaceRelativePath(rel: string): string {
-  return `${WORKSPACE_DIRS.encore}/${rel}`;
+  return path.join(WORKSPACE_DIRS.encore, rel);
 }
 
 // ── DSL / cycle loaders ───────────────────────────────────────────

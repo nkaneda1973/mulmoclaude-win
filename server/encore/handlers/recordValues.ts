@@ -9,11 +9,11 @@ import { assertKnownTargetAndStep, loadCycle, loadDsl, persistAndReconcile, work
 
 export const RecordValuesArgs = z.object({
   kind: z.literal("recordValues"),
-  obligationId: z.string(),
-  cycleId: z.string(),
-  targetId: z.string(),
+  obligationId: z.string().trim().min(1),
+  cycleId: z.string().trim().min(1),
+  targetId: z.string().trim().min(1),
   values: z.record(z.string(), z.unknown()),
-  pendingId: z.string().optional(),
+  pendingId: z.string().trim().min(1).optional(),
 });
 
 export async function handleRecordValues(args: z.infer<typeof RecordValuesArgs>): Promise<EncoreDispatchResult> {

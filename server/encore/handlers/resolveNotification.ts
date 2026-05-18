@@ -37,9 +37,11 @@ async function handleOrphanResolve(args: z.infer<typeof ResolveNotificationArgs>
   // DOCUMENTED EXCEPTION to the reconciler-owns-the-bell rule:
   // there's no ticket to reconcile against, so the reconciler can't
   // know the bell entry exists. Direct clear is the only way out.
+  let cleared = false;
   if (args.notificationId) {
     try {
       await encoreNotifier.clear(args.notificationId);
+      cleared = true;
     } catch (err) {
       log.warn("encore", "resolveNotification: orphan clear failed", {
         notificationId: args.notificationId,
@@ -47,12 +49,24 @@ async function handleOrphanResolve(args: z.infer<typeof ResolveNotificationArgs>
       });
     }
   }
+  // Distinguish three outcomes in the message so the caller can tell
+  // whether action is still needed: cleared, no-id-to-clear-against,
+  // or clear attempted but failed (warning was logged).
+  const message = orphanMessage(cleared, args.notificationId !== undefined);
   return {
     ok: false,
     orphan: true,
-    message: `Encore: this notification has already been resolved (the ticket is gone). Bell entry cleared.`,
+    message,
     error: "ticket not found",
+    cleared,
   };
+}
+
+function orphanMessage(cleared: boolean, hadNotificationId: boolean): string {
+  const head = "Encore: this notification has already been resolved (the ticket is gone).";
+  if (cleared) return `${head} Bell entry cleared.`;
+  if (hadNotificationId) return `${head} Bell entry clear was attempted but failed; the bell may still be visible.`;
+  return head;
 }
 
 async function seedChatForTicket(ticket: Ticket, ticketRel: string, pendingId: string): Promise<string> {

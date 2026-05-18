@@ -9,12 +9,17 @@ import { assertKnownTargetAndStep, loadCycle, loadDsl, persistAndReconcile, work
 
 export const MarkStepDoneArgs = z.object({
   kind: z.literal("markStepDone"),
-  obligationId: z.string(),
-  cycleId: z.string(),
-  targetId: z.string(),
-  stepId: z.string(),
+  // `.trim().min(1)` on every id so empty / whitespace-only values
+  // fail at parse time with a clear 400. Without it, an empty
+  // obligationId reaches `obligationIndexPath("")` and surfaces as
+  // an opaque 500 from `assertSafeSegment` — same hardening as
+  // amend/defineEncore.
+  obligationId: z.string().trim().min(1),
+  cycleId: z.string().trim().min(1),
+  targetId: z.string().trim().min(1),
+  stepId: z.string().trim().min(1),
   values: z.record(z.string(), z.unknown()).optional(),
-  pendingId: z.string().optional(),
+  pendingId: z.string().trim().min(1).optional(),
 });
 
 export async function handleMarkStepDone(args: z.infer<typeof MarkStepDoneArgs>): Promise<EncoreDispatchResult> {

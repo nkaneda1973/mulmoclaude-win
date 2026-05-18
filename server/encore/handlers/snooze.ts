@@ -11,19 +11,19 @@ import { assertKnownTargetAndStep, loadCycle, loadDsl, persistAndReconcile, type
 
 export const SnoozeArgs = z.object({
   kind: z.literal("snooze"),
-  obligationId: z.string(),
-  cycleId: z.string(),
-  targetId: z.string(),
-  stepId: z.string(),
-  pendingId: z.string().optional(),
+  obligationId: z.string().trim().min(1),
+  cycleId: z.string().trim().min(1),
+  targetId: z.string().trim().min(1),
+  stepId: z.string().trim().min(1),
+  pendingId: z.string().trim().min(1).optional(),
 });
 
 export const UnsnoozeArgs = z.object({
   kind: z.literal("unsnooze"),
-  obligationId: z.string(),
-  cycleId: z.string(),
-  targetId: z.string(),
-  stepId: z.string(),
+  obligationId: z.string().trim().min(1),
+  cycleId: z.string().trim().min(1),
+  targetId: z.string().trim().min(1),
+  stepId: z.string().trim().min(1),
 });
 
 export async function handleSnooze(args: z.infer<typeof SnoozeArgs>): Promise<EncoreDispatchResult> {

@@ -9,10 +9,10 @@ import { assertKnownTargetAndStep, loadCycle, loadDsl, persistAndReconcile, work
 
 export const MarkTargetSkippedArgs = z.object({
   kind: z.literal("markTargetSkipped"),
-  obligationId: z.string(),
-  cycleId: z.string(),
-  targetId: z.string(),
-  pendingId: z.string().optional(),
+  obligationId: z.string().trim().min(1),
+  cycleId: z.string().trim().min(1),
+  targetId: z.string().trim().min(1),
+  pendingId: z.string().trim().min(1).optional(),
 });
 
 export async function handleMarkTargetSkipped(args: z.infer<typeof MarkTargetSkippedArgs>): Promise<EncoreDispatchResult> {
