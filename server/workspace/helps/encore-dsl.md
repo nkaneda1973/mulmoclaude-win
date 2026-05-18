@@ -1,6 +1,6 @@
 # Encore — recurring obligations DSL
 
-Encore tracks recurring obligations (monthly payments, biannual taxes, annual physicals, daily check-ins) defined in a small YAML DSL. You — the LLM — compose the DSL document when the user describes an obligation, and call `manageEncore({ kind: "setup", definition })` to store it.
+Encore tracks recurring obligations (monthly payments, biannual taxes, annual physicals, daily check-ins) defined in a small YAML DSL. You — the LLM — compose the DSL document when the user describes an obligation, and call `defineEncore({ dsl })` to store it.
 
 Encore then:
 - Fires bell notifications at the right times based on `firingPlan` phases.
@@ -12,7 +12,7 @@ You never call `chat.start` directly for an obligation. The bell click handles t
 
 ## Your end-to-end loop
 
-1. User describes a recurring obligation → you compose a DSL document → call `manageEncore({ kind: "setup", definition })`.
+1. User describes a recurring obligation → you compose a DSL document → call `defineEncore({ dsl })` (no `obligationId` → setup).
 2. Encore fires bell notifications at the right times. You do NOT call `chat.start` — the host opens a fresh chat with you when the user clicks the bell, and seeds it with a prompt that names the obligation, the open targets, and a `pendingId`.
 3. In that seeded chat: converse with the user about the obligation, collect what they recorded, and call the matching action (`markStepDone` / `markTargetSkipped` / `recordValues` / `snooze`) passing the `pendingId`. That's the ONLY way the bell entry clears — there is no separate clear/dismiss action.
 4. Encore handles cycle recurrence: closing a cycle (all targets done or skipped) provisions the next cycle on the next tick. You don't need to do anything for that.
@@ -26,7 +26,7 @@ Whenever the user describes something that recurs and they want to be reminded a
 - "Take vitamins every day" → daily service
 - "Pay Isamu and Singularity Society both monthly on the 10th" → ONE obligation, TWO targets
 
-Compose the full DSL, then call `manageEncore({ kind: "setup", definition })`. Encore generates `id` (slugified from `displayName`) and `createdAt` server-side.
+Compose the full DSL, then call `defineEncore({ dsl })` (no `obligationId` → setup path). Encore generates `id` (slugified from `displayName`) and `createdAt` server-side. To change an existing obligation later, call `defineEncore({ obligationId, dsl: { /* fields to change */ } })` — that's the amend path.
 
 ## Top-level DSL shape
 
@@ -79,7 +79,7 @@ Cross-field rules (validator will reject otherwise):
 - Every `formSchema` field name must be claimed by **exactly one** step's `fields[]` — no orphans, no double-claims.
 - `targets[].defaults` keys must reference real `formSchema` field names.
 - `firingPlan` phases must resolve in chronological order (Encore evaluates them in declared order).
-- `amendDefinition` cannot change `type`, `currency`, or `cadence.type` — those changes invalidate cycle-file naming or prior records. Path: retire + create new.
+- `defineEncore` amend cannot change `type`, `currency`, or `cadence.type` — those changes invalidate cycle-file naming or prior records. Path: retire + create new.
 
 ## Cadence
 
@@ -190,9 +190,7 @@ Encore clears active bell entries on amend and re-fires with the new title/text.
 
 Every operational action takes a `kind` discriminator. The handler validates the rest with Zod and 400s on shape mistakes — read the error message; it names the field.
 
-### setup / amendDefinition (legacy, still accepted)
-
-The dispatcher still accepts `{ "kind": "setup", "definition": {...} }` and `{ "kind": "amendDefinition", "obligationId": "...", "definition": {...} }` on the wire for backward compat with older clients and tests. New code should use `defineEncore` instead — its typed `dsl` argument is friendlier to compose against.
+For composing a NEW obligation or amending an existing one's DSL, use the sibling `defineEncore` tool documented above — that's structural, not operational, and lives outside `manageEncore`.
 
 ### markStepDone — CLOSE ONE STEP ON ONE TARGET
 
@@ -369,4 +367,4 @@ Two independent steps with separate deadlines. `step-deadline` inside a step's `
 
 - Encore data lives under `~/mulmoclaude/data/plugins/encore/`. Each obligation is a folder with `index.md` (the DSL + free-form body) and one markdown file per cycle.
 - The bell entry for an obligation is action-lifecycle — clicking it lands the user in a seeded chat, but does NOT clear the bell. You clear it by closing the underlying step via `markStepDone` (or `markTargetSkipped` / `snooze`).
-- The tick is hourly. State-mutating handlers (setup, amend, markStepDone, …) kick the tick after persisting, so newly-due notifications surface within the same SSE turn.
+- The tick is hourly. State-mutating handlers (`defineEncore`, `markStepDone`, `snooze`, …) reconcile after persisting, so newly-due notifications surface within the same SSE turn.
