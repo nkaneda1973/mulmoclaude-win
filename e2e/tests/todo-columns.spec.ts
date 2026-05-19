@@ -215,9 +215,10 @@ test.describe("Todo column management", () => {
     await todoColumn.locator("text=more_horiz").click();
     await expect(page.getByRole("button", { name: "Rename" })).toBeVisible();
 
-    // Click on an empty corner of the body — the document-level
-    // listener should fire and close the menu.
-    await page.locator("body").click({ position: { x: 1, y: 1 } });
+    // Click a stable element outside the menu wrapper (the search box
+    // up in the explorer chrome). The document-level listener should
+    // fire and close the menu.
+    await page.getByTestId("todo-search").click();
     await expect(page.getByRole("button", { name: "Rename" })).toHaveCount(0);
   });
 
