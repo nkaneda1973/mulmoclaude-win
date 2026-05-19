@@ -40,9 +40,9 @@ What tool calls and MCP do **not** cover is what happens when a tool's result is
 
 Three classes of consumer already implement against the protocol today: MulmoClaude's built-in plugins; third-party runtime plugins distributed as npm packages (`@mulmoclaude/*-plugin`); and, in principle, any future agent host that chooses to support these plugins. The protocol is small enough to read in one sitting and ambitious enough to outlive any one implementation — because it sits on top of MCP, not next to it.
 
-## Two patterns, proven
+## Three patterns, proven
 
-Architectural commitments are easy to state and hard to honor. The real test is whether the same primitives carry you through unrelated problem domains. MulmoClaude ships a registry of plugins specifically to demonstrate that they do — and two of them, accounting and Encore, illustrate two distinct patterns that AI-native applications will follow.
+Architectural commitments are easy to state and hard to honor. The real test is whether the same primitives carry you through unrelated problem domains. MulmoClaude ships a registry of plugins specifically to demonstrate that they do. Three patterns emerge — two illustrated by individual plugins (accounting and Encore), and a third that emerges from putting many plugins in a registry together.
 
 ### Pattern A: API + UI + Agent
 
