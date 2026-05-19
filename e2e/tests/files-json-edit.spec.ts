@@ -19,6 +19,18 @@ const AGENT_MANAGED = "config/scheduler/tasks.json";
 const EDITABLE_BODY = '{\n  "theme": "dark"\n}';
 const AGENT_BODY = '{\n  "tasks": []\n}';
 
+// CodeMirror 6 exposes a contenteditable (`.cm-content`), not a
+// <textarea>, so Playwright's `.fill()` / `toHaveValue` don't apply.
+// Select-all then `insertText` replaces the doc in one transaction
+// (no per-keystroke auto-indent / bracket close), so the editor's doc
+// — and the emitted v-model — is exactly `value`.
+async function setEditorContent(page: Page, value: string): Promise<void> {
+  const content = page.getByTestId("files-json-editor").locator(".cm-content");
+  await content.click();
+  await page.keyboard.press("ControlOrMeta+a");
+  await page.keyboard.insertText(value);
+}
+
 async function mockJsonFiles(page: Page) {
   await page.route(
     (url) => url.pathname === API_ROUTES.files.dir,
@@ -100,9 +112,10 @@ test.describe("Files Explorer — JSON inline editor (#833)", () => {
     await expect(editBtn).toBeVisible({ timeout: 5 * ONE_SECOND_MS });
     await editBtn.click();
 
-    const editor = page.getByTestId("files-json-editor");
-    await expect(editor).toHaveValue(EDITABLE_BODY);
-    await editor.fill('{\n  "theme": "light"\n}');
+    // CodeMirror 6 renders a contenteditable, not a <textarea> — it
+    // seeds from EDITABLE_BODY (assert a token, not exact innerText).
+    await expect(page.getByTestId("files-json-editor")).toContainText('"theme"');
+    await setEditorContent(page, '{\n  "theme": "light"\n}');
     await page.getByTestId("files-json-save-btn").click();
 
     await expect(() => {
@@ -130,15 +143,14 @@ test.describe("Files Explorer — JSON inline editor (#833)", () => {
 
     await page.goto(`/files/${EDITABLE}`);
     await page.getByTestId("files-json-edit-btn").click();
-    const editor = page.getByTestId("files-json-editor");
-    await editor.fill("{ broken");
+    await setEditorContent(page, "{ broken");
     await page.getByTestId("files-json-save-btn").click();
 
     const banner = page.getByTestId("files-json-save-error");
     await expect(banner).toBeVisible({ timeout: 5 * ONE_SECOND_MS });
     await expect(banner).toContainText("Invalid JSON");
     // Still in edit mode so the user can fix the value.
-    await expect(editor).toBeVisible();
+    await expect(page.getByTestId("files-json-editor")).toBeVisible();
   });
 
   test("agent-managed JSON shows no Edit button", async ({ page }) => {
