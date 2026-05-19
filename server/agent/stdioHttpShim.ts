@@ -34,6 +34,11 @@ export interface ShimHandle {
   close: () => void;
 }
 
+// Pinned: this is an UNSANDBOXED host-exec path, so `npx -y` must not
+// resolve a mutable upstream version on every run (supply-chain +
+// reproducibility). Bump deliberately after reviewing the diff.
+const SUPERGATEWAY_VERSION = "3.4.3";
+
 const SHIM_PORT_RANGE_START = 39_100;
 const SHIM_READY_TIMEOUT_MS = 15 * ONE_SECOND_MS;
 const SHIM_READY_POLL_MS = ONE_SECOND_MS / 4;
@@ -129,7 +134,7 @@ export async function startStdioHttpShim(serverId: string, spec: McpStdioSpec, w
     return null;
   }
 
-  const child = spawn("npx", ["-y", "supergateway", "--stdio", buildStdioCommand(spec), "--port", String(port)], {
+  const child = spawn("npx", ["-y", `supergateway@${SUPERGATEWAY_VERSION}`, "--stdio", buildStdioCommand(spec), "--port", String(port)], {
     // Run from the chat workspace (parity with the non-Docker stdio
     // path) so relative args / config lookups resolve identically.
     cwd: workspacePath,
