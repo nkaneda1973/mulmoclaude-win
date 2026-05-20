@@ -351,14 +351,14 @@ import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import type { WorklogEntry, CandidateEntry } from "./types";
 import { useT } from "./lang";
 
-const props = defineProps<{ result: ToolResultComplete<any> }>();
+const props = defineProps<{ selectedResult: ToolResultComplete<any> }>();
 const t = useT();
 
 // Tabs: 'rollup' (Weekly summary) or 'review' (Candidate board)
 const activeTab = ref("rollup");
 
-const committed = ref<WorklogEntry[]>(props.result.data?.committed ?? []);
-const candidates = ref<CandidateEntry[]>(props.result.data?.candidates ?? []);
+const committed = ref<WorklogEntry[]>(props.selectedResult.data?.committed ?? []);
+const candidates = ref<CandidateEntry[]>(props.selectedResult.data?.candidates ?? []);
 
 // Editcommitted entry form state
 const editingEntryId = ref<string | null>(null);
@@ -409,10 +409,10 @@ onMounted(() => {
 onUnmounted(() => unsub?.());
 
 watch(
-  () => props.result.uuid,
+  () => props.selectedResult.uuid,
   () => {
-    committed.value = props.result.data?.committed ?? [];
-    candidates.value = props.result.data?.candidates ?? [];
+    committed.value = props.selectedResult.data?.committed ?? [];
+    candidates.value = props.selectedResult.data?.candidates ?? [];
     void refresh();
   },
 );
