@@ -23,12 +23,12 @@ Go to https://news.ycombinator.com/submit. Three fields:
 ### title (copy exactly)
 
 ```
-Show HN: MulmoClaude – chat summons GUIs, applications are plugins
+Show HN: MulmoClaude – AI-native app platform where chat summons GUIs
 ```
 
 Notes:
 - The dash is `–` (en dash, `Option+-` on Mac, U+2013). HN accepts both `–` and `-`; `–` reads cleaner.
-- 64 chars — well under HN's 80 char limit.
+- 69 chars — well under HN's 80 char limit.
 
 ### url (copy exactly)
 
@@ -47,13 +47,15 @@ Do not fill in this field. The first comment goes as a manual comment after subm
 ```
 Maker here.
 
-MulmoClaude is an open-source application platform where Claude (via the Claude Agent SDK) acts as a universal controller across a plugin registry. Real applications running on it today: a full accounting system (with server-side bookkeeping logic), the Encore obligation engine, a personal wiki, and an Edgar SEC-filings reader.
+MulmoClaude is an open-source application platform where Claude (via the Claude Agent SDK) acts as a universal controller across a plugin registry. Real applications running on it today: a full accounting system (with server-side bookkeeping logic), the Encore obligation engine, a personal wiki, a Financial Advisor (built on the Edgar SEC-filings plugin), and a Storyteller for interactive illustrated stories.
 
-The two claims in the title:
+Three architectural commitments:
 
-**"Chat summons GUIs"** — the agent's reply isn't a string. It picks a format for the content: Markdown for prose, MCP tool invocations for GUI surfaces (chart, form, wiki, spreadsheet, 3D scene), MulmoScript for multimedia. The chat input is the address bar; what arrives is whatever the content demands.
+**Chat summons GUIs** — the agent's reply isn't a string. It picks a format for the content: Markdown for prose, MCP tool invocations for GUI surfaces (chart, form, wiki, spreadsheet, 3D scene), MulmoScript for multimedia. The chat input is the address bar; what arrives is whatever the content demands.
 
-**"Applications are plugins"** — each plugin contributes one or more MCP tools to the agent. The agent composes across them in one turn. "Summarize Q1 expenses as a chart" reads accounting, writes chart. No app-switching, no copy-paste between apps.
+**Cross-plugin composition** — each plugin contributes one or more MCP tools to the agent. The agent composes across them in one turn. "Summarize Q1 expenses as a chart" reads accounting, writes chart. No app-switching, no copy-paste between apps.
+
+**Open protocol (gui-chat-protocol extending MCP)** — the agent↔GUI contract is a versioned npm package, not an internal API. Plugins are distributed as npm packages; any future agent host that implements the protocol can run them. The protocol sits on top of MCP — it adds the visual layer that MCP doesn't cover.
 
 The architectural argument is in [MANIFEST.md](https://github.com/receptron/mulmoclaude/blob/main/MANIFEST.md) — three commitments (universal controller / chat summons GUIs / open protocol extending MCP) plus the patterns proven by the accounting and Encore plugins.
 

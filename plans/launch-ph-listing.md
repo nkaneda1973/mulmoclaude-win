@@ -4,18 +4,18 @@ Reflects the final manifesto (post-revision) and the HN launch positioning. PH c
 
 ## Tagline (≤60 chars)
 
-**Primary:** Chat summons GUIs, applications are plugins — *47 chars*
+**Primary:** AI-native app platform where chat summons GUIs — *46 chars*
 
 Alternates:
 - How AI-native applications should be built — *43 chars* (essay title; works as tagline)
-- Open-source platform where applications are plugins — *51 chars*
+- AI-native app platform; Claude as universal controller — *54 chars*
 - Claude as a universal controller across plugins — *47 chars*
 
 ## Description (≤260 chars)
 
 **Primary draft (245 chars):**
 
-> An open-source AI-native application platform. Real apps already run on it: a full accounting system, the Encore obligation engine, a personal wiki, an SEC-filings reader (Edgar). Claude composes plugins in one turn. MIT · `npx mulmoclaude`.
+> An open-source AI-native application platform. Real apps already run on it: a full accounting system, the Encore obligation engine, a personal wiki, a Financial Advisor (Edgar SEC filings). Claude composes plugins in one turn. MIT · `npx mulmoclaude`.
 
 **Alternate (251 chars), heavier on the architectural angle:**
 
@@ -32,7 +32,7 @@ Alternates:
 
 > Hey Product Hunt — Satoshi here.
 >
-> MulmoClaude is an open-source AI-native application platform. The unusual thing about it is structural: instead of being a single application, it's a registry of applications running as plugins, with Claude as a universal controller composing across them. Real applications running on it today include a full accounting system (with server-side bookkeeping logic), the Encore obligation engine, a personal wiki, and an SEC-filings reader (Edgar).
+> MulmoClaude is an open-source AI-native application platform. The unusual thing about it is structural: instead of being a single application, it's a registry of applications running as plugins, with Claude as a universal controller composing across them. Real applications running on it today include a full accounting system (with server-side bookkeeping logic), the Encore obligation engine, a personal wiki, a Financial Advisor (built on the Edgar SEC-filings plugin), and a Storyteller for interactive illustrated stories.
 >
 > Three architectural commitments:
 >
@@ -65,7 +65,7 @@ Alternates:
 
 ## Notes
 
-- **Tagline #1 ("Chat summons GUIs, applications are plugins")** matches the HN submission title verbatim. Cohesion across launches: HN visitors who land on PH 10 days later see the same line they upvoted; PH visitors who follow the link to MANIFEST.md find the same two phrases as section anchors.
+- **Tagline #1 ("AI-native app platform where chat summons GUIs")** matches the HN submission title verbatim (minus the "Show HN: MulmoClaude –" prefix). Cohesion across launches: HN visitors who land on PH 10 days later see the same line they upvoted; PH visitors who follow the link to MANIFEST.md find "Chat summons GUIs" as a section anchor.
 - **Description** leads with what it *is* (a platform) and what's *on it today* (named real apps). Avoids the "everyone says SaaS is dead" hook from the manifesto — that hook is essay register, not PH-listing register. The listing is a destination card; the essay is the argument.
 - **Maker comment** mirrors the essay's three commitments structure (universal controller → chat summons GUIs → open protocol extending MCP) plus the Pattern C insight at the end. Slightly warmer than the HN version (Hey/Hi opener; less defensive about "where does this break"; more invitational ending).
 - **HN reference is optional.** If HN goes well, the optional line in the maker comment becomes a social-proof asset for PH. If HN underperforms, omit silently — PH visitors don't know what HN reception looked like.
