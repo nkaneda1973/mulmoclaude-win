@@ -3,8 +3,7 @@
     <!-- Header: Clean, border-b divided, light-theme panel header -->
     <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
       <div class="flex items-center gap-2">
-        <span class="material-icons text-indigo-600 text-lg leading-none">schedule</span>
-        <h2 class="text-base font-bold text-gray-900 tracking-tight">Solopreneur OS Worklog</h2>
+        <h2 class="text-base font-bold text-gray-900 tracking-tight">{{ t.title }}</h2>
       </div>
 
       <!-- Navigation Tabs -->
