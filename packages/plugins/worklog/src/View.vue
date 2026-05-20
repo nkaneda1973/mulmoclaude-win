@@ -7,21 +7,27 @@
       </div>
 
       <!-- Navigation Tabs -->
-      <div class="flex bg-gray-100 p-0.5 rounded-lg border border-gray-200/50">
+      <div class="flex border border-gray-300 rounded overflow-hidden">
         <button
+          type="button"
           @click="activeTab = 'rollup'"
-          class="px-3 py-1 rounded-md text-xs font-semibold transition-all duration-200 flex items-center gap-1"
-          :class="activeTab === 'rollup' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'"
+          :class="[
+            'h-8 px-2.5 flex items-center gap-1 border-r border-gray-200 last:border-r-0 transition-colors text-xs font-semibold',
+            activeTab === 'rollup' ? 'bg-indigo-50 text-indigo-600' : 'bg-white text-gray-600 hover:bg-gray-50',
+          ]"
         >
-          <span class="material-icons text-xs leading-none">bar_chart</span>
+          <span class="material-icons text-sm leading-none">bar_chart</span>
           <span>{{ t.weeklyRollup }}</span>
         </button>
         <button
+          type="button"
           @click="activeTab = 'review'"
-          class="px-3 py-1 rounded-md text-xs font-semibold transition-all duration-200 flex items-center gap-1"
-          :class="activeTab === 'review' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'"
+          :class="[
+            'h-8 px-2.5 flex items-center gap-1 border-r border-gray-200 last:border-r-0 transition-colors text-xs font-semibold',
+            activeTab === 'review' ? 'bg-indigo-50 text-indigo-600' : 'bg-white text-gray-600 hover:bg-gray-50',
+          ]"
         >
-          <span class="material-icons text-xs leading-none">rate_review</span>
+          <span class="material-icons text-sm leading-none">rate_review</span>
           <span>{{ t.reviewBoard }}</span>
           <span v-if="candidates.length > 0" class="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-amber-100 text-amber-800">
             {{ candidates.length }}
