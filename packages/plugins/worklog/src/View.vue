@@ -126,11 +126,11 @@
                 </td>
                 <td v-for="day in weekDays" :key="day.dateStr" class="px-3 py-3 text-center">
                   <span v-if="row.hours[day.dateStr] > 0" class="px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 font-medium">
-                    {{ row.hours[day.dateStr].toFixed(1) }}h
+                    {{ row.hours[day.dateStr].toFixed(1) }}{{ t.hrs }}
                   </span>
                   <span v-else class="text-gray-300">-</span>
                 </td>
-                <td class="px-4 py-3 text-center font-bold text-indigo-600 bg-indigo-50/10">{{ row.total.toFixed(1) }}h</td>
+                <td class="px-4 py-3 text-center font-bold text-indigo-600 bg-indigo-50/10">{{ row.total.toFixed(1) }}{{ t.hrs }}</td>
               </tr>
               <!-- Totals row -->
               <tr v-if="rollupRows.length > 0" class="bg-gray-50 font-bold border-t-2 border-gray-200">
@@ -138,9 +138,9 @@
                   {{ t.total }}
                 </td>
                 <td v-for="day in weekDays" :key="day.dateStr" class="px-3 py-3 text-center text-gray-900">
-                  {{ dayTotals.totals[day.dateStr] > 0 ? dayTotals.totals[day.dateStr].toFixed(1) + "h" : "-" }}
+                  {{ dayTotals.totals[day.dateStr] > 0 ? dayTotals.totals[day.dateStr].toFixed(1) + t.hrs : "-" }}
                 </td>
-                <td class="px-4 py-3 text-center text-indigo-600 bg-indigo-500/10 text-sm">{{ dayTotals.grandTotal.toFixed(1) }}h</td>
+                <td class="px-4 py-3 text-center text-indigo-600 bg-indigo-500/10 text-sm">{{ dayTotals.grandTotal.toFixed(1) }}{{ t.hrs }}</td>
               </tr>
             </tbody>
           </table>
@@ -543,7 +543,8 @@ function buildWeekdayLabels(base: Date, tVal: any): { dateStr: string; label: st
   ];
   const days: { dateStr: string; label: string }[] = [];
   for (let i = 0; i < 7; i++) {
-    const d = new Date(base.getTime() + i * 24 * 3600 * 1000);
+    const d = new Date(base);
+    d.setDate(base.getDate() + i);
     days.push({
       dateStr: toLocalYMD(d),
       label: weekdays[i],
@@ -569,7 +570,8 @@ watch(weekOffset, () => {
 
 function formatWeekRange(): string {
   const start = getStartOfWeek(weekOffset.value);
-  const end = new Date(start.getTime() + 6 * 24 * 3600 * 1000);
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
   return `${start.toLocaleDateString(undefined, { month: "short", day: "numeric" })} - ${end.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}`;
 }
 
@@ -585,7 +587,9 @@ function formatTimeRange(startIso: string, endIso: string): string {
 // Group entries in current week
 const thisWeekCommitted = computed(() => {
   const start = toLocalYMD(getStartOfWeek(weekOffset.value));
-  const end = toLocalYMD(new Date(getStartOfWeek(weekOffset.value).getTime() + 7 * 24 * 3600 * 1000));
+  const endRaw = getStartOfWeek(weekOffset.value);
+  endRaw.setDate(endRaw.getDate() + 7);
+  const end = toLocalYMD(endRaw);
   return committed.value
     .filter((e) => {
       const d = new Date(e.startTime);
@@ -613,7 +617,9 @@ interface RollupRow {
 const rollupRows = computed(() => {
   const days = weekDays.value;
   const start = days[0].dateStr;
-  const end = toLocalYMD(new Date(getStartOfWeek(weekOffset.value).getTime() + 7 * 24 * 3600 * 1000));
+  const endRaw = getStartOfWeek(weekOffset.value);
+  endRaw.setDate(endRaw.getDate() + 7);
+  const end = toLocalYMD(endRaw);
 
   const weekEntries = committed.value.filter((e) => {
     const d = new Date(e.startTime);

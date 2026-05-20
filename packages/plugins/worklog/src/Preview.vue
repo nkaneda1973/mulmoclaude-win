@@ -4,11 +4,11 @@
       <!-- Left side: Stats -->
       <div class="flex items-center gap-1.5 flex-wrap">
         <span
-          >{{ t.currWeek }}: <strong class="font-extrabold text-slate-950">{{ thisWeekHours.toFixed(1) }}h</strong></span
+          >{{ t.currWeek }}: <strong class="font-extrabold text-slate-950">{{ thisWeekHours.toFixed(1) }}{{ t.hrs }}</strong></span
         >
         <span class="text-slate-300">|</span>
         <span
-          >{{ t.prevWeek }}: <strong class="font-extrabold text-slate-950">{{ lastWeekHours.toFixed(1) }}h</strong></span
+          >{{ t.prevWeek }}: <strong class="font-extrabold text-slate-950">{{ lastWeekHours.toFixed(1) }}{{ t.hrs }}</strong></span
         >
       </div>
       <!-- Right side: Review Board Alert -->

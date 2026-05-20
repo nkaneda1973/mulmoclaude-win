@@ -132,7 +132,7 @@ export async function handleApprove(files: FileOps, input: LlmActionInput): Prom
 }
 
 function parseBound(boundValue: string, isEnd: boolean, fieldName: string): number {
-  const strictIsoRegex = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+\-]\d{2}:\d{2})?)?$/;
+  const strictIsoRegex = /^(?:\d{4}-\d{2}-\d{2}|\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+\-]\d{2}:\d{2}))$/;
   if (!strictIsoRegex.test(boundValue)) {
     throw new Error(`Invalid range.${fieldName} format: "${boundValue}"`);
   }
