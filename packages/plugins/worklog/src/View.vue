@@ -46,38 +46,40 @@
             <span>{{ t.weeklyRollup }} Summary</span>
           </h2>
           
-          <div class="flex items-center gap-1.5">
-            <button
-              type="button"
-              @click="weekOffset--"
-              class="h-7 w-7 flex items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 hover:text-indigo-600 hover:border-indigo-200 hover:bg-indigo-50/40 active:scale-95 transition-all duration-150"
-              title="Previous Week"
-            >
-              <span class="material-icons text-base leading-none">chevron_left</span>
-            </button>
-            
+          <div class="flex items-center gap-3">
             <button
               v-if="weekOffset !== 0"
               type="button"
               @click="weekOffset = 0"
-              class="h-7 px-2.5 flex items-center justify-center rounded-lg border border-gray-200 bg-white text-[10px] font-bold text-gray-500 hover:text-indigo-600 hover:border-indigo-200 hover:bg-indigo-50/40 active:scale-95 transition-all duration-150 uppercase tracking-wider"
+              class="h-7 px-2.5 flex items-center justify-center rounded-lg border border-gray-200 bg-white text-[10px] font-bold text-gray-500 hover:text-indigo-600 hover:border-indigo-200 hover:bg-indigo-50/40 active:scale-95 transition-all duration-150 uppercase tracking-wider shadow-sm"
               title="Current Week"
             >
               This Week
             </button>
 
-            <span class="text-xs text-gray-600 font-semibold bg-gray-50 border border-gray-200/60 px-3 py-1 rounded-lg shadow-sm">
-              {{ formatWeekRange() }}
-            </span>
+            <div class="flex items-center gap-1.5">
+              <button
+                type="button"
+                @click="weekOffset--"
+                class="h-7 w-7 flex items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 hover:text-indigo-600 hover:border-indigo-200 hover:bg-indigo-50/40 active:scale-95 transition-all duration-150"
+                title="Previous Week"
+              >
+                <span class="material-icons text-base leading-none">chevron_left</span>
+              </button>
 
-            <button
-              type="button"
-              @click="weekOffset++"
-              class="h-7 w-7 flex items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 hover:text-indigo-600 hover:border-indigo-200 hover:bg-indigo-50/40 active:scale-95 transition-all duration-150"
-              title="Next Week"
-            >
-              <span class="material-icons text-base leading-none">chevron_right</span>
-            </button>
+              <span class="text-xs text-gray-600 font-semibold bg-gray-50 border border-gray-200/60 px-3 py-1 rounded-lg shadow-sm">
+                {{ formatWeekRange() }}
+              </span>
+
+              <button
+                type="button"
+                @click="weekOffset++"
+                class="h-7 w-7 flex items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 hover:text-indigo-600 hover:border-indigo-200 hover:bg-indigo-50/40 active:scale-95 transition-all duration-150"
+                title="Next Week"
+              >
+                <span class="material-icons text-base leading-none">chevron_right</span>
+              </button>
+            </div>
           </div>
         </div>
 
