@@ -85,16 +85,17 @@ function parseListItem(line: string): { filename: string; entry: RegistryEntry }
 
 // Parser exposes `duplicates` so the caller (and the test) can flag
 // the same filename listed twice — `entries.set` would otherwise
-// silently overwrite, hiding a real index.md bug. (CodeRabbit
-// follow-up on #1431.)
+// silently overwrite, hiding a real index.md bug. Stored as a Set
+// so a filename listed three or more times shows up exactly once in
+// the failure message (CodeRabbit + Sourcery follow-up on #1431).
 interface ParsedRegistry {
   entries: Map<string, RegistryEntry>;
-  duplicates: string[];
+  duplicates: Set<string>;
 }
 
 function parseRegistry(content: string): ParsedRegistry {
   const entries = new Map<string, RegistryEntry>();
-  const duplicates: string[] = [];
+  const duplicates = new Set<string>();
   const lines = content.split("\n");
   let inSection = false;
   for (const line of lines) {
@@ -107,7 +108,7 @@ function parseRegistry(content: string): ParsedRegistry {
     const parsed = parseListItem(line);
     if (!parsed) continue;
     if (entries.has(parsed.filename)) {
-      duplicates.push(parsed.filename);
+      duplicates.add(parsed.filename);
       continue;
     }
     entries.set(parsed.filename, parsed.entry);
@@ -164,6 +165,7 @@ describe("server/workspace/helps registry (index.md)", () => {
     // would have the later entry silently overwrite the earlier one
     // in the parser, hiding a real index.md bug (CodeRabbit
     // follow-up on #1431).
-    assert.deepEqual(duplicates, [], `index.md lists duplicate entries: ${duplicates.join(", ")}`);
+    const dupList = [...duplicates];
+    assert.deepEqual(dupList, [], `index.md lists duplicate entries: ${dupList.join(", ")}`);
   });
 });
