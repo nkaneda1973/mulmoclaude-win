@@ -30,8 +30,10 @@ export async function handleManageClient(
       "update",
       "list",
       "show",
+      "get",
       "createProject",
       "showProject",
+      "getProject",
       "listProjects",
       "approveClient",
       "approveProject",
@@ -221,9 +223,10 @@ export async function handleManageClient(
       };
     }
 
+    case "get":
     case "show": {
       if (!args.id) {
-        return { ok: false, error: "missing_id", message: "Client slug 'id' is required for show." };
+        return { ok: false, error: "missing_id", message: "Client slug 'id' is required." };
       }
       const slug = slugify(args.id);
       const filePath = `${slug}.md`;
@@ -256,10 +259,17 @@ export async function handleManageClient(
         log.warn(`Failed to list projects for client ${slug}`, e);
       }
 
+      const rateStr = `${client.rate.amount} ${client.rate.currency}/${client.rate.unit}`;
+      const contactsStr = client.contacts.map((c) => `${c.name} (${c.role}: ${c.email})`).join(", ") || "None";
+      const projectsStr = projects.map((p) => p.name).join(", ") || "None";
+
       return {
         ok: true,
         client,
         projects,
+        message: `Details for client **${client.name}**:\n- Status: ${client.status}\n- Rate: ${rateStr}\n- Payment Terms: ${client.paymentTerms}\n- First Engagement: ${client.firstEngagement}\n- Contacts: ${contactsStr}\n- Projects: ${projectsStr}\n- Notes:\n${client.notes || "None"}`,
+        jsonData: { client, projects },
+        instructions: `Open details page for client ${client.name}.`,
       };
     }
 
@@ -322,9 +332,10 @@ export async function handleManageClient(
       };
     }
 
+    case "getProject":
     case "showProject": {
       if (!args.id) {
-        return { ok: false, error: "missing_client_id", message: "Client slug 'id' is required for showProject." };
+        return { ok: false, error: "missing_client_id", message: "Client slug 'id' is required." };
       }
       if (!args.projectId) {
         return { ok: false, error: "missing_project_id", message: "Project slug 'projectId' is required." };
@@ -343,9 +354,14 @@ export async function handleManageClient(
         return { ok: false, error: "deserialization_failed", message: "Corrupted project markdown file." };
       }
 
+      const rateStr = project.rate ? `${project.rate.amount} ${project.rate.currency}/${project.rate.unit}` : "Standard Client Rate";
+
       return {
         ok: true,
         project,
+        message: `Details for project **${project.name}** under client **${clientSlug}**:\n- Status: ${project.status}\n- Fee Model: ${project.feeModel}\n- Rate: ${rateStr}\n- Started: ${project.startDate}\n- Expected Deliverables: ${project.expectedDeliverables || "None"}\n- Notes:\n${project.notes || "None"}`,
+        jsonData: { project },
+        instructions: `Open project details page for project ${project.name} under client ${clientSlug}.`,
       };
     }
 
