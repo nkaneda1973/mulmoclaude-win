@@ -471,6 +471,11 @@ function parseToolCallResultLine(line: string): ToolCallResultRecord | null {
   if (typeof parsed.toolName !== "string") return null;
   const content = typeof parsed.content === "string" ? parsed.content : null;
   const contentRef = typeof parsed.contentRef === "string" ? parsed.contentRef : null;
+  // Server contract from `server/workspace/tool-trace/index.ts`
+  // writes exactly one of `content` / `contentRef` per row. Reject
+  // rows that carry both or neither so a future schema drift can't
+  // pose as a valid result downstream (CodeRabbit review on PR #1462).
+  if ((content === null) === (contentRef === null)) return null;
   return { toolUseId: parsed.toolUseId, toolName: parsed.toolName, content, contentRef };
 }
 
