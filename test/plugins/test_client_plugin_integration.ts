@@ -422,7 +422,7 @@ describe("Client plugin — end-to-end integration through the loader", () => {
       assert.equal(
         getRes.message,
         'Retrieved details for client "Acme Corporation" (status: active).',
-        "message must be safe and not contain untrusted notes or contact details"
+        "message must be safe and not contain untrusted notes or contact details",
       );
       assert.ok(!getRes.message.includes("PROMPT INJECTION"));
       assert.ok(!getRes.message.includes("attacker@prompt-injection.com"));
@@ -437,7 +437,7 @@ describe("Client plugin — end-to-end integration through the loader", () => {
       assert.equal(
         getProjRes.message,
         'Retrieved details for project "Web Redesign 2026" under client "acme-corp" (status: active).',
-        "message must be safe and not contain project deliverables or notes"
+        "message must be safe and not contain project deliverables or notes",
       );
       assert.ok(!getProjRes.message.includes("MALICIOUS DELIVERABLES"));
       assert.ok(!getProjRes.message.includes("PROMPT INJECTION"));
