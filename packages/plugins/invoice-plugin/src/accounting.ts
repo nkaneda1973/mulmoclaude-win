@@ -207,3 +207,35 @@ export async function recordInvoiceVoid(invoice: Invoice, log: any): Promise<voi
     log.error("invoice-accounting", `Failed to scan and void journal entries for INV ${invoice.id}`, { error: err.message });
   }
 }
+
+/**
+ * Resolves the country of the active book dynamically.
+ */
+export async function getActiveBookCountry(log: any): Promise<string> {
+  try {
+    const service = await importServerModule("server/accounting/service");
+    if (!service || typeof service.listBooks !== "function") {
+      return "US";
+    }
+
+    const { books } = await service.listBooks();
+    if (!books || books.length === 0) {
+      return "US";
+    }
+
+    const pervasiveBook = books.find((b: any) => b.name && b.name.toLowerCase().includes("pervasive"));
+    if (pervasiveBook) {
+      return pervasiveBook.country || "US";
+    }
+
+    const jpBook = books.find((b: any) => b.country === "JP");
+    if (jpBook) {
+      return "JP";
+    }
+
+    return books[0].country || "US";
+  } catch (err: any) {
+    log.warn("invoice-accounting", "Failed to resolve active book country", { error: err.message });
+    return "US";
+  }
+}

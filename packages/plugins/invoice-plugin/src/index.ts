@@ -2,7 +2,7 @@ import { definePlugin, type PluginRuntime } from "gui-chat-protocol";
 import { z } from "zod";
 import { TOOL_DEFINITION } from "./definition";
 import { loadAllInvoices, loadAllCandidates, saveCandidate, deleteCandidate, commitInvoice, fetchActiveClients, loadSettings, saveSettings } from "./io";
-import { recordInvoiceApproval, recordInvoicePayment, recordInvoiceVoid } from "./accounting";
+import { recordInvoiceApproval, recordInvoicePayment, recordInvoiceVoid, getActiveBookCountry } from "./accounting";
 import { type Invoice, type InvoiceCandidate, type InvoiceSettings } from "./types";
 
 const Args = z.object({
@@ -190,12 +190,24 @@ export default definePlugin((runtime) => {
           // Check if issuer settings (profile) are configured before creating candidates
           const settings = await loadSettings(files.data);
           if (!settings.companyName) {
+            const country = await getActiveBookCountry(log);
+            const clients = await fetchActiveClients(log);
+            const client = clients.find((c: any) => c.id === args.clientId);
+            const currency = client?.rate?.currency || "JPY";
+
+            const isJP = country === "JP" || currency === "JPY";
+
+            const taxIdField = isJP
+              ? "JP Tax Registration T-number (Required: format T followed by 13 digits),"
+              : "Tax Registration ID (Optional / Not required for US businesses),";
+
+            const instructions = `The invoice issuer profile is missing or incomplete in settings.json. You MUST trigger a conversation to collect the necessary issuer details using the presentForm tool: Company Name, ${taxIdField} Postal/Zip Code, Address, Email, Bank Name, Bank Branch, Bank Account Type, Bank Account Number, and Bank Account Holder. Do NOT ask for this in plain text. Present a form and, once submitted by the user, save the settings using saveSettings before attempting to create the invoice candidate again. ${!isJP ? "Since the active book or client currency is USD/US, the JP T-number is NOT required and you should not mark it as required in the form." : ""}`;
+
             return {
               ok: false,
               error:
                 "Invoice issuer profile is not configured. You must configure the issuer settings (such as your Company Name and Bank details) before creating any billing candidates.",
-              instructions:
-                "The invoice issuer profile is missing or incomplete in settings.json. You MUST trigger a conversation to collect the necessary issuer details using the presentForm tool: Company Name, JP Tax Registration T-number, Postal/Zip Code, Address, Email, Bank Name, Bank Branch, Bank Account Type, Bank Account Number, and Bank Account Holder. Do NOT ask for this in plain text. Present a form and, once submitted by the user, save the settings using saveSettings before attempting to create the invoice candidate again.",
+              instructions,
             };
           }
 
