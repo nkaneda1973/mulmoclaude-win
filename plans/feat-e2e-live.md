@@ -173,7 +173,7 @@ e2e-live/
 
 ## 未実装シナリオ詳細
 
-> 「未実装 + manual-l4 + 対象外推奨」 = 8 件のみ。 各シナリオの現在の評価は 「未実装シナリオの再評価 (2026-05-23)」、 次に着手する順は 「実装順 (2026-05-23 時点)」 を参照。 実装済シナリオの初期設計仕様は [`plans/done/feat-e2e-live-history.md`](done/feat-e2e-live-history.md) の 「設計仕様 archive」 を参照。
+> 未実装 (L-10 / L-13 / L-17 / L-24 / L-30) + manual-l4 (L-25 / L-27) + 対象外推奨 (L-29) + fresh-user smoke (L-FRESH-BOOT / L-FRESH-SANDBOX-BUILD / L-FRESH-PRESET-SKILL) を本セクションでカバー。 各シナリオの現在の評価は 「未実装シナリオの再評価 (2026-05-23)」、 次に着手する順は 「実装順 (2026-05-23 時点)」 を参照。 実装済シナリオの初期設計仕様は [`plans/done/feat-e2e-live-history.md`](done/feat-e2e-live-history.md) の 「設計仕様 archive」 を参照。
 
 凡例:
 - 重要度: **S** = 致命級, **A** = 高, **B** = 中
@@ -380,7 +380,7 @@ e2e-live/
 
 「docker 系は早い方が良い？」 の問いには **L-30 を Phase 1 に置く** ことで応えている。 docker 系で残る他 2 件 (L-24 / L-29) は再定義 / drop になるため、 e2e-live で着手できる docker シナリオは **L-30 が唯一かつ最大の ROI**。 PR #1462 で docker e2e-live (L-23 / L-26 / L-28) の cover が landed し、 同じ docker.spec.ts に L-30 を追記する形で網を厚くできる。
 
-なお plan 上は dev server / sandbox image build / MCP catalog 初期化 / CLI spawn args 構築といった boot path 系の検証は、 すべて既存の unit test (`test/system/`、 `test/agent/test_agent_config.ts` の `buildDockerSpawnArgs` 11 cases) で構造的退行を cover している前提。 e2e-live で boot path 自体を見るシナリオは現時点で具体的な必要性が見えておらず、 新規シナリオ起こしは行わない。
+なお boot path 系の **個別経路** (dev server boot / sandbox image build / MCP catalog 初期化 / CLI spawn args 構築) はすべて既存の unit test (`test/system/`、 `test/agent/test_agent_config.ts` の `buildDockerSpawnArgs` 11 cases) で構造的退行を cover している。 一方で **「first-run UX として連動する」 経路** (起動 → workspace auto-init → SPA hydrate → 1 ターン送信) を end-to-end で見るネットは fresh-user smoke (`L-FRESH-BOOT` 等) で扱う方向で plan に追加した — 「未実装シナリオ詳細 → fresh-user」 参照。 ユーザー指摘で 「新規ユーザーがちゃんと動かせるかどうかのテストがほしい」 という具体的な需要が顕在化したため、 当初の 「e2e-live で boot path 自体を見る新規シナリオは起こさない」 という立場から方針転換している。
 
 ## 実装の詳細
 
