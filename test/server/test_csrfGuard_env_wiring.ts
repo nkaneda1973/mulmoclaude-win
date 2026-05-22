@@ -29,6 +29,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import type { Request, Response, NextFunction } from "express";
 import { requireSameOrigin } from "../../server/api/csrfGuard.js";
+import { makeReq, makeRes } from "./helpers/fakeExpressMiddleware.js";
 
 const TRUSTED_ORIGINS_ENV_KEY = "MULMOCLAUDE_TRUSTED_ORIGINS";
 const TRUSTED_ORIGIN = "http://192.168.1.42:5173";
@@ -44,29 +45,6 @@ function envHas(value: string): boolean {
     .includes(value);
 }
 
-interface FakeRes {
-  statusCode: number;
-  body: unknown;
-  status: (code: number) => FakeRes;
-  json: (payload: unknown) => FakeRes;
-}
-
-function makeRes(): FakeRes {
-  const res: FakeRes = {
-    statusCode: 200,
-    body: undefined,
-    status(code) {
-      this.statusCode = code;
-      return this;
-    },
-    json(payload) {
-      this.body = payload;
-      return this;
-    },
-  };
-  return res;
-}
-
 interface MiddlewareCallResult {
   nextCalled: boolean;
   statusCode: number;
@@ -78,8 +56,7 @@ function callMiddleware(method: string, origin: string): MiddlewareCallResult {
     nextCalled = true;
   };
   const res = makeRes();
-  const req = { method, headers: { origin } } as unknown as Request;
-  requireSameOrigin(req, res as unknown as Response, next);
+  requireSameOrigin(makeReq(method, origin) as unknown as Request, res as unknown as Response, next);
   return { nextCalled, statusCode: res.statusCode };
 }
 
