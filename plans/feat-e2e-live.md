@@ -72,7 +72,7 @@ e2e-live/
   fixtures/
     live-chat.ts            ← 実 chat fixture（mockAllApis を使わない）
     images/
-      sample.png            ← src/assets/mulmo_bw.png のコピー（L-01/L-02 が workspace に配置）
+      sample.png            ← src/assets/mulmo_bw.png のコピー（L-01 が workspace に配置。 L-02 は textResponse 経由で workspace 配置不要）
   tests/
     media.spec.ts           ← 画像/PDF/動画（L-01 / L-02 実装済）
     roles.spec.ts           ← ロール別 sample query（未実装）
