@@ -33,7 +33,10 @@ test.describe("backend offline banner (#1479)", () => {
   test("does not show when the backend is reachable", async ({ page }) => {
     await mockAllApis(page);
     await page.goto("/");
-    await expect(page.getByText("MulmoClaude")).toBeVisible();
+    // Wait for the app shell rather than a localized text — testids
+    // survive i18n changes and aren't ambiguous against other
+    // "MulmoClaude" occurrences in copy.
+    await expect(page.getByTestId("app-title")).toBeVisible();
     await expect(page.getByTestId("backend-offline-banner")).toHaveCount(0);
   });
 });

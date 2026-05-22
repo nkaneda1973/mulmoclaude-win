@@ -51,6 +51,14 @@ export const backendReachable: Ref<boolean> = ref(true);
  *  flipped to false. Useful for the offline banner's small print. */
 export const lastBackendError: Ref<string | null> = ref(null);
 
+/** A `fetch` rejection that came from caller-driven `AbortController`
+ *  cancellation (the spec says it's a `DOMException` with `name ===
+ *  "AbortError"`). Normal flow — must NOT flip `backendReachable`. */
+function isAbortError(err: unknown): boolean {
+  if (typeof DOMException !== "undefined" && err instanceof DOMException && err.name === "AbortError") return true;
+  return typeof err === "object" && err !== null && "name" in err && (err as { name: unknown }).name === "AbortError";
+}
+
 // ── Auth token (populated by bootstrap; consumed by every call) ─────
 
 let authToken: string | null = null;
@@ -159,13 +167,17 @@ export async function apiCall<T = unknown>(path: string, opts: ApiOptions = {}):
   try {
     res = await fetch(url, init);
   } catch (err) {
-    // `fetch` itself threw — backend unreachable (server stopped,
-    // DNS, CORS preflight failure, etc.). Surface globally so the
-    // banner appears immediately rather than waiting for the 15s
-    // health poll.
     const message = errorMessage(err);
-    backendReachable.value = false;
-    lastBackendError.value = message;
+    // `fetch` throws on EITHER a true network failure (server
+    // stopped, DNS, CORS preflight) OR a caller-driven
+    // AbortController cancellation. The second case is a normal flow
+    // (file/plugin refresh races, navigation cancel) — flipping the
+    // global offline flag for those would surface a false banner.
+    // Only the first case warrants the signal.
+    if (!isAbortError(err)) {
+      backendReachable.value = false;
+      lastBackendError.value = message;
+    }
     return {
       ok: false,
       error: message,

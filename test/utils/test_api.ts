@@ -234,4 +234,16 @@ describe("apiCall — backendReachable signal", () => {
     // Server replied → backend is reachable, even though the request itself failed.
     assert.equal(backendReachable.value, true);
   });
+
+  it("does NOT flip on caller-driven AbortError (normal cancel flow)", async () => {
+    // Simulate `AbortController.abort()` mid-flight: fetch rejects
+    // with a DOMException-shaped AbortError. This is a normal
+    // navigation/race flow — must not surface as backend-offline.
+    const abortErr = Object.assign(new Error("aborted"), { name: "AbortError" });
+    globalThis.fetch = (() => Promise.reject(abortErr)) as typeof fetch;
+    const result = await apiCall("/api/anything");
+    assert.equal(result.ok, false);
+    assert.equal(backendReachable.value, true);
+    assert.equal(lastBackendError.value, null);
+  });
 });
