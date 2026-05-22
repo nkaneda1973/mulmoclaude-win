@@ -208,7 +208,7 @@ export default definePlugin((runtime) => {
 
           await saveCandidate(files.data, candidate);
           await pubsub.publish("changed", { at: new Date().toISOString() });
-          return { ok: true, jsonData: { candidate } };
+          return { ok: true, jsonData: { candidate }, data: {} };
         }
 
         case "list": {
@@ -226,6 +226,7 @@ export default definePlugin((runtime) => {
               settings,
               clients,
             },
+            data: {},
           };
         }
 
@@ -270,7 +271,7 @@ export default definePlugin((runtime) => {
           }
 
           await pubsub.publish("changed", { at: new Date().toISOString() });
-          return { ok: true, jsonData: { invoice } };
+          return { ok: true, jsonData: { invoice }, data: {} };
         }
 
         case "candidateDelete": {
@@ -298,7 +299,7 @@ export default definePlugin((runtime) => {
           }
 
           await pubsub.publish("changed", { at: new Date().toISOString() });
-          return { ok: true, jsonData: { invoice } };
+          return { ok: true, jsonData: { invoice }, data: {} };
         }
 
         case "invoiceVoid": {
@@ -321,7 +322,7 @@ export default definePlugin((runtime) => {
           }
 
           await pubsub.publish("changed", { at: new Date().toISOString() });
-          return { ok: true, jsonData: { invoice } };
+          return { ok: true, jsonData: { invoice }, data: {} };
         }
 
         case "getSettings": {
@@ -385,7 +386,7 @@ export default definePlugin((runtime) => {
 
         case "present":
         default: {
-          return { ok: true };
+          return { ok: true, data: {} };
         }
       }
     },
