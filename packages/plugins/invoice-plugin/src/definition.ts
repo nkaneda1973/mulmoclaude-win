@@ -2,32 +2,20 @@ export const TOOL_DEFINITION = {
   type: "function" as const,
   name: "manageInvoice" as const,
   prompt:
-    "When users ask to create, draft, list, pay, approve, void, or view invoices and billing candidates, use manageInvoice. Always use this tool for invoicing operations.",
+    "When users ask to create, draft, list, pay, void, or view invoices and billing candidates, use manageInvoice. Always use this tool for invoicing operations.",
   description:
-    "Manage client invoices — create draft invoice candidates, view billing details, list committed/pending invoices, mark paid, void incorrect entries, generate AI layout, or open the Invoicing Review Board.",
+    "Manage client invoices — create draft invoice candidates, view billing details, list committed/pending invoices, mark paid, void incorrect entries, or open the Invoicing Review Board.",
   parameters: {
     type: "object" as const,
     properties: {
       action: {
         type: "string",
-        enum: [
-          "createCandidate",
-          "list",
-          "candidateApprove",
-          "candidateDelete",
-          "invoiceMarkPaid",
-          "invoiceVoid",
-          "present",
-          "startPrintableGenerationChat",
-          "getSettings",
-          "saveSettings",
-        ],
+        enum: ["createCandidate", "list", "invoiceMarkPaid", "invoiceVoid", "present", "getSettings", "saveSettings"],
         description: "The invoicing action to perform.",
       },
       id: {
         type: "string",
-        description:
-          "For 'candidateApprove', 'candidateDelete', 'invoiceMarkPaid', 'invoiceVoid', or 'startPrintableGenerationChat': The unique invoice ID or candidate ID.",
+        description: "For 'invoiceMarkPaid' or 'invoiceVoid': The unique invoice ID.",
       },
       clientId: {
         type: "string",

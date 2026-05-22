@@ -187,6 +187,18 @@ export default definePlugin((runtime) => {
             return { ok: false, error: "Missing required arguments for createCandidate" };
           }
 
+          // Check if issuer settings (profile) are configured before creating candidates
+          const settings = await loadSettings(files.data);
+          if (!settings.companyName) {
+            return {
+              ok: false,
+              error:
+                "Invoice issuer profile is not configured. You must configure the issuer settings (such as your Company Name and Bank details) before creating any billing candidates.",
+              instructions:
+                "The invoice issuer profile is missing or incomplete in settings.json. You MUST trigger a conversation to collect the necessary issuer details using the presentForm tool: Company Name, JP Tax Registration T-number, Postal/Zip Code, Address, Email, Bank Name, Bank Branch, Bank Account Type, Bank Account Number, and Bank Account Holder. Do NOT ask for this in plain text. Present a form and, once submitted by the user, save the settings using saveSettings before attempting to create the invoice candidate again.",
+            };
+          }
+
           // Calculate subtotal, tax, total
           const subtotal = args.items.reduce((sum, item) => sum + (item.amount || item.quantity * item.rate), 0);
           const tax = Math.round(subtotal * 0.1);
@@ -226,7 +238,6 @@ export default definePlugin((runtime) => {
               settings,
               clients,
             },
-            data: {},
           };
         }
 
