@@ -178,13 +178,14 @@ describe("classifyWorkspacePath", () => {
     // structural tokens (`%2E%2E` → `..`) get reinterpreted as path
     // structure and the same `normalizePath` root-escape gate applies.
 
-    it("decoded %2F splits into path segments (non-plugin synthetic input)", () => {
+    it("preserves %2F in any segment (opacity rule applies universally)", () => {
       // Synthetic case: a hand-encoded `foo%2Fbar.md` happens to
-      // satisfy the plugin-scope opacity rule (segment contains
-      // `%2F`), so it now stays opaque rather than collapsing into
-      // two segments. marked.parse() never emits this shape for
-      // legitimate workspace links, so the behaviour is captured
-      // here only to make the contract explicit.
+      // satisfy the opacity rule (segment contains `%2F`), so it
+      // stays opaque rather than collapsing into two segments.
+      // marked.parse() never emits this shape for legitimate
+      // workspace links, so the behaviour is captured here only to
+      // make the contract explicit — opacity is segment-local and
+      // does not care whether the path is under `data/plugins/`.
       const result = classifyWorkspacePath("data/some/foo%2Fbar.md");
       assert.deepEqual(result, { kind: "file", path: "data/some/foo%2Fbar.md" });
     });
