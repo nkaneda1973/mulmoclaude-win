@@ -120,7 +120,12 @@
                 :key="cand.candidateId"
                 class="record-item"
                 :class="{ selected: isCandidate && selectedRecordId === cand.candidateId }"
+                role="button"
+                tabindex="0"
+                :aria-selected="isCandidate && selectedRecordId === cand.candidateId"
                 @click="selectRecord(cand, true)"
+                @keydown.enter.prevent="selectRecord(cand, true)"
+                @keydown.space.prevent="selectRecord(cand, true)"
               >
                 <div class="record-meta">
                   <div class="record-client">{{ getClientName(cand.clientId) }}</div>
@@ -128,7 +133,7 @@
                 </div>
                 <div class="record-financials">
                   <div class="record-total">{{ yenSign }}{{ cand.total.toLocaleString() }}</div>
-                  <span class="status-pill candidate">draft</span>
+                  <span class="status-pill candidate">{{ t("statusDraft") }}</span>
                 </div>
               </li>
             </ul>
@@ -153,7 +158,12 @@
                 :key="inv.id"
                 class="record-item"
                 :class="{ selected: !isCandidate && selectedRecordId === inv.id }"
+                role="button"
+                tabindex="0"
+                :aria-selected="!isCandidate && selectedRecordId === inv.id"
                 @click="selectRecord(inv, false)"
+                @keydown.enter.prevent="selectRecord(inv, false)"
+                @keydown.space.prevent="selectRecord(inv, false)"
               >
                 <div class="record-meta">
                   <div class="record-client">
@@ -163,7 +173,7 @@
                 </div>
                 <div class="record-financials">
                   <div class="record-total">{{ yenSign }}{{ inv.total.toLocaleString() }}</div>
-                  <span class="status-pill" :class="inv.status">{{ inv.status }}</span>
+                  <span class="status-pill" :class="inv.status">{{ getLocalizedStatus(inv.status) }}</span>
                 </div>
               </li>
             </ul>
@@ -177,7 +187,7 @@
             <div class="detail-header">
               <div class="detail-header-left">
                 <span class="status-pillLarge" :class="recordStatus">
-                  {{ recordStatus }}
+                  {{ getLocalizedStatus(recordStatus) }}
                 </span>
                 <h3 class="detail-id">{{ recordId }}</h3>
               </div>
@@ -494,6 +504,21 @@ const messages = useT();
 function t(key: keyof typeof messages.value, params?: Record<string, string | number>): string {
   const template = messages.value[key];
   return params ? format(template, params) : template;
+}
+
+function getLocalizedStatus(status: string): string {
+  switch (status) {
+    case "draft":
+      return t("statusDraft");
+    case "approved":
+      return t("statusApproved");
+    case "paid":
+      return t("statusPaid");
+    case "void":
+      return t("statusVoid");
+    default:
+      return status;
+  }
 }
 
 // UI Navigation and alerts

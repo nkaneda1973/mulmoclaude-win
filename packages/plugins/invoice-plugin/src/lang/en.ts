@@ -91,6 +91,10 @@ const translations = {
   previewInvoicesLabel: "Invoices:",
   previewUnpaidLabel: "Unpaid:",
   previewDraftsLabel: "Drafts",
+  statusDraft: "Draft",
+  statusApproved: "Approved",
+  statusPaid: "Paid",
+  statusVoid: "Voided",
 };
 
 export default translations;

@@ -89,6 +89,10 @@ const translations = {
   previewInvoicesLabel: "송장:",
   previewUnpaidLabel: "미납:",
   previewDraftsLabel: "초안",
+  statusDraft: "초안",
+  statusApproved: "승인됨",
+  statusPaid: "납부됨",
+  statusVoid: "무효화됨",
 };
 
 export default translations;

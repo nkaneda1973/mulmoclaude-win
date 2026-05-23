@@ -90,6 +90,10 @@ const translations = {
   previewInvoicesLabel: "請求書:",
   previewUnpaidLabel: "未払:",
   previewDraftsLabel: "下書き",
+  statusDraft: "下書き",
+  statusApproved: "承認済み",
+  statusPaid: "支払済み",
+  statusVoid: "無効",
 };
 
 export default translations;

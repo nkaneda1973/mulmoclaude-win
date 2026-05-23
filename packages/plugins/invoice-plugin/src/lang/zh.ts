@@ -89,6 +89,10 @@ const translations = {
   previewInvoicesLabel: "发票:",
   previewUnpaidLabel: "未付:",
   previewDraftsLabel: "草稿",
+  statusDraft: "草稿",
+  statusApproved: "已批准",
+  statusPaid: "已付清",
+  statusVoid: "已作废",
 };
 
 export default translations;
