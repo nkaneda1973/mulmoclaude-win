@@ -1,9 +1,18 @@
-/* eslint-disable no-irregular-whitespace, complexity, sonarjs/cognitive-complexity */
-import { definePlugin, type PluginRuntime } from "gui-chat-protocol";
+import { definePlugin, type PluginRuntime, type FileOps } from "gui-chat-protocol";
 import { z } from "zod";
 import { TOOL_DEFINITION } from "./definition";
-import { loadAllInvoices, loadAllCandidates, saveCandidate, deleteCandidate, commitInvoice, fetchActiveClients, loadSettings, saveSettings } from "./io";
-import type { Invoice, InvoiceCandidate, InvoiceSettings } from "./types";
+import {
+  loadAllInvoices,
+  loadAllCandidates,
+  saveCandidate,
+  deleteCandidate,
+  commitInvoice,
+  fetchActiveClients,
+  loadSettings,
+  saveSettings,
+  getWorkspacePath,
+} from "./io";
+import { type Invoice, type InvoiceCandidate, type InvoiceSettings, InvoiceItemSchema, InvoiceSettingsSchema } from "./types";
 
 const Args = z.object({
   action: z.enum([
@@ -24,20 +33,11 @@ const Args = z.object({
   clientId: z.string().optional(),
   date: z.string().optional(),
   dueDate: z.string().optional(),
-  items: z
-    .array(
-      z.object({
-        description: z.string(),
-        quantity: z.number().default(1),
-        rate: z.number(),
-        amount: z.number(),
-      }),
-    )
-    .optional(),
+  items: z.array(InvoiceItemSchema).optional(),
   notes: z.string().optional(),
   paymentRef: z.string().optional(),
   voidReason: z.string().optional(),
-  settings: z.any().optional(),
+  settings: InvoiceSettingsSchema.optional(),
   message: z.string().optional(),
 });
 
@@ -56,7 +56,7 @@ function formatDateJa(dateStr: string): string {
   const year = parseInt(parts[0], 10);
   const month = parseInt(parts[1], 10);
   const day = parseInt(parts[2], 10);
-  return `${year}年${month}月${day}日`;
+  return `${year}年${month}月${day}/日`.replace("/日", "日");
 }
 
 interface PrintableInvoiceData {
@@ -75,8 +75,19 @@ interface PrintableInvoiceData {
   total: number;
 }
 
+// eslint-disable-next-line complexity
 function buildSeedPrompt(invoice: PrintableInvoiceData, settings: InvoiceSettings, clientName: string): string {
   const bankAccountTypeJa = settings.bankAccountType === "checking" ? "当座預金" : "普通預金";
+  const companyName = settings.companyName || "(Please configure company name)";
+  const taxRegistrationId = settings.taxRegistrationId || "(Please configure T-number)";
+  const postalCode = settings.postalCode || "";
+  const address = settings.address || "";
+  const email = settings.email || "";
+  const bankName = settings.bankName || "";
+  const bankBranch = settings.bankBranch || "";
+  const bankAccountType = settings.bankAccountType || "ordinary";
+  const bankAccountNumber = settings.bankAccountNumber || "";
+  const bankAccountHolder = settings.bankAccountHolder || "";
 
   return `Please generate the final printable Japanese invoice (請求書) as a Markdown document for the following invoice details using the layout template provided below.
 
@@ -86,23 +97,23 @@ function buildSeedPrompt(invoice: PrintableInvoiceData, settings: InvoiceSetting
 - **Due Date**: ${invoice.dueDate} (Formatted: ${formatDateJa(invoice.dueDate)})
 - **Recipient**: ${clientName}
 - **Items**:
-${invoice.items.map((item: PrintableInvoiceData["items"][number]) => `- ${item.description}: ${item.quantity} x ¥${item.rate.toLocaleString()} = ¥${item.amount.toLocaleString()}`).join("\n")}
+${invoice.items.map((item) => `- ${item.description}: ${item.quantity} x ¥${item.rate.toLocaleString()} = ¥${item.amount.toLocaleString()}`).join("\n")}
 - **Subtotal**: ¥${invoice.subtotal.toLocaleString()}
 - **Tax (10%)**: ¥${invoice.tax.toLocaleString()}
 - **Total**: ¥${invoice.total.toLocaleString()}
 
 ### Issuer Settings (From Dynamic Config):
-- **Company Name**: ${settings.companyName || "(Please configure company name)"}
-- **T-number (Tax Registration ID)**: ${settings.taxRegistrationId || "(Please configure T-number)"}
-- **Zip Code**: ${settings.postalCode || ""}
-- **Address**: ${settings.address || ""}
-- **Email**: ${settings.email || ""}
+- **Company Name**: ${companyName}
+- **T-number (Tax Registration ID)**: ${taxRegistrationId}
+- **Zip Code**: ${postalCode}
+- **Address**: ${address}
+- **Email**: ${email}
 - **Bank Transfer Details**:
-  - Bank Name: ${settings.bankName || ""}
-  - Branch Name: ${settings.bankBranch || ""}
-  - Account Type: ${settings.bankAccountType || "ordinary"} (${bankAccountTypeJa})
-  - Account Number: ${settings.bankAccountNumber || ""}
-  - Account Holder: ${settings.bankAccountHolder || ""}
+  - Bank Name: ${bankName}
+  - Branch Name: ${bankBranch}
+  - Account Type: ${bankAccountType} (${bankAccountTypeJa})
+  - Account Number: ${bankAccountNumber}
+  - Account Holder: ${bankAccountHolder}
 
 ### Layout Template to Output verbatim (substituting variables):
 \`\`\`markdown
@@ -111,7 +122,7 @@ ${invoice.items.map((item: PrintableInvoiceData["items"][number]) => `- ${item.d
 <div style="display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 3px solid #1a365d; padding-bottom: 16px; margin-bottom: 32px;">
   <div>
     <h1 style="font-size: 36px; letter-spacing: 8px; margin: 0; color: #1a365d; font-weight: 300;">INVOICE</h1>
-    <p style="margin: 4px 0 0; color: #718096; font-size: 14px; letter-spacing: 4px;">請　求　書</p>
+    <p style="margin: 4px 0 0; color: #718096; font-size: 14px; letter-spacing: 4px;">請&nbsp;求&nbsp;書</p>
   </div>
   <div style="text-align: right; font-size: 13px; color: #4a5568;">
     <div><strong style="color:#1a365d;">No.</strong> ${invoice.id}</div>
@@ -124,7 +135,7 @@ ${invoice.items.map((item: PrintableInvoiceData["items"][number]) => `- ${item.d
 <tr style="border:none;">
 <td style="border:none; vertical-align: top; width: 55%; padding: 0;">
 <div style="font-size: 11px; color: #718096; letter-spacing: 2px; margin-bottom: 8px;">BILL TO</div>
-<div style="font-size: 22px; font-weight: 500; color: #1a365d; border-bottom: 1px solid #1a365d; padding-bottom: 8px; display: inline-block;">${clientName}　御中</div>
+<div style="font-size: 22px; font-weight: 500; color: #1a365d; border-bottom: 1px solid #1a365d; padding-bottom: 8px; display: inline-block;">${clientName}御中</div>
 <p style="margin-top: 12px; color: #4a5568; font-size: 13px;">下記の通りご請求申し上げます。</p>
 </td>
 <td style="border:none; vertical-align: top; width: 45%; padding: 0 0 0 24px;">
@@ -144,7 +155,7 @@ ${invoice.items.map((item: PrintableInvoiceData["items"][number]) => `- ${item.d
 
 | 品目 | 数量 | 金額 |
 |------|:---:|---:|
-${invoice.items.map((item: PrintableInvoiceData["items"][number]) => `| ${item.description} | ${item.quantity} | ¥${item.amount.toLocaleString()} |`).join("\n")}
+${invoice.items.map((item) => `| ${item.description} | ${item.quantity} | ¥${item.amount.toLocaleString()} |`).join("\n")}
 
 <table style="width:100%; border:none; margin-top: 16px;">
 <tr style="border:none;">
@@ -171,7 +182,7 @@ ${invoice.items.map((item: PrintableInvoiceData["items"][number]) => `| ${item.d
 <div style="margin-top: 32px; background: #f7fafc; padding: 20px 24px; border-radius: 4px;">
   <div style="font-size: 11px; color: #718096; letter-spacing: 2px; margin-bottom: 8px;">PAYMENT</div>
   <div style="font-size: 15px; color: #1a365d;"><strong>${settings.bankName || ""} ${settings.bankBranch || ""}</strong></div>
-  <div style="font-size: 13px; color: #4a5568; margin-top: 4px;">${bankAccountTypeJa}　${settings.bankAccountNumber || ""}　／　${settings.bankAccountHolder || ""}</div>
+  <div style="font-size: 13px; color: #4a5568; margin-top: 4px;">${bankAccountTypeJa}&nbsp;${settings.bankAccountNumber || ""}&nbsp;/&nbsp;${settings.bankAccountHolder || ""}</div>
 </div>
 
 <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #e2e8f0; font-size: 11px; color: #a0aec0; text-align: center;">
@@ -183,10 +194,54 @@ ${invoice.items.map((item: PrintableInvoiceData["items"][number]) => `| ${item.d
 \`\`\`
 
 ### Instructions for you (Claude):
-1. **Write this completed Markdown document** directly into the workspace at the absolute path: \`${process.cwd()}/artifacts/invoices/${invoice.id}.md\`. Use your write_to_file tool.
+1. **Write this completed Markdown document** directly into the workspace at the absolute path: \`${getWorkspacePath()}/artifacts/invoices/${invoice.id}.md\`. Use your available file-writing/creation tool to write this file.
 2. After writing the file, confirm in a single polite sentence that the printable invoice document was successfully generated and saved to disk.
 3. Present the beautifully rendered Markdown preview in the chat so I can review it.
 `;
+}
+
+async function resolvePrintablePrompt(
+  argsId: string,
+  filesData: FileOps,
+  log: PluginRuntime["log"],
+): Promise<{ prompt: string; targetInvoice: PrintableInvoiceData } | { error: string }> {
+  // 1. Fetch Candidate or Invoice details
+  let targetInvoice: PrintableInvoiceData | null = null;
+  const candidates = await loadAllCandidates(filesData);
+  const candidate = candidates.find((cand) => cand.candidateId === argsId);
+
+  if (candidate) {
+    targetInvoice = {
+      id: candidate.candidateId,
+      clientId: candidate.clientId,
+      date: candidate.date,
+      dueDate: candidate.dueDate,
+      items: candidate.items,
+      subtotal: candidate.subtotal,
+      tax: candidate.tax,
+      total: candidate.total,
+    };
+  } else {
+    const invoices = await loadAllInvoices(filesData);
+    const invoice = invoices.find((inv) => inv.id === argsId);
+    if (invoice) {
+      targetInvoice = invoice;
+    }
+  }
+
+  if (!targetInvoice) {
+    return { error: "Billing record not found" };
+  }
+
+  // 2. Fetch active settings and client details
+  const [settings, clients] = await Promise.all([loadSettings(filesData), fetchActiveClients(log)]);
+
+  const client = clients.find((cli) => cli.id === targetInvoice.clientId);
+  const clientName = client ? client.name : targetInvoice.clientId;
+
+  // 3. Build seed prompt
+  const prompt = buildSeedPrompt(targetInvoice, settings, clientName);
+  return { prompt, targetInvoice };
 }
 
 export default definePlugin((runtime) => {
@@ -196,6 +251,7 @@ export default definePlugin((runtime) => {
   return {
     TOOL_DEFINITION,
 
+    // eslint-disable-next-line complexity, sonarjs/cognitive-complexity
     async manageInvoice(rawArgs: unknown) {
       const args = Args.parse(rawArgs);
       log.info("manageInvoice API invoked", { action: args.action });
@@ -210,7 +266,7 @@ export default definePlugin((runtime) => {
           const settings = await loadSettings(files.data);
           if (!settings.companyName) {
             const clients = await fetchActiveClients(log);
-            const client = clients.find((cli: { id: string; rate?: { currency?: string } }) => cli.id === args.clientId);
+            const client = clients.find((cli) => cli.id === args.clientId);
             const currency = client?.rate?.currency || "JPY";
 
             const isJP = currency === "JPY";
@@ -358,44 +414,13 @@ export default definePlugin((runtime) => {
         case "startPrintableGenerationChat": {
           if (!args.id) return { ok: false, error: "Missing id for startPrintableGenerationChat" };
 
-          // 1. Fetch Candidate or Invoice details
-          let targetInvoice: PrintableInvoiceData | null = null;
-          const candidates = await loadAllCandidates(files.data);
-          const candidate = candidates.find((cand) => cand.candidateId === args.id);
-
-          if (candidate) {
-            targetInvoice = {
-              id: candidate.candidateId,
-              clientId: candidate.clientId,
-              date: candidate.date,
-              dueDate: candidate.dueDate,
-              items: candidate.items,
-              subtotal: candidate.subtotal,
-              tax: candidate.tax,
-              total: candidate.total,
-            };
-          } else {
-            const invoices = await loadAllInvoices(files.data);
-            const invoice = invoices.find((inv) => inv.id === args.id);
-            if (invoice) {
-              targetInvoice = invoice;
-            }
+          const resolved = await resolvePrintablePrompt(args.id, files.data, log);
+          if ("error" in resolved) {
+            return { ok: false, error: resolved.error };
           }
 
-          if (!targetInvoice) {
-            return { ok: false, error: "Billing record not found" };
-          }
-
-          // 2. Fetch active settings and client details
-          const [settings, clients] = await Promise.all([loadSettings(files.data), fetchActiveClients(log)]);
-
-          const client = clients.find((cli: { id: string; name: string }) => cli.id === targetInvoice.clientId);
-          const clientName = client ? client.name : targetInvoice.clientId;
-
-          // 3. Build seed prompt & start a new chat in the "accounting" role
-          const seedPrompt = buildSeedPrompt(targetInvoice, settings, clientName);
           const { chatId } = await chat.start({
-            initialMessage: seedPrompt,
+            initialMessage: resolved.prompt,
             role: "accounting",
           });
 
@@ -405,40 +430,12 @@ export default definePlugin((runtime) => {
         case "getPrintablePrompt": {
           if (!args.id) return { ok: false, error: "Missing id for getPrintablePrompt" };
 
-          let targetInvoice: PrintableInvoiceData | null = null;
-          const candidates = await loadAllCandidates(files.data);
-          const candidate = candidates.find((cand) => cand.candidateId === args.id);
-
-          if (candidate) {
-            targetInvoice = {
-              id: candidate.candidateId,
-              clientId: candidate.clientId,
-              date: candidate.date,
-              dueDate: candidate.dueDate,
-              items: candidate.items,
-              subtotal: candidate.subtotal,
-              tax: candidate.tax,
-              total: candidate.total,
-            };
-          } else {
-            const invoices = await loadAllInvoices(files.data);
-            const invoice = invoices.find((inv) => inv.id === args.id);
-            if (invoice) {
-              targetInvoice = invoice;
-            }
+          const resolved = await resolvePrintablePrompt(args.id, files.data, log);
+          if ("error" in resolved) {
+            return { ok: false, error: resolved.error };
           }
 
-          if (!targetInvoice) {
-            return { ok: false, error: "Billing record not found" };
-          }
-
-          const [settings, clients] = await Promise.all([loadSettings(files.data), fetchActiveClients(log)]);
-
-          const client = clients.find((cli: { id: string; name: string }) => cli.id === targetInvoice.clientId);
-          const clientName = client ? client.name : targetInvoice.clientId;
-
-          const prompt = buildSeedPrompt(targetInvoice, settings, clientName);
-          return { ok: true, jsonData: { prompt } };
+          return { ok: true, jsonData: { prompt: resolved.prompt } };
         }
 
         case "startAccountingChat": {

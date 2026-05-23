@@ -43,12 +43,12 @@ export type InvoiceCandidate = z.infer<typeof InvoiceCandidateSchema>;
 export interface ExtendedToolResultComplete {
   ok: boolean;
   message?: string;
-  jsonData?: Record<string, any>;
-  data?: Record<string, any>;
+  jsonData?: Record<string, unknown>;
+  data?: Record<string, unknown>;
   error?: string;
   status?: number;
   instructions?: string;
-  args?: Record<string, any>;
+  args?: Record<string, unknown>;
 }
 
 export const InvoiceSettingsSchema = z.object({

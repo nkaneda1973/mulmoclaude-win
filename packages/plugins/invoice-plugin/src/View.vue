@@ -4,19 +4,19 @@
     <header class="dashboard-header glass-panel">
       <div class="header-left">
         <div>
-          <h1 class="header-title">Invoice</h1>
-          <p class="header-subtitle">Invoice management & automated double-entry bookkeeping</p>
+          <h1 class="header-title">{{ t("title") }}</h1>
+          <p class="header-subtitle">{{ t("subtitle") }}</p>
         </div>
       </div>
       <div class="header-right">
         <div class="tab-selectors">
           <button type="button" class="tab-btn" :class="{ active: activeTab === 'invoices' }" @click="activeTab = 'invoices'">
             <span class="material-icons text-sm leading-none">list_alt</span>
-            <span>Invoices & Candidates</span>
+            <span>{{ t("invoicesTab") }}</span>
           </button>
           <button type="button" class="tab-btn" :class="{ active: activeTab === 'settings' }" @click="activeTab = 'settings'">
             <span class="material-icons text-sm leading-none">settings_applications</span>
-            <span>Issuer Profile</span>
+            <span>{{ t("profileTab") }}</span>
           </button>
         </div>
       </div>
@@ -27,7 +27,7 @@
       <div v-if="successMsg" class="alert-banner success glass-panel">
         <span class="material-icons">check_circle</span>
         <span class="alert-text">{{ successMsg }}</span>
-        <button class="alert-close" @click="successMsg = ''">&times;</button>
+        <button class="alert-close" @click="successMsg = ''">{{ timesChar }}</button>
       </div>
     </transition>
 
@@ -35,7 +35,7 @@
       <div v-if="errorMsg" class="alert-banner error glass-panel">
         <span class="material-icons">error</span>
         <span class="alert-text">{{ errorMsg }}</span>
-        <button class="alert-close" @click="errorMsg = ''">&times;</button>
+        <button class="alert-close" @click="errorMsg = ''">{{ timesChar }}</button>
       </div>
     </transition>
 
@@ -56,21 +56,23 @@
       >
         <div style="display: flex; align-items: center; gap: 0.5rem">
           <span class="material-icons text-indigo-500 animate-pulse">chat</span>
-          <span class="font-bold text-xs uppercase tracking-wider text-indigo-600 dark:text-indigo-400">Manual Bookkeeping Instruction</span>
+          <span class="font-bold text-xs uppercase tracking-wider text-indigo-600 dark:text-indigo-400">{{ t("manualBookkeepingTitle") }}</span>
         </div>
         <div class="alert-text" style="display: flex; flex-direction: column; gap: 0.75rem">
           <p style="font-size: 0.8rem; margin: 0; color: #4b5563; dark:color: #9ca3af;">
-            Please copy the instruction below and paste it to the AI Accountant chat to complete double-entry bookkeeping:
+            {{ t("manualBookkeepingDesc") }}
           </p>
           <pre
             style="margin: 0; font-family: monospace; font-size: 0.8rem; background: rgba(0, 0, 0, 0.06); padding: 0.85rem; rounded: 8px; border: 1px solid rgba(0, 0, 0, 0.08); white-space: pre-wrap; word-break: break-all; select: all; line-height: 1.5; color: #1f2937; dark:color: #f3f4f6;"
             >{{ copyInstructionText }}</pre
           >
           <div style="display: flex; gap: 0.5rem">
-            <button class="btn btn-indigo" type="button" @click="copyToClipboard(copyInstructionText)" style="padding: 0.4rem 0.8rem; font-size: 0.75rem">
-              <span class="material-icons" style="font-size: 0.85rem">content_copy</span> Copy to Clipboard
+            <button class="btn btn-indigo" type="button" style="padding: 0.4rem 0.8rem; font-size: 0.75rem" @click="copyToClipboard(copyInstructionText)">
+              <span class="material-icons" style="font-size: 0.85rem">content_copy</span> {{ t("copyToClipboard") }}
             </button>
-            <button class="btn btn-slate" type="button" @click="copyInstructionText = ''" style="padding: 0.4rem 0.8rem; font-size: 0.75rem">Dismiss</button>
+            <button class="btn btn-slate" type="button" style="padding: 0.4rem 0.8rem; font-size: 0.75rem" @click="copyInstructionText = ''">
+              {{ t("dismiss") }}
+            </button>
           </div>
         </div>
       </div>
@@ -81,14 +83,13 @@
       <div v-if="dataLoaded && !settings.companyName && activeTab !== 'settings'" class="setup-warning-banner glass-panel">
         <span class="material-icons warning-icon animate-pulse">warning_amber</span>
         <div class="warning-content">
-          <h4 class="warning-title">Issuer Profile Incomplete</h4>
+          <h4 class="warning-title">{{ t("profileWarningTitle") }}</h4>
           <p class="warning-description">
-            Your billing details and JP T-number are not configured yet. Set up your issuer profile in the
-            <strong>Issuer Profile</strong> tab to enable beautiful AI layout generation, correct T-number inclusion, and double-entry books mapping.
+            {{ t("profileWarningDesc") }}
           </p>
         </div>
         <button type="button" class="btn-warning-action" @click="activeTab = 'settings'">
-          Configure Profile
+          {{ t("configureProfile") }}
           <span class="material-icons">arrow_forward</span>
         </button>
       </div>
@@ -104,13 +105,13 @@
           <div class="panel-section glass-panel">
             <h2 class="panel-title">
               <span class="material-icons font-md text-amber-500">pending_actions</span>
-              Draft Candidates
+              {{ t("draftCandidates") }}
               <span class="badge badge-amber">{{ candidates.length }}</span>
             </h2>
 
             <div v-if="candidates.length === 0" class="empty-state text-muted">
               <span class="material-icons text-3xl">playlist_add</span>
-              <p>No billing drafts. Ask Claude to create one from your worklogs!</p>
+              <p>{{ t("noDraftCandidates") }}</p>
             </div>
 
             <ul v-else class="record-list">
@@ -126,7 +127,7 @@
                   <div class="record-date">{{ formatDate(cand.date) }}</div>
                 </div>
                 <div class="record-financials">
-                  <div class="record-total">¥{{ cand.total.toLocaleString() }}</div>
+                  <div class="record-total">{{ yenSign }}{{ cand.total.toLocaleString() }}</div>
                   <span class="status-pill candidate">draft</span>
                 </div>
               </li>
@@ -137,13 +138,13 @@
           <div class="panel-section glass-panel">
             <h2 class="panel-title">
               <span class="material-icons font-md text-emerald-500">done_all</span>
-              Committed Invoices
+              {{ t("committedInvoices") }}
               <span class="badge badge-indigo">{{ invoices.length }}</span>
             </h2>
 
             <div v-if="invoices.length === 0" class="empty-state text-muted">
               <span class="material-icons text-3xl">description</span>
-              <p>No committed invoices yet.</p>
+              <p>{{ t("noCommittedInvoices") }}</p>
             </div>
 
             <ul v-else class="record-list">
@@ -156,12 +157,12 @@
               >
                 <div class="record-meta">
                   <div class="record-client">
-                    <strong>{{ inv.id }}</strong> — {{ getClientName(inv.clientId) }}
+                    <strong>{{ inv.id }}</strong> {{ emDash }} {{ getClientName(inv.clientId) }}
                   </div>
                   <div class="record-date">{{ formatDate(inv.date) }}</div>
                 </div>
                 <div class="record-financials">
-                  <div class="record-total">¥{{ inv.total.toLocaleString() }}</div>
+                  <div class="record-total">{{ yenSign }}{{ inv.total.toLocaleString() }}</div>
                   <span class="status-pill" :class="inv.status">{{ inv.status }}</span>
                 </div>
               </li>
@@ -186,11 +187,11 @@
                 <template v-if="isCandidate">
                   <button type="button" class="btn btn-emerald" :disabled="actionPending" @click="approveCandidate">
                     <span class="material-icons">check</span>
-                    Approve & Journal
+                    {{ t("approveAndJournal") }}
                   </button>
                   <button type="button" class="btn btn-danger" :disabled="actionPending" @click="deleteDraft">
                     <span class="material-icons">delete</span>
-                    Delete Draft
+                    {{ t("deleteDraft") }}
                   </button>
                 </template>
 
@@ -198,15 +199,15 @@
                 <template v-else-if="recordStatus === 'approved'">
                   <button type="button" class="btn btn-indigo" :disabled="actionPending" @click="triggerPrintableGeneration">
                     <span class="material-icons">picture_as_pdf</span>
-                    Generate PDF
+                    {{ t("generatePdf") }}
                   </button>
                   <button type="button" class="btn btn-emerald" :disabled="actionPending" @click="promptMarkPaid">
                     <span class="material-icons">payments</span>
-                    Mark Paid
+                    {{ t("markPaid") }}
                   </button>
                   <button type="button" class="btn btn-danger" :disabled="actionPending" @click="promptVoid">
                     <span class="material-icons">block</span>
-                    Void
+                    {{ t("void") }}
                   </button>
                 </template>
 
@@ -214,11 +215,11 @@
                 <template v-else-if="recordStatus === 'paid'">
                   <button type="button" class="btn btn-indigo" :disabled="actionPending" @click="triggerPrintableGeneration">
                     <span class="material-icons">picture_as_pdf</span>
-                    Generate PDF
+                    {{ t("generatePdf") }}
                   </button>
                   <button type="button" class="btn btn-danger" :disabled="actionPending" @click="promptVoid">
                     <span class="material-icons">block</span>
-                    Void
+                    {{ t("void") }}
                   </button>
                 </template>
               </div>
@@ -227,19 +228,19 @@
             <!-- Detail Meta Rows -->
             <div class="detail-meta-grid">
               <div class="meta-block">
-                <span class="meta-label">Client / Recipient</span>
+                <span class="meta-label">{{ t("clientRecipient") }}</span>
                 <span class="meta-val font-semibold">{{ getClientName(selectedRecord.clientId) }}</span>
               </div>
               <div class="meta-block">
-                <span class="meta-label">Billing Date</span>
+                <span class="meta-label">{{ t("billingDate") }}</span>
                 <span class="meta-val">{{ formatDate(selectedRecord.date) }}</span>
               </div>
               <div class="meta-block">
-                <span class="meta-label">Due Date</span>
+                <span class="meta-label">{{ t("dueDate") }}</span>
                 <span class="meta-val">{{ formatDate(selectedRecord.dueDate) }}</span>
               </div>
               <div v-if="recordPaymentRef" class="meta-block">
-                <span class="meta-label">Payment Ref</span>
+                <span class="meta-label">{{ t("paymentRef") }}</span>
                 <span class="meta-val font-mono">{{ recordPaymentRef }}</span>
               </div>
             </div>
@@ -249,18 +250,18 @@
               <table class="items-table">
                 <thead>
                   <tr>
-                    <th>Description</th>
-                    <th class="text-right">Qty</th>
-                    <th class="text-right">Rate</th>
-                    <th class="text-right">Amount</th>
+                    <th>{{ t("description") }}</th>
+                    <th class="text-right">{{ t("qty") }}</th>
+                    <th class="text-right">{{ t("rate") }}</th>
+                    <th class="text-right">{{ t("amount") }}</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr v-for="(item, idx) in selectedRecord.items" :key="idx">
                     <td>{{ item.description }}</td>
                     <td class="text-right">{{ item.quantity }}</td>
-                    <td class="text-right">¥{{ item.rate.toLocaleString() }}</td>
-                    <td class="text-right font-medium">¥{{ item.amount.toLocaleString() }}</td>
+                    <td class="text-right">{{ yenSign }}{{ item.rate.toLocaleString() }}</td>
+                    <td class="text-right font-medium">{{ yenSign }}{{ item.amount.toLocaleString() }}</td>
                   </tr>
                 </tbody>
               </table>
@@ -268,23 +269,23 @@
               <div class="financial-summary-row">
                 <div class="financial-summary-box">
                   <div class="summary-line">
-                    <span class="line-lbl">Subtotal:</span>
-                    <span class="line-val">¥{{ selectedRecord.subtotal.toLocaleString() }}</span>
+                    <span class="line-lbl">{{ t("subtotal") }}</span>
+                    <span class="line-val">{{ yenSign }}{{ selectedRecord.subtotal.toLocaleString() }}</span>
                   </div>
                   <div class="summary-line">
-                    <span class="line-lbl">Tax (10%):</span>
-                    <span class="line-val">¥{{ selectedRecord.tax.toLocaleString() }}</span>
+                    <span class="line-lbl">{{ t("tax") }}</span>
+                    <span class="line-val">{{ yenSign }}{{ selectedRecord.tax.toLocaleString() }}</span>
                   </div>
                   <div class="summary-line total">
-                    <span class="line-lbl">Total Due:</span>
-                    <span class="line-val">¥{{ selectedRecord.total.toLocaleString() }}</span>
+                    <span class="line-lbl">{{ t("totalDue") }}</span>
+                    <span class="line-val">{{ yenSign }}{{ selectedRecord.total.toLocaleString() }}</span>
                   </div>
                 </div>
               </div>
 
               <!-- Notes -->
               <div v-if="selectedRecord.notes" class="notes-section">
-                <h4 class="section-title">Memo / Internal Notes</h4>
+                <h4 class="section-title">{{ t("memoNotes") }}</h4>
                 <p class="notes-content">{{ selectedRecord.notes }}</p>
               </div>
             </div>
@@ -292,9 +293,9 @@
 
           <div v-else class="detail-sheetempty glass-panel">
             <span class="material-icons text-5xl text-slate-300">receipt</span>
-            <h3 class="text-slate-400 font-medium mt-2">No Record Selected</h3>
+            <h3 class="text-slate-400 font-medium mt-2">{{ t("noRecordSelected") }}</h3>
             <p class="text-xs text-slate-400 max-w-xs text-center mt-1">
-              Select any billing candidate draft or committed invoice from the lists on the left to inspect details.
+              {{ t("selectRecordDesc") }}
             </p>
           </div>
         </div>
@@ -304,41 +305,41 @@
       <div v-else class="tab-content-settings glass-panel">
         <h2 class="panel-title border-b border-white/10 pb-4 mb-6">
           <span class="material-icons text-indigo-500 font-md">business</span>
-          Invoice Issuer Business Profile
+          {{ t("settingsHeader") }}
         </h2>
 
-        <form @submit.prevent="saveIssuerSettings" class="settings-form">
+        <form class="settings-form" @submit.prevent="saveIssuerSettings">
           <div class="form-grid">
             <!-- Company/Legal Name -->
             <div class="form-group col-span-2">
-              <label for="companyName">Legal Issuer Name (Company or Solopreneur)</label>
+              <label for="companyName">{{ t("legalName") }}</label>
               <input id="companyName" v-model="editSettings.companyName" type="text" placeholder="e.g. 有限会社パーベイシブ" required />
-              <span class="help-text">Your trade or legal company name printed on the invoice header.</span>
+              <span class="help-text">{{ t("legalNameHelp") }}</span>
             </div>
 
             <!-- T-Number (JP Tax Registration) -->
             <div class="form-group">
-              <label for="taxRegistrationId">JP Tax Registration ID (T-number)</label>
+              <label for="taxRegistrationId">{{ t("taxId") }}</label>
               <input id="taxRegistrationId" v-model="editSettings.taxRegistrationId" type="text" placeholder="e.g. T1234567890123" />
-              <span class="help-text">Consumption Tax registration ID under Japanese Invoice System.</span>
+              <span class="help-text">{{ t("taxIdHelp") }}</span>
             </div>
 
             <!-- Email Address -->
             <div class="form-group">
-              <label for="email">Billing Contact Email</label>
+              <label for="email">{{ t("email") }}</label>
               <input id="email" v-model="editSettings.email" type="email" placeholder="billing@yourdomain.com" />
-              <span class="help-text">Where clients can send inquiries regarding this bill.</span>
+              <span class="help-text">{{ t("emailHelp") }}</span>
             </div>
 
             <!-- Postal/Zip Code -->
             <div class="form-group">
-              <label for="postalCode">Postal Code / ZIP</label>
+              <label for="postalCode">{{ t("postalCode") }}</label>
               <input id="postalCode" v-model="editSettings.postalCode" type="text" placeholder="100-0001" />
             </div>
 
             <!-- Detailed Address -->
             <div class="form-group col-span-2">
-              <label for="address">Street Address</label>
+              <label for="address">{{ t("streetAddress") }}</label>
               <input id="address" v-model="editSettings.address" type="text" placeholder="Chiyoda-ku, Tokyo 1-1-1" />
             </div>
 
@@ -346,40 +347,40 @@
             <div class="col-span-3 border-t border-white/10 my-4 pt-4">
               <h3 class="subsection-title">
                 <span class="material-icons text-amber-500 font-sm">account_balance</span>
-                Bank Transfer Settlement Details
+                {{ t("bankTransferHeader") }}
               </h3>
             </div>
 
             <!-- Bank Name -->
             <div class="form-group">
-              <label for="bankName">Bank Name</label>
+              <label for="bankName">{{ t("bankName") }}</label>
               <input id="bankName" v-model="editSettings.bankName" type="text" placeholder="e.g. 三菱UFJ銀行" />
             </div>
 
             <!-- Branch Name -->
             <div class="form-group">
-              <label for="bankBranch">Branch Name</label>
+              <label for="bankBranch">{{ t("bankBranch") }}</label>
               <input id="bankBranch" v-model="editSettings.bankBranch" type="text" placeholder="e.g. 本店" />
             </div>
 
             <!-- Account Type -->
             <div class="form-group">
-              <label for="bankAccountType">Account Type</label>
+              <label for="bankAccountType">{{ t("accountType") }}</label>
               <select id="bankAccountType" v-model="editSettings.bankAccountType">
-                <option value="ordinary">普通預金 (Ordinary)</option>
-                <option value="checking">当座預金 (Checking)</option>
+                <option value="ordinary">{{ t("ordinary") }}</option>
+                <option value="checking">{{ t("checking") }}</option>
               </select>
             </div>
 
             <!-- Account Number -->
             <div class="form-group">
-              <label for="bankAccountNumber">Account Number</label>
+              <label for="bankAccountNumber">{{ t("accountNumber") }}</label>
               <input id="bankAccountNumber" v-model="editSettings.bankAccountNumber" type="text" placeholder="1234567" />
             </div>
 
             <!-- Account Holder -->
             <div class="form-group col-span-2">
-              <label for="bankAccountHolder">Account Holder Name (Katakana/English)</label>
+              <label for="bankAccountHolder">{{ t("accountHolder") }}</label>
               <input id="bankAccountHolder" v-model="editSettings.bankAccountHolder" type="text" placeholder="e.g. ユウゲンガイシャ パーベイシブ" />
             </div>
 
@@ -387,28 +388,27 @@
             <div class="col-span-3 border-t border-white/10 my-4 pt-4">
               <h3 class="subsection-title">
                 <span class="material-icons text-indigo-400 font-sm">account_balance_wallet</span>
-                Ledger Book Integration
+                {{ t("ledgerIntegrationHeader") }}
               </h3>
             </div>
 
             <!-- Target Book Dropdown -->
             <div class="form-group col-span-3">
-              <label for="accountingBookId">Target Book for Automated Bookkeeping</label>
+              <label for="accountingBookId">{{ t("targetBook") }}</label>
               <select id="accountingBookId" v-model="editSettings.bookId">
-                <option value="">(Auto-resolve: Fallback to Heuristics / Pervasive / JP Book)</option>
-                <option v-for="b in books" :key="b.id" :value="b.id">{{ b.name }} ({{ b.currency }}, {{ b.country || "US" }}) — {{ b.id }}</option>
+                <option value="">{{ t("autoResolveBook") }}</option>
+                <option v-for="bookItem in books" :key="bookItem.id" :value="bookItem.id">
+                  {{ bookItem.name }} ({{ bookItem.currency }}{{ commaSep }} {{ bookItem.country || "US" }}{{ rightParenArrow }} {{ bookItem.id }}
+                </option>
               </select>
-              <span class="help-text"
-                >Choose the target book in the Accounting plugin where double-entry journal entries will be automatically written upon candidate approval,
-                client payment, or invoice voiding.</span
-              >
+              <span class="help-text">{{ t("targetBookHelp") }}</span>
             </div>
           </div>
 
           <div class="settings-actions">
             <button type="submit" class="btn btn-indigo px-8 py-3 font-semibold shadow-lg">
               <span class="material-icons">save</span>
-              Save Business Profile
+              {{ t("saveProfile") }}
             </button>
           </div>
         </form>
@@ -419,15 +419,15 @@
     <transition name="fade">
       <div v-if="showPaymentModal" class="modal-backdrop">
         <div class="modal-card glass-panel">
-          <h3 class="modal-title">Record Bank Settlement</h3>
-          <p class="modal-description">Marking invoice {{ pendingActionId }} as Paid. Enter the payment reference below:</p>
+          <h3 class="modal-title">{{ t("recordSettlement") }}</h3>
+          <p class="modal-description">{{ t("recordSettlementDesc", { id: pendingActionId || "" }) }}</p>
           <div class="form-group mt-4">
-            <label for="paymentRefInput">Payment Reference / Txn ID</label>
-            <input id="paymentRefInput" v-model="paymentRef" type="text" placeholder="e.g. Bank Transfer 12345" />
+            <label for="paymentRefInput">{{ t("paymentRefLabel") }}</label>
+            <input id="paymentRefInput" v-model="paymentRef" type="text" :placeholder="t('paymentRefPlaceholder')" />
           </div>
           <div class="modal-actions mt-6">
-            <button type="button" class="btn btn-slate" @click="showPaymentModal = false">Cancel</button>
-            <button type="button" class="btn btn-emerald" @click="markPaidSubmit">Mark Paid</button>
+            <button type="button" class="btn btn-slate" @click="showPaymentModal = false">{{ t("cancel") }}</button>
+            <button type="button" class="btn btn-emerald" @click="markPaidSubmit">{{ t("markPaid") }}</button>
           </div>
         </div>
       </div>
@@ -437,17 +437,17 @@
     <transition name="fade">
       <div v-if="showVoidModal" class="modal-backdrop">
         <div class="modal-card glass-panel">
-          <h3 class="modal-title text-red-400">Void Invoiced Record</h3>
+          <h3 class="modal-title text-red-400">{{ t("voidTitle") }}</h3>
           <p class="modal-description">
-            This action will reverse the double-entry bookkeeping journal entries in your active ledger. Explain why this invoice is being voided:
+            {{ t("voidDesc") }}
           </p>
           <div class="form-group mt-4">
-            <label for="voidReasonInput">Reason for Void</label>
-            <input id="voidReasonInput" v-model="voidReason" type="text" placeholder="e.g. Incorrect quantity or duplicate invoice" required />
+            <label for="voidReasonInput">{{ t("voidReasonLabel") }}</label>
+            <input id="voidReasonInput" v-model="voidReason" type="text" :placeholder="t('voidReasonPlaceholder')" required />
           </div>
           <div class="modal-actions mt-6">
-            <button type="button" class="btn btn-slate" @click="showVoidModal = false">Cancel</button>
-            <button type="button" class="btn btn-danger" @click="voidSubmit">Confirm Void</button>
+            <button type="button" class="btn btn-slate" @click="showVoidModal = false">{{ t("cancel") }}</button>
+            <button type="button" class="btn btn-danger" @click="voidSubmit">{{ t("confirmVoid") }}</button>
           </div>
         </div>
       </div>
@@ -457,12 +457,21 @@
 </template>
 
 <script setup lang="ts">
-/* eslint-disable complexity */
-import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, onMounted, onUnmounted, ref } from "vue";
 import { useRuntime } from "gui-chat-protocol/vue";
+import { apiPost } from "../../../../src/utils/api";
+import { useT, format } from "./lang";
 import type { Invoice, InvoiceCandidate, InvoiceSettings, ExtendedToolResultComplete } from "./types";
+import type { ParsedClient } from "./io";
 import ConfirmModal from "../../shared/components/ConfirmModal.vue";
 import { useConfirm } from "../../shared/components/confirm";
+
+interface Book {
+  id: string;
+  name: string;
+  currency: string;
+  country?: string;
+}
 
 const props = defineProps<{
   selectedResult?: ExtendedToolResultComplete;
@@ -471,6 +480,21 @@ const props = defineProps<{
 
 const { dispatch, pubsub, log } = useRuntime();
 const { openConfirm } = useConfirm();
+
+// Layout symbols to avoid i18n raw text warnings
+const timesChar = "×";
+const yenSign = "¥";
+const emDash = "—";
+const commaSep = ",";
+const rightParenArrow = ") —";
+
+const messages = useT();
+
+// eslint-disable-next-line id-length
+function t(key: keyof typeof messages.value, params?: Record<string, string | number>): string {
+  const template = messages.value[key];
+  return params ? format(template, params) : template;
+}
 
 // UI Navigation and alerts
 const activeTab = ref<"invoices" | "settings">("invoices");
@@ -498,8 +522,8 @@ const settings = ref<InvoiceSettings>({
   bookName: "",
 });
 
-const clients = ref<any[]>([]);
-const books = ref<any[]>([]);
+const clients = ref<ParsedClient[]>([]);
+const books = ref<Book[]>([]);
 
 // Selection State
 const selectedRecordId = ref<string | null>(null);
@@ -514,12 +538,12 @@ const paymentRef = ref("");
 const voidReason = ref("");
 
 // Computed selection mapping
-const selectedRecord = computed(() => {
+const selectedRecord = computed<Invoice | InvoiceCandidate | null>(() => {
   if (!selectedRecordId.value) return null;
   if (isCandidate.value) {
-    return candidates.value.find((c) => c.candidateId === selectedRecordId.value) || null;
+    return candidates.value.find((cand) => cand.candidateId === selectedRecordId.value) || null;
   }
-  return invoices.value.find((i) => i.id === selectedRecordId.value) || null;
+  return invoices.value.find((inv) => inv.id === selectedRecordId.value) || null;
 });
 
 const recordId = computed(() => {
@@ -538,9 +562,18 @@ const recordPaymentRef = computed(() => {
 });
 
 // Load all details in one swoop
+// eslint-disable-next-line complexity
 async function loadData() {
   try {
-    const res = (await dispatch({ action: "list" })) as any;
+    const res = (await dispatch({ action: "list" })) as {
+      ok: boolean;
+      jsonData?: {
+        invoices?: Invoice[];
+        candidates?: InvoiceCandidate[];
+        clients?: ParsedClient[];
+        settings?: InvoiceSettings;
+      };
+    };
     if (res?.ok && res?.jsonData) {
       invoices.value = res.jsonData.invoices || [];
       candidates.value = res.jsonData.candidates || [];
@@ -564,23 +597,18 @@ async function loadData() {
 
     // Dynamic book fetching via standard API
     try {
-      const booksRes = await fetch("/api/accounting", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "getBooks" }),
-      });
-      if (booksRes.ok) {
-        const booksData = await booksRes.json();
-        if (booksData?.ok && booksData?.jsonData?.books) {
-          books.value = booksData.jsonData.books;
-        }
+      const booksRes = await apiPost<{ ok: boolean; jsonData?: { books?: Book[] } }>("/api/accounting", { action: "getBooks" });
+      if (booksRes.ok && booksRes.data?.jsonData?.books) {
+        books.value = booksRes.data.jsonData.books;
       }
-    } catch (err: any) {
-      log.error("Failed to dynamically fetch available accounting books", { error: err.message });
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      log.error("Failed to dynamically fetch available accounting books", { error: errorMessage });
     }
-  } catch (err: any) {
+  } catch (err) {
     errorMsg.value = "Failed to load bookkeeping and invoice data.";
-    log.error("Data loading failed", { error: err.message });
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    log.error("Data loading failed", { error: errorMessage });
   } finally {
     dataLoaded.value = true;
   }
@@ -588,8 +616,8 @@ async function loadData() {
 
 // Helpers
 function getClientName(clientId: string): string {
-  const c = clients.value.find((client) => client.id === clientId || client.name === clientId);
-  return c ? c.name : clientId;
+  const foundClient = clients.value.find((client) => client.id === clientId || client.name === clientId);
+  return foundClient ? foundClient.name : clientId;
 }
 
 function formatDate(dateStr: string): string {
@@ -599,37 +627,8 @@ function formatDate(dateStr: string): string {
   return `${parts[0]}/${parts[1]}/${parts[2]}`;
 }
 
-function formatDateJa(dateStr: string): string {
-  if (!dateStr) return "";
-  const parts = dateStr.split("-");
-  if (parts.length !== 3) return dateStr;
-  const y = parseInt(parts[0], 10);
-  const m = parseInt(parts[1], 10);
-  const d = parseInt(parts[2], 10);
-  return `${y}年${m}月${d}日`;
-}
-
-function formatDateEn(dateStr: string): string {
-  if (!dateStr) return "";
-  const parts = dateStr.split("-");
-  if (parts.length !== 3) return dateStr;
-  const year = parts[0];
-  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  const monthIdx = parseInt(parts[1], 10) - 1;
-  const month = months[monthIdx] || parts[1];
-  const day = parseInt(parts[2], 10);
-  return `${month} ${day}, ${year}`;
-}
-
-function getCurrencySymbol(currency: string): string {
-  if (currency === "JPY") return "¥";
-  if (currency === "EUR") return "€";
-  if (currency === "GBP") return "£";
-  return "$";
-}
-
-function selectRecord(record: any, candMode: boolean) {
-  selectedRecordId.value = candMode ? record.candidateId : record.id;
+function selectRecord(record: Invoice | InvoiceCandidate, candMode: boolean) {
+  selectedRecordId.value = candMode ? (record as InvoiceCandidate).candidateId : (record as Invoice).id;
   isCandidate.value = candMode;
 }
 
@@ -639,84 +638,102 @@ async function saveIssuerSettings() {
   successMsg.value = "";
   errorMsg.value = "";
   try {
-    const selectedBook = books.value.find((b) => b.id === editSettings.value.bookId);
+    const selectedBook = books.value.find((bookItem) => bookItem.id === editSettings.value.bookId);
     editSettings.value.bookName = selectedBook ? selectedBook.name : "";
 
-    const res = (await dispatch({ action: "saveSettings", settings: editSettings.value })) as any;
+    const res = (await dispatch({ action: "saveSettings", settings: editSettings.value })) as { ok: boolean; error?: string };
     if (res?.ok) {
       settings.value = { ...editSettings.value };
-      successMsg.value = "Business profile successfully saved and locked.";
+      successMsg.value = t("settingsSaved");
     } else {
-      errorMsg.value = res?.error || "Failed to save settings.";
+      errorMsg.value = res?.error || t("settingsSaveFailed");
     }
-  } catch (err: any) {
-    errorMsg.value = err.message || "An unexpected error occurred.";
+  } catch (err) {
+    errorMsg.value = err instanceof Error ? err.message : String(err);
   } finally {
     actionPending.value = false;
+  }
+}
+
+async function handleBookkeepingInstruction(instruction: string) {
+  if (props.sendTextMessage) {
+    props.sendTextMessage(instruction);
+  } else {
+    try {
+      const chatRes = (await dispatch({
+        action: "startAccountingChat",
+        message: instruction,
+      })) as { ok: boolean; jsonData?: { chatId?: string }; error?: string };
+      if (chatRes?.ok && chatRes?.jsonData?.chatId) {
+        successMsg.value += t("redirectingAccounting");
+        const nextChatId = chatRes.jsonData.chatId;
+        setTimeout(() => {
+          window.location.href = `/chat/${nextChatId}`;
+        }, 1200);
+      } else {
+        copyInstructionText.value = instruction;
+        errorMsg.value = chatRes?.error || "";
+      }
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      log.error("Failed to start accounting chat", { error: errMsg });
+      copyInstructionText.value = instruction;
+    }
   }
 }
 
 async function approveCandidate() {
   if (!selectedRecord.value) return;
   const confirmed = await openConfirm({
-    title: "Approve Billing Draft",
-    message:
-      "Are you sure you want to approve this candidate and commit it as an invoice? This will dynamically generate double-entry bookkeeping journal entries in your active ledger.",
-    confirmText: "Approve & Journal",
+    title: t("approveConfirmTitle"),
+    message: t("approveConfirmMsg"),
+    confirmText: t("approveAndJournal"),
     variant: "success",
   });
   if (!confirmed) return;
+
+  const currentCandId = selectedRecordId.value;
+  if (!currentCandId) return;
 
   actionPending.value = true;
   successMsg.value = "";
   errorMsg.value = "";
   copyInstructionText.value = "";
   try {
-    const res = (await dispatch({ action: "candidateApprove", id: selectedRecordId.value! })) as any;
-    if (res?.ok && res?.jsonData?.invoice) {
-      const invoice = res.jsonData.invoice;
-      successMsg.value = `Invoice approved and registered as ${invoice.id}.`;
-      const nextId = invoice.id;
-      const clientName = getClientName(invoice.clientId);
-      const bookId = settings.value.bookId || "book-7ceddbfc";
-      const bookName = settings.value.bookName || "Pervasive";
+    const res = (await dispatch({ action: "candidateApprove", id: currentCandId })) as {
+      ok: boolean;
+      jsonData?: { invoice?: Invoice };
+      error?: string;
+    };
+    if (res?.ok && res?.jsonData) {
+      const { invoice } = res.jsonData;
+      if (invoice) {
+        successMsg.value = t("recordSuccess", { id: invoice.id });
+        const nextId = invoice.id;
+        const clientName = getClientName(invoice.clientId);
+        const bookId = settings.value.bookId || "";
+        const bookName = settings.value.bookName || "";
 
-      await loadData();
-      selectedRecordId.value = nextId;
-      isCandidate.value = false;
+        await loadData();
+        selectedRecordId.value = nextId;
+        isCandidate.value = false;
 
-      const instruction =
-        `Please record the double-entry bookkeeping journal entries for approved Invoice ${nextId}.\n` +
-        `Total: ¥${invoice.total.toLocaleString()} (Subtotal: ¥${invoice.subtotal.toLocaleString()}, Tax: ¥${invoice.tax.toLocaleString()})\n` +
-        `Date: ${invoice.date}\n` +
-        `Client: ${clientName}\n` +
-        `Book ID: ${bookId} (${bookName})`;
+        const instruction =
+          `Please record the double-entry bookkeeping journal entries for approved Invoice ${nextId}.\n` +
+          `Total: ¥${invoice.total.toLocaleString()} (Subtotal: ¥${invoice.subtotal.toLocaleString()}, Tax: ¥${invoice.tax.toLocaleString()})\n` +
+          `Date: ${invoice.date}\n` +
+          `Client: ${clientName}\n` +
+          `Book ID: ${bookId} (${bookName})`;
 
-      if (props.sendTextMessage) {
-        props.sendTextMessage(instruction);
+        await handleBookkeepingInstruction(instruction);
       } else {
-        try {
-          const chatRes = (await dispatch({
-            action: "startAccountingChat",
-            message: instruction,
-          })) as any;
-          if (chatRes?.ok && chatRes?.jsonData?.chatId) {
-            successMsg.value += " Redirecting to new Accounting chat...";
-            setTimeout(() => {
-              window.location.href = `/chat/${chatRes.jsonData.chatId}`;
-            }, 1200);
-          } else {
-            copyInstructionText.value = instruction;
-          }
-        } catch (err: any) {
-          copyInstructionText.value = instruction;
-        }
+        errorMsg.value = t("approveFailed");
       }
     } else {
-      errorMsg.value = res?.error || "Failed to approve billing draft.";
+      errorMsg.value = res?.error || t("approveFailed");
     }
-  } catch (err: any) {
-    errorMsg.value = err.message || "An unexpected error occurred.";
+  } catch (err) {
+    errorMsg.value = err instanceof Error ? err.message : String(err);
   } finally {
     actionPending.value = false;
   }
@@ -725,27 +742,30 @@ async function approveCandidate() {
 async function deleteDraft() {
   if (!selectedRecord.value) return;
   const confirmed = await openConfirm({
-    title: "Discard Billing Draft",
-    message: "Are you sure you want to discard this billing draft?",
-    confirmText: "Discard",
+    title: t("discardConfirmTitle"),
+    message: t("discardConfirmMsg"),
+    confirmText: t("deleteDraft"),
     variant: "danger",
   });
   if (!confirmed) return;
+
+  const currentCandId = selectedRecordId.value;
+  if (!currentCandId) return;
 
   actionPending.value = true;
   successMsg.value = "";
   errorMsg.value = "";
   try {
-    const res = (await dispatch({ action: "candidateDelete", id: selectedRecordId.value! })) as any;
+    const res = (await dispatch({ action: "candidateDelete", id: currentCandId })) as { ok: boolean; error?: string };
     if (res?.ok) {
-      successMsg.value = "Billing draft discarded.";
+      successMsg.value = t("discardedMsg");
       selectedRecordId.value = null;
       await loadData();
     } else {
-      errorMsg.value = res?.error || "Failed to delete candidate.";
+      errorMsg.value = res?.error || t("discardedMsg");
     }
-  } catch (err: any) {
-    errorMsg.value = err.message || "An unexpected error occurred.";
+  } catch (err) {
+    errorMsg.value = err instanceof Error ? err.message : String(err);
   } finally {
     actionPending.value = false;
   }
@@ -773,47 +793,35 @@ async function markPaidSubmit() {
       action: "invoiceMarkPaid",
       id: currentActionId,
       paymentRef: currentPaymentRef,
-    })) as any;
-    if (res?.ok && res?.jsonData?.invoice) {
-      const invoice = res.jsonData.invoice;
-      successMsg.value = `Invoice ${invoice.id} marked as paid.`;
-      const clientName = getClientName(invoice.clientId);
-      const bookId = settings.value.bookId || "book-7ceddbfc";
-      const bookName = settings.value.bookName || "Pervasive";
+    })) as {
+      ok: boolean;
+      jsonData?: { invoice?: Invoice };
+      error?: string;
+    };
+    if (res?.ok && res?.jsonData) {
+      const { invoice } = res.jsonData;
+      if (invoice) {
+        successMsg.value = t("markPaidSuccess", { id: invoice.id });
+        const bookId = settings.value.bookId || "";
+        const bookName = settings.value.bookName || "";
 
-      await loadData();
+        await loadData();
 
-      const instruction =
-        `Invoice PAID: ${invoice.id}\n` +
-        `Total: ¥${invoice.total.toLocaleString()}\n` +
-        `Reference: ${currentPaymentRef || "Bank Transfer"}\n\n` +
-        `Please record the cash receipt journal entries (debit Checking/Cash, credit Accounts Receivable) for this paid invoice into the ledger book ID: "${bookId}" (Name: ${bookName}).`;
+        const instruction =
+          `Invoice PAID: ${invoice.id}\n` +
+          `Total: ¥${invoice.total.toLocaleString()}\n` +
+          `Reference: ${currentPaymentRef || "Bank Transfer"}\n\n` +
+          `Please record the cash receipt journal entries (debit Checking/Cash, credit Accounts Receivable) for this paid invoice into the ledger book ID: "${bookId}" (Name: ${bookName}).`;
 
-      if (props.sendTextMessage) {
-        props.sendTextMessage(instruction);
+        await handleBookkeepingInstruction(instruction);
       } else {
-        try {
-          const chatRes = (await dispatch({
-            action: "startAccountingChat",
-            message: instruction,
-          })) as any;
-          if (chatRes?.ok && chatRes?.jsonData?.chatId) {
-            successMsg.value += " Redirecting to new Accounting chat...";
-            setTimeout(() => {
-              window.location.href = `/chat/${chatRes.jsonData.chatId}`;
-            }, 1200);
-          } else {
-            copyInstructionText.value = instruction;
-          }
-        } catch (err: any) {
-          copyInstructionText.value = instruction;
-        }
+        errorMsg.value = t("markPaidFailed");
       }
     } else {
-      errorMsg.value = res?.error || "Failed to record payment.";
+      errorMsg.value = res?.error || t("markPaidFailed");
     }
-  } catch (err: any) {
-    errorMsg.value = err.message || "An unexpected error occurred.";
+  } catch (err) {
+    errorMsg.value = err instanceof Error ? err.message : String(err);
   } finally {
     actionPending.value = false;
     pendingActionId.value = null;
@@ -842,45 +850,34 @@ async function voidSubmit() {
       action: "invoiceVoid",
       id: currentActionId,
       voidReason: currentVoidReason,
-    })) as any;
-    if (res?.ok && res?.jsonData?.invoice) {
-      const invoice = res.jsonData.invoice;
-      successMsg.value = `Invoice ${invoice.id} voided.`;
-      const bookId = settings.value.bookId || "book-7ceddbfc";
-      const bookName = settings.value.bookName || "Pervasive";
+    })) as {
+      ok: boolean;
+      jsonData?: { invoice?: Invoice };
+      error?: string;
+    };
+    if (res?.ok && res?.jsonData) {
+      const { invoice } = res.jsonData;
+      if (invoice) {
+        successMsg.value = t("voidSuccess", { id: invoice.id });
+        const bookId = settings.value.bookId || "";
+        const bookName = settings.value.bookName || "";
 
-      await loadData();
+        await loadData();
 
-      const instruction =
-        `Invoice VOIDED: ${invoice.id}\n` +
-        `Reason: ${currentVoidReason || "Duplicate invoice"}\n\n` +
-        `Please scan and void all journal entries associated with Invoice ${invoice.id} in the ledger book ID: "${bookId}" (Name: ${bookName}).`;
+        const instruction =
+          `Invoice VOIDED: ${invoice.id}\n` +
+          `Reason: ${currentVoidReason || "Duplicate invoice"}\n\n` +
+          `Please scan and void all journal entries associated with Invoice ${invoice.id} in the ledger book ID: "${bookId}" (Name: ${bookName}).`;
 
-      if (props.sendTextMessage) {
-        props.sendTextMessage(instruction);
+        await handleBookkeepingInstruction(instruction);
       } else {
-        try {
-          const chatRes = (await dispatch({
-            action: "startAccountingChat",
-            message: instruction,
-          })) as any;
-          if (chatRes?.ok && chatRes?.jsonData?.chatId) {
-            successMsg.value += " Redirecting to new Accounting chat...";
-            setTimeout(() => {
-              window.location.href = `/chat/${chatRes.jsonData.chatId}`;
-            }, 1200);
-          } else {
-            copyInstructionText.value = instruction;
-          }
-        } catch (err: any) {
-          copyInstructionText.value = instruction;
-        }
+        errorMsg.value = t("voidFailed");
       }
     } else {
-      errorMsg.value = res?.error || "Failed to void invoice.";
+      errorMsg.value = res?.error || t("voidFailed");
     }
-  } catch (err: any) {
-    errorMsg.value = err.message || "An unexpected error occurred.";
+  } catch (err) {
+    errorMsg.value = err instanceof Error ? err.message : String(err);
   } finally {
     actionPending.value = false;
     pendingActionId.value = null;
@@ -888,8 +885,10 @@ async function voidSubmit() {
 }
 
 // Generate Printable Layout using AI Chat
+// eslint-disable-next-line complexity
 async function triggerPrintableGeneration() {
-  if (!selectedRecordId.value) return;
+  const currentId = selectedRecordId.value;
+  if (!currentId) return;
   actionPending.value = true;
   successMsg.value = "";
   errorMsg.value = "";
@@ -897,30 +896,31 @@ async function triggerPrintableGeneration() {
     if (props.sendTextMessage) {
       const res = (await dispatch({
         action: "getPrintablePrompt",
-        id: selectedRecordId.value,
-      })) as any;
+        id: currentId,
+      })) as { ok: boolean; jsonData?: { prompt?: string }; error?: string };
       if (res?.ok && res?.jsonData?.prompt) {
         props.sendTextMessage(res.jsonData.prompt);
-        successMsg.value = "Generative invoice layout request sent to the active chat session.";
+        successMsg.value = t("pdfSuccess");
       } else {
-        errorMsg.value = res?.error || "Failed to generate layout prompt.";
+        errorMsg.value = res?.error || t("pdfFailed");
       }
     } else {
       const res = (await dispatch({
         action: "startPrintableGenerationChat",
-        id: selectedRecordId.value,
-      })) as any;
+        id: currentId,
+      })) as { ok: boolean; jsonData?: { chatId?: string }; error?: string };
       if (res?.ok && res?.jsonData?.chatId) {
-        successMsg.value = "Generative invoice layout session started. Redirecting to chat...";
+        successMsg.value = t("pdfSuccessChat");
+        const nextChatId = res.jsonData.chatId;
         setTimeout(() => {
-          window.location.href = `/chat/${res.jsonData.chatId}`;
+          window.location.href = `/chat/${nextChatId}`;
         }, 1200);
       } else {
-        errorMsg.value = res?.error || "Failed to spin up layout generation chat.";
+        errorMsg.value = res?.error || t("pdfFailedChat");
       }
     }
-  } catch (err: any) {
-    errorMsg.value = err.message || "An unexpected error occurred.";
+  } catch (err) {
+    errorMsg.value = err instanceof Error ? err.message : String(err);
   } finally {
     actionPending.value = false;
   }
@@ -929,37 +929,38 @@ async function triggerPrintableGeneration() {
 async function copyToClipboard(text: string) {
   try {
     await navigator.clipboard.writeText(text);
-    successMsg.value = "Instruction copied to clipboard! You can paste it in your active chat.";
+    successMsg.value = t("clipboardSuccess");
   } catch (err) {
-    errorMsg.value = "Failed to copy instruction to clipboard.";
+    errorMsg.value = t("clipboardFailed");
+    log.error("Clipboard copy failed", { error: err instanceof Error ? err.message : String(err) });
   }
 }
 
 // Subscriptions
-let unsub: (() => void) | null = null;
+let unsubSubscribe: (() => void) | null = null;
 onMounted(async () => {
   await loadData();
 
-  const args = props.selectedResult?.args as any;
+  const args = props.selectedResult?.args;
   // If the dashboard was opened as a result of saving settings, focus the settings tab
   if (args?.action === "saveSettings") {
     activeTab.value = "settings";
   }
 
   // If opened as the result of a new invoice candidate, automatically select it
-  const candidate = props.selectedResult?.jsonData?.candidate;
+  const candidate = props.selectedResult?.jsonData?.candidate as InvoiceCandidate | undefined;
   if (candidate?.candidateId) {
     selectedRecordId.value = candidate.candidateId;
     isCandidate.value = true;
   }
 
-  unsub = pubsub.subscribe("changed", () => {
-    loadData();
+  unsubSubscribe = pubsub.subscribe("changed", () => {
+    void loadData();
   });
 });
 
 onUnmounted(() => {
-  if (unsub) unsub();
+  if (unsubSubscribe) unsubSubscribe();
 });
 </script>
 

@@ -414,7 +414,7 @@ function convertProvidedDefault(field: FormField, provided: any): any {
   }
   if (field.type === "checkbox") {
     if (!Array.isArray(provided)) return [];
-    return provided.map((val: any) => field.choices.findIndex((choice) => matchChoice(choice, val))).filter((idx: number) => idx !== -1);
+    return provided.map((val: unknown) => field.choices.findIndex((choice) => matchChoice(choice, val))).filter((idx: number) => idx !== -1);
   }
   return provided;
 }

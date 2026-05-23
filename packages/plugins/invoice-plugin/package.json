@@ -23,7 +23,8 @@
   ],
   "scripts": {
     "build": "vite build",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "echo 'Note: invoice-plugin integration tests run from the monorepo root'"
   },
   "peerDependencies": {
     "gui-chat-protocol": "^0.3.0",

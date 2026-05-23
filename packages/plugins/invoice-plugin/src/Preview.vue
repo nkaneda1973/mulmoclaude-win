@@ -3,20 +3,22 @@
     <div class="flex items-center justify-between gap-3 flex-wrap">
       <div class="flex items-center gap-2 flex-wrap">
         <div class="flex items-center gap-1">
-          <span
-            >Invoices: <strong class="font-extrabold text-slate-900">{{ invoices.length }}</strong></span
-          >
+          <span>
+            {{ t("previewInvoicesLabel") }}
+            <strong class="font-extrabold text-slate-900">{{ invoices.length }}</strong>
+          </span>
         </div>
-        <span class="text-slate-300">|</span>
+        <span class="text-slate-300" v-text="separator"></span>
         <div class="flex items-center gap-1">
-          <span
-            >Unpaid: <strong class="font-extrabold text-slate-900">{{ unpaidCount }}</strong></span
-          >
+          <span>
+            {{ t("previewUnpaidLabel") }}
+            <strong class="font-extrabold text-slate-900">{{ unpaidCount }}</strong>
+          </span>
         </div>
       </div>
       <div v-if="candidates.length > 0" class="flex items-center gap-1 shrink-0 text-[10px]">
         <span class="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" aria-hidden="true"></span>
-        <span class="font-bold text-amber-700">{{ candidates.length }} Drafts</span>
+        <span class="font-bold text-amber-700">{{ candidates.length }} {{ t("previewDraftsLabel") }}</span>
       </div>
     </div>
   </div>
@@ -26,6 +28,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRuntime } from "gui-chat-protocol/vue";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
+import { useT } from "./lang";
 import type { Invoice, InvoiceCandidate } from "./types";
 
 interface ListResponse {
@@ -36,7 +39,15 @@ interface ListResponse {
   };
 }
 
-const props = defineProps<{ result: ToolResultComplete<any> }>();
+const props = defineProps<{ result: ToolResultComplete<Record<string, unknown>> }>();
+
+const separator = "|";
+const messages = useT();
+
+// eslint-disable-next-line id-length
+function t(key: keyof typeof messages.value): string {
+  return messages.value[key];
+}
 
 const invoices = ref<Invoice[]>([]);
 const candidates = ref<InvoiceCandidate[]>([]);
@@ -74,7 +85,5 @@ watch(
   },
 );
 
-const unpaidCount = computed(() => {
-  return invoices.value.filter((i) => i.status === "approved").length;
-});
+const unpaidCount = computed(() => invoices.value.filter((i) => i.status === "approved").length);
 </script>

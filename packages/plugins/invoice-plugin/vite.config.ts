@@ -9,7 +9,7 @@ export default defineConfig({
       include: ["src/**/*.{ts,vue}"],
       outDir: "dist",
       entryRoot: "src",
-      compilerOptions: { rootDir: "../.." },
+      compilerOptions: { rootDir: "../../.." },
     }),
   ],
   build: {
@@ -19,7 +19,7 @@ export default defineConfig({
       fileName: (_format, entryName) => `${entryName}.js`,
     },
     rollupOptions: {
-      external: ["vue", "gui-chat-protocol/vue"],
+      external: ["vue", "gui-chat-protocol/vue", "node:os", "node:path", "node:fs/promises"],
       output: {
         assetFileNames: (assetInfo) => {
           if (assetInfo.name?.endsWith(".css")) return "style.css";
