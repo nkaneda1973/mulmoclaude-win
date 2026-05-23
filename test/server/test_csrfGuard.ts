@@ -10,6 +10,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import type { Request, Response, NextFunction } from "express";
 import { isAllowedOrigin, isLocalhostOrigin, isTrustedOrigin, requireSameOrigin, requireSameOriginWith } from "../../server/api/csrfGuard.js";
+import { type FakeReq, type FakeRes, makeReq, makeReqWithRawOrigin, makeRes } from "./helpers/fakeExpressMiddleware.js";
 
 // --- isLocalhostOrigin: the pure check --------------------------
 
@@ -120,46 +121,6 @@ describe("isLocalhostOrigin — rejects everything else", () => {
 });
 
 // --- requireSameOrigin: Express middleware behaviour ------------
-
-// Minimal fake Request/Response/NextFunction for middleware
-// testing — avoids pulling in supertest. The `headers` value type
-// is intentionally widened to `unknown` so tests can simulate
-// header-smuggling-style malformed values (e.g. an array Origin)
-// even though Express's runtime type is `string | string[]`.
-interface FakeReq {
-  method: string;
-  headers: Record<string, unknown>;
-}
-
-interface FakeRes {
-  statusCode: number;
-  body: unknown;
-  status: (code: number) => FakeRes;
-  json: (payload: unknown) => FakeRes;
-}
-
-function makeReq(method: string, origin?: string): FakeReq {
-  return {
-    method,
-    headers: origin === undefined ? {} : { origin },
-  };
-}
-
-function makeRes(): FakeRes {
-  const res: FakeRes = {
-    statusCode: 200,
-    body: undefined,
-    status(code) {
-      this.statusCode = code;
-      return this;
-    },
-    json(payload) {
-      this.body = payload;
-      return this;
-    },
-  };
-  return res;
-}
 
 // Baseline middleware fixture: a `requireSameOriginWith([])` instance
 // rather than the env-bound `requireSameOrigin` export. The baseline
@@ -465,13 +426,6 @@ describe("requireSameOriginWith — trusted-origins allowlist wiring", () => {
 // guard treats those as present-but-untrustworthy: the localhost-
 // binding trust argument only covers the genuine *missing*-Origin
 // path, not multi-valued / non-string values.
-
-function makeReqWithRawOrigin(method: string, rawOrigin: unknown): FakeReq {
-  return {
-    method,
-    headers: { origin: rawOrigin },
-  };
-}
 
 describe("requireSameOriginWith — malformed Origin (non-string / array)", () => {
   const trusted = ["http://192.168.1.42:5173"] as const;
