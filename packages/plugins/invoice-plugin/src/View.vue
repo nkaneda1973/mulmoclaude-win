@@ -226,22 +226,8 @@
               </div>
             </div>
 
-            <!-- View Modes Tabs -->
-            <div class="view-mode-tabs" style="justify-content: space-between; align-items: center;">
-              <div style="display: flex;">
-                <button type="button" class="view-mode-btn" :class="{ active: viewMode === 'details' }" @click="viewMode = 'details'">Line Items</button>
-                <button type="button" class="view-mode-btn" :class="{ active: viewMode === 'preview' }" @click="viewMode = 'preview'">
-                  Printable Layout Preview
-                </button>
-              </div>
-              <button v-if="viewMode === 'preview'" type="button" class="btn btn-indigo" @click="printInvoice" style="padding: 0.3rem 0.75rem; font-size: 0.75rem; display: flex; align-items: center; gap: 0.35rem; margin-bottom: 4px;">
-                <span class="material-icons" style="font-size: 0.95rem;">picture_as_pdf</span>
-                Print / Save PDF
-              </button>
-            </div>
-
-            <!-- Details Content Mode -->
-            <div v-if="viewMode === 'details'" class="items-view-pane">
+            <!-- Line Items Details Pane -->
+            <div class="items-view-pane" style="margin-top: 1rem;">
               <table class="items-table">
                 <thead>
                   <tr>
@@ -282,14 +268,6 @@
               <div v-if="selectedRecord.notes" class="notes-section">
                 <h4 class="section-title">Memo / Internal Notes</h4>
                 <p class="notes-content">{{ selectedRecord.notes }}</p>
-              </div>
-            </div>
-
-            <!-- Printable Layout Preview Mode -->
-            <div v-else class="preview-view-pane">
-              <div class="markdown-preview-container">
-                <!-- eslint-disable-next-line vue/no-v-html -- render compiled template verbatim -->
-                <div class="markdown-body invoice-markdown-body" v-html="renderedInvoiceTemplate"></div>
               </div>
             </div>
           </div>
@@ -462,7 +440,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRuntime } from "gui-chat-protocol/vue";
-import { marked } from "marked";
 import type { Invoice, InvoiceCandidate, InvoiceSettings, ExtendedToolResultComplete } from "./types";
 import ConfirmModal from "../../shared/components/ConfirmModal.vue";
 import { useConfirm } from "../../shared/components/confirm";
@@ -477,7 +454,6 @@ const { openConfirm } = useConfirm();
 
 // UI Navigation and alerts
 const activeTab = ref<"invoices" | "settings">("invoices");
-const viewMode = ref<"details" | "preview">("details");
 const successMsg = ref("");
 const errorMsg = ref("");
 const copyInstructionText = ref("");
@@ -539,219 +515,6 @@ const recordStatus = computed(() => {
 const recordPaymentRef = computed(() => {
   if (!selectedRecord.value || isCandidate.value) return undefined;
   return (selectedRecord.value as Invoice).paymentRef;
-});
-
-// Setup dynamic printable invoice compiler preview
-// Setup dynamic printable invoice compiler preview
-const rawInvoiceMarkdown = computed(() => {
-  const record = selectedRecord.value;
-  if (!record) return "";
-
-  const client = clients.value.find((c) => c.id === record.clientId || c.name === record.clientId);
-  const currency = client?.rate?.currency || "JPY";
-  const isJP = currency === "JPY";
-  const symbol = getCurrencySymbol(currency);
-
-  const clientName = getClientName(record.clientId);
-  const bankAccountTypeJa = settings.value.bankAccountType === "checking" ? "当座預金" : "普通預金";
-  const bankAccountTypeEn = settings.value.bankAccountType === "checking" ? "Checking" : "Ordinary";
-  const recordIdVal = isCandidate.value ? "(Draft)" : (record as Invoice).id;
-
-  let markdown = "";
-
-  if (isJP) {
-    const issueDateJa = formatDateJa(record.date);
-    const dueDateJa = formatDateJa(record.dueDate);
-
-    markdown = `
-<div style="font-family: 'Helvetica Neue', 'Hiragino Sans', sans-serif; padding: 20px; color: #2c3e50;">
-
-<div style="display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 3px solid #1a365d; padding-bottom: 12px; margin-bottom: 24px;">
-  <div>
-    <h1 style="font-size: 30px; letter-spacing: 6px; margin: 0; color: #1a365d; font-weight: 300;">INVOICE</h1>
-    <p style="margin: 2px 0 0; color: #718096; font-size: 12px; letter-spacing: 3px;">請　求　書</p>
-  </div>
-  <div style="text-align: right; font-size: 12px; color: #4a5568;">
-    <div><strong style="color:#1a365d;">No.</strong> ${recordIdVal}</div>
-    <div><strong style="color:#1a365d;">発行日:</strong> ${issueDateJa}</div>
-    <div><strong style="color:#1a365d;">支払期限:</strong> ${dueDateJa}</div>
-  </div>
-</div>
-
-<table style="width:100%; border:none; margin-bottom: 24px;">
-  <tr style="border:none;">
-    <td style="border:none; vertical-align: top; width: 55%; padding: 0;">
-      <div style="font-size: 10px; color: #718096; letter-spacing: 1px; margin-bottom: 6px;">BILL TO</div>
-      <div style="font-size: 18px; font-weight: 600; color: #1a365d; border-bottom: 1px solid #1a365d; padding-bottom: 4px; display: inline-block;">${clientName}　御中</div>
-      <p style="margin-top: 8px; color: #4a5568; font-size: 12px;">下記の通りご請求申し上げます。</p>
-    </td>
-    <td style="border:none; vertical-align: top; width: 45%; padding: 0 0 0 16px;">
-      <div style="background: rgba(255,255,255,0.05); border-left: 3px solid #1a365d; padding: 12px 16px; font-size: 12px; line-height: 1.6;">
-        <div style="font-size: 10px; color: #718096; letter-spacing: 1px; margin-bottom: 4px;">FROM</div>
-        <div style="font-weight: 600; color: #1a365d; font-size: 14px;">${settings.value.companyName || "(Issuer Name Not Set)"}</div>
-        <div style="color: #718096; font-size: 11px;">登録番号: ${settings.value.taxRegistrationId || "未登録"}</div>
-        <div style="margin-top: 4px;">〒${settings.value.postalCode || ""}</div>
-        <div>${settings.value.address || ""}</div>
-        <div style="margin-top: 4px; color: #4a5568;">${settings.value.email || ""}</div>
-      </div>
-    </td>
-  </tr>
-</table>
-
-<div style="font-size: 10px; color: #718096; letter-spacing: 1px; margin-bottom: 6px;">DETAILS</div>
-
-<table style="width: 100%; border-collapse: collapse; margin-bottom: 16px; font-size: 13px;">
-  <thead>
-    <tr style="border-bottom: 2px solid #1a365d; color: #1a365d;">
-      <th style="padding: 8px; text-align: left;">品目 / Description</th>
-      <th style="padding: 8px; text-align: center; width: 80px;">数量 / Qty</th>
-      <th style="padding: 8px; text-align: right; width: 120px;">金額 / Amount</th>
-    </tr>
-  </thead>
-  <tbody>
-    ${record.items
-      .map(
-        (item: any) => `<tr style="border-bottom:1px solid rgba(0,0,0,0.08);"><td style="padding:8px;">${item.description}</td><td style="padding:8px;text-align:center;">${item.quantity}</td><td style="padding:8px;text-align:right;">¥${item.amount.toLocaleString()}</td></tr>`
-      )
-      .join("")}
-  </tbody>
-</table>
-
-<table style="width:100%; border:none; margin-top: 12px;">
-  <tr style="border:none;">
-    <td style="border:none; width: 55%;"></td>
-    <td style="border:none; width: 45%; padding: 0;">
-      <table style="width:100%; border-collapse: collapse; font-size: 13px;">
-        <tr>
-          <td style="padding: 6px 12px; color: #718096;">小計</td>
-          <td style="padding: 6px 12px; text-align: right;">¥${record.subtotal.toLocaleString()}</td>
-        </tr>
-        <tr style="border-bottom: 1px solid rgba(0,0,0,0.08);">
-          <td style="padding: 6px 12px; color: #718096;">消費税 (10%)</td>
-          <td style="padding: 6px 12px; text-align: right;">¥${record.tax.toLocaleString()}</td>
-        </tr>
-        <tr style="background: #1a365d; color: white;">
-          <td style="padding: 10px 12px; font-weight: 600;">合計 / TOTAL</td>
-          <td style="padding: 10px 12px; text-align: right; font-size: 16px; font-weight: 600;">¥${record.total.toLocaleString()}</td>
-        </tr>
-      </table>
-    </td>
-  </tr>
-</table>
-
-<div style="margin-top: 24px; background: rgba(255,255,255,0.03); padding: 16px 20px; border-radius: 4px; font-size: 12px;">
-  <div style="font-size: 10px; color: #718096; letter-spacing: 1px; margin-bottom: 4px;">PAYMENT</div>
-  <div style="font-size: 14px; color: #1a365d;"><strong>${settings.value.bankName || ""} ${settings.value.bankBranch || ""}</strong></div>
-  <div style="color: #4a5568; margin-top: 2px;">${bankAccountTypeJa}　${settings.value.bankAccountNumber || ""}　／　${settings.value.bankAccountHolder || ""}</div>
-</div>
-
-<div style="margin-top: 16px; padding-top: 12px; border-top: 1px solid rgba(0,0,0,0.05); font-size: 10px; color: #a0aec0; text-align: center;">
-  お振込手数料は貴社にてご負担くださいますようお願い申し上げます。<br>
-  ご不明な点がございましたら上記メールアドレスまでご連絡ください。
-</div>
-
-</div>
-    `;
-  } else {
-    const issueDateEn = formatDateEn(record.date);
-    const dueDateEn = formatDateEn(record.dueDate);
-
-    markdown = `
-<div style="font-family: 'Helvetica Neue', 'Arial', sans-serif; padding: 20px; color: #2c3e50;">
-
-<div style="display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 3px solid #1a365d; padding-bottom: 12px; margin-bottom: 24px;">
-  <div>
-    <h1 style="font-size: 30px; letter-spacing: 6px; margin: 0; color: #1a365d; font-weight: 300;">INVOICE</h1>
-    <p style="margin: 2px 0 0; color: #718096; font-size: 12px; letter-spacing: 2px;">BILLING INVOICE</p>
-  </div>
-  <div style="text-align: right; font-size: 12px; color: #4a5568;">
-    <div><strong style="color:#1a365d;">Invoice No.</strong> ${recordIdVal}</div>
-    <div><strong style="color:#1a365d;">Date Issued:</strong> ${issueDateEn}</div>
-    <div><strong style="color:#1a365d;">Due Date:</strong> ${dueDateEn}</div>
-  </div>
-</div>
-
-<table style="width:100%; border:none; margin-bottom: 24px;">
-  <tr style="border:none;">
-    <td style="border:none; vertical-align: top; width: 55%; padding: 0;">
-      <div style="font-size: 10px; color: #718096; letter-spacing: 1px; margin-bottom: 6px;">BILL TO</div>
-      <div style="font-size: 18px; font-weight: 600; color: #1a365d; border-bottom: 1px solid #1a365d; padding-bottom: 4px; display: inline-block;">${clientName}</div>
-      <p style="margin-top: 8px; color: #4a5568; font-size: 12px;">Thank you for your business. Please find your billing details below:</p>
-    </td>
-    <td style="border:none; vertical-align: top; width: 45%; padding: 0 0 0 16px;">
-      <div style="background: rgba(255,255,255,0.05); border-left: 3px solid #1a365d; padding: 12px 16px; font-size: 12px; line-height: 1.6;">
-        <div style="font-size: 10px; color: #718096; letter-spacing: 1px; margin-bottom: 4px;">FROM</div>
-        <div style="font-weight: 600; color: #1a365d; font-size: 14px;">${settings.value.companyName || "(Issuer Name Not Set)"}</div>
-        ${settings.value.taxRegistrationId ? `<div style="color: #718096; font-size: 11px;">Tax ID: ${settings.value.taxRegistrationId}</div>` : ""}
-        <div style="margin-top: 4px;">ZIP Code: ${settings.value.postalCode || ""}</div>
-        <div>${settings.value.address || ""}</div>
-        <div style="margin-top: 4px; color: #4a5568;">${settings.value.email || ""}</div>
-      </div>
-    </td>
-  </tr>
-</table>
-
-<div style="font-size: 10px; color: #718096; letter-spacing: 1px; margin-bottom: 6px;">DETAILS</div>
-
-<table style="width: 100%; border-collapse: collapse; margin-bottom: 16px; font-size: 13px;">
-  <thead>
-    <tr style="border-bottom: 2px solid #1a365d; color: #1a365d;">
-      <th style="padding: 8px; text-align: left;">Item Description</th>
-      <th style="padding: 8px; text-align: center; width: 80px;">Qty</th>
-      <th style="padding: 8px; text-align: right; width: 120px;">Amount</th>
-    </tr>
-  </thead>
-  <tbody>
-    ${record.items
-      .map(
-        (item: any) => `<tr style="border-bottom:1px solid rgba(0,0,0,0.08);"><td style="padding:8px;">${item.description}</td><td style="padding:8px;text-align:center;">${item.quantity}</td><td style="padding:8px;text-align:right;">${symbol}${item.amount.toLocaleString()}</td></tr>`
-      )
-      .join("")}
-  </tbody>
-</table>
-
-<table style="width:100%; border:none; margin-top: 12px;">
-  <tr style="border:none;">
-    <td style="border:none; width: 55%;"></td>
-    <td style="border:none; width: 45%; padding: 0;">
-      <table style="width:100%; border-collapse: collapse; font-size: 13px;">
-        <tr>
-          <td style="padding: 6px 12px; color: #718096;">Subtotal</td>
-          <td style="padding: 6px 12px; text-align: right;">${symbol}${record.subtotal.toLocaleString()}</td>
-        </tr>
-        <tr style="border-bottom: 1px solid rgba(0,0,0,0.08);">
-          <td style="padding: 6px 12px; color: #718096;">Tax (0%)</td>
-          <td style="padding: 6px 12px; text-align: right;">${symbol}0</td>
-        </tr>
-        <tr style="background: #1a365d; color: white;">
-          <td style="padding: 10px 12px; font-weight: 600;">TOTAL DUE</td>
-          <td style="padding: 10px 12px; text-align: right; font-size: 16px; font-weight: 600;">${symbol}${record.total.toLocaleString()}</td>
-        </tr>
-      </table>
-    </td>
-  </tr>
-</table>
-
-<div style="margin-top: 24px; background: rgba(255,255,255,0.03); padding: 16px 20px; border-radius: 4px; font-size: 12px;">
-  <div style="font-size: 10px; color: #718096; letter-spacing: 1px; margin-bottom: 4px;">SETTLEMENT DETAILS</div>
-  <div style="font-size: 14px; color: #1a365d;"><strong>${settings.value.bankName || ""} ${settings.value.bankBranch || ""}</strong></div>
-  <div style="color: #4a5568; margin-top: 2px;">${bankAccountTypeEn} Account　No. ${settings.value.bankAccountNumber || ""}　/　Holder: ${settings.value.bankAccountHolder || ""}</div>
-</div>
-
-<div style="margin-top: 16px; padding-top: 12px; border-top: 1px solid rgba(0,0,0,0.05); font-size: 10px; color: #a0aec0; text-align: center;">
-  Transfer fees shall be borne by the payer.<br>
-  For any inquiries regarding this statement, please contact the email address listed above.
-</div>
-
-</div>
-    `;
-  }
-
-  return markdown;
-});
-
-const renderedInvoiceTemplate = computed(() => {
-  return marked.parse(rawInvoiceMarkdown.value);
 });
 
 // Load all details in one swoop
@@ -848,7 +611,6 @@ function getCurrencySymbol(currency: string): string {
 function selectRecord(record: any, candMode: boolean) {
   selectedRecordId.value = candMode ? record.candidateId : record.id;
   isCandidate.value = candMode;
-  viewMode.value = "details";
 }
 
 // Write-actions
@@ -1136,74 +898,6 @@ async function copyToClipboard(text: string) {
   }
 }
 
-function printInvoice() {
-  const record = selectedRecord.value;
-  if (!record) return;
-
-  const invoiceHtml = `
-    <!DOCTYPE html>
-    <html>
-      <head>
-        <title>Invoice - ${recordId.value}</title>
-        <meta charset="utf-8">
-        <style>
-          @page {
-            size: A4;
-            margin: 1.5cm;
-          }
-          body {
-            margin: 0;
-            padding: 0;
-            background: #ffffff;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            color: #2c3e50;
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
-          }
-          /* Override any custom components to look standard and premium in print */
-          table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 24px;
-          }
-          th, td {
-            padding: 8px;
-            text-align: left;
-          }
-          th {
-            border-bottom: 2px solid #1a365d;
-            color: #1a365d;
-          }
-          td {
-            border-bottom: 1px solid rgba(0, 0, 0, 0.08);
-          }
-        </style>
-      </head>
-      <body>
-        <div>
-          ${renderedInvoiceTemplate.value}
-        </div>
-        <script>
-          window.onload = function() {
-            setTimeout(function() {
-              window.print();
-              setTimeout(function() { window.close(); }, 500);
-            }, 300);
-          }
-        <\/script>
-      </body>
-    </html>
-  `;
-
-  const printWindow = window.open("", "_blank");
-  if (printWindow) {
-    printWindow.document.open();
-    printWindow.document.write(invoiceHtml);
-    printWindow.document.close();
-  } else {
-    errorMsg.value = "Failed to open print window. Please allow popup windows for this application.";
-  }
-}
 
 // Subscriptions
 let unsub: (() => void) | null = null;
