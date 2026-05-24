@@ -16,7 +16,7 @@ import type { CollectionDetail, CollectionSchema, CollectionSource, CollectionSu
 
 const FieldSpecSchema = z
   .object({
-    type: z.enum(["string", "text", "email", "number", "date", "boolean", "markdown", "ref"]),
+    type: z.enum(["string", "text", "email", "number", "date", "boolean", "markdown", "ref", "money", "enum"]),
     label: z.string().min(1),
     primary: z.boolean().optional(),
     required: z.boolean().optional(),
@@ -25,6 +25,11 @@ const FieldSpecSchema = z
      *  first-class discriminated union for this shape; refine is
      *  the standard escape hatch). */
     to: z.string().min(1).optional(),
+    /** ISO 4217 currency code, optional iff type === "money".
+     *  Defaults to "USD" client-side when omitted. */
+    currency: z.string().min(1).optional(),
+    /** Closed list of allowed strings, required iff type === "enum". */
+    values: z.array(z.string().min(1)).min(1).optional(),
   })
   .refine(
     (spec) => {
@@ -44,7 +49,11 @@ const FieldSpecSchema = z
       message: "fields with type 'ref' must declare a `to` that is a valid collection slug (alphanumeric / hyphen / underscore, no path separators)",
       path: ["to"],
     },
-  );
+  )
+  .refine((spec) => spec.type !== "enum" || (Array.isArray(spec.values) && spec.values.length > 0), {
+    message: "fields with type 'enum' must declare a non-empty `values` array of allowed strings",
+    path: ["values"],
+  });
 
 const CollectionSchemaZ = z.object({
   title: z.string().min(1),

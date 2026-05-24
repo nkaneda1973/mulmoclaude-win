@@ -63,6 +63,7 @@
                   >{{ refDisplay(field.to, String(item[key])) }}</router-link
                 >
               </span>
+              <span v-else-if="field.type === 'money'" class="block truncate tabular-nums">{{ formatMoney(item[key], field.currency, locale) }}</span>
               <span v-else class="block truncate">{{ formatCell(item[key], field.type) }}</span>
             </td>
             <td class="px-4 py-2 text-right whitespace-nowrap">
@@ -133,14 +134,26 @@
               class="w-full rounded border border-gray-300 px-2 py-1 text-sm focus:border-blue-400 focus:outline-none"
               :data-testid="`collections-input-${key}`"
             >
-              <option value="">{{ t("collectionsView.refPlaceholder") }}</option>
+              <option value="">{{ t("collectionsView.selectPlaceholder") }}</option>
               <option v-for="opt in refOptions(field.to)" :key="opt.slug" :value="opt.slug">{{ opt.display }}</option>
             </select>
+            <select
+              v-else-if="field.type === 'enum' && Array.isArray(field.values) && field.values.length > 0"
+              :id="`collections-field-${key}`"
+              v-model="editing.text[key]"
+              :required="isFieldRequiredInUi(field)"
+              class="w-full rounded border border-gray-300 px-2 py-1 text-sm focus:border-blue-400 focus:outline-none"
+              :data-testid="`collections-input-${key}`"
+            >
+              <option value="">{{ t("collectionsView.selectPlaceholder") }}</option>
+              <option v-for="value in field.values" :key="value" :value="value">{{ value }}</option>
+            </select>
             <input
-              v-else-if="['string', 'email', 'number', 'date', 'ref'].includes(field.type)"
+              v-else-if="['string', 'email', 'number', 'date', 'ref', 'money'].includes(field.type)"
               :id="`collections-field-${key}`"
               v-model="editing.text[key]"
               :type="inputTypeFor(field.type)"
+              :step="field.type === 'money' ? '0.01' : undefined"
               :required="isFieldRequiredInUi(field)"
               :disabled="field.primary === true && editing.mode === 'edit'"
               class="w-full rounded border border-gray-300 px-2 py-1 text-sm focus:border-blue-400 focus:outline-none disabled:bg-gray-100 disabled:text-gray-500"
@@ -190,7 +203,7 @@ import { PAGE_ROUTES } from "../router/pageRoutes";
 import ConfirmModal from "./ConfirmModal.vue";
 import { useConfirm } from "../composables/useConfirm";
 
-type FieldType = "string" | "text" | "email" | "number" | "date" | "boolean" | "markdown" | "ref";
+type FieldType = "string" | "text" | "email" | "number" | "date" | "boolean" | "markdown" | "ref" | "money" | "enum";
 
 interface FieldSpec {
   type: FieldType;
@@ -198,8 +211,14 @@ interface FieldSpec {
   primary?: boolean;
   required?: boolean;
   /** When type === "ref": slug of the target collection (see
-   *  plans/feat-collections-ref-field.md). */
+   *  plans/done/feat-collections-ref-field.md). */
   to?: string;
+  /** When type === "money": ISO 4217 currency for Intl display.
+   *  Defaults to "USD" when omitted. */
+  currency?: string;
+  /** When type === "enum": closed list of allowed string values
+   *  for the form `<select>`. */
+  values?: readonly string[];
 }
 
 /** Per-target-collection cache: maps an item's primary-key slug to
@@ -269,7 +288,7 @@ interface EditState {
   originalId: string | null;
 }
 
-const { t } = useI18n();
+const { t, locale } = useI18n();
 const route = useRoute();
 const router = useRouter();
 const { openConfirm } = useConfirm();
@@ -383,6 +402,7 @@ function refOptions(targetSlug: string): { slug: string; display: string }[] {
 function inputTypeFor(type: FieldType): string {
   if (type === "email") return "email";
   if (type === "number") return "number";
+  if (type === "money") return "number";
   if (type === "date") return "date";
   return "text";
 }
@@ -405,6 +425,27 @@ function formatCell(value: unknown, type: FieldType): string {
   }
   if (typeof value === "string" || typeof value === "number") return String(value);
   return JSON.stringify(value);
+}
+
+/** Format a money value via `Intl.NumberFormat`. Falls back to the
+ *  raw number on any failure (unknown currency code, non-finite
+ *  amount, etc.) so a malformed record still renders something
+ *  rather than blowing up the row. Locale comes from the active
+ *  i18n locale so digit grouping / decimal separator follow the
+ *  user's settings even though the currency is declared by the
+ *  schema. `money` is the table-cell branch; the form uses a
+ *  plain `<input type="number" step="0.01">` so the editor stays
+ *  language-agnostic for input. */
+function formatMoney(value: unknown, currency: string | undefined, displayLocale: string): string {
+  if (value === undefined || value === null || value === "") return "—";
+  const amount = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(amount)) return String(value);
+  const currencyCode = currency && currency.length > 0 ? currency : "USD";
+  try {
+    return new Intl.NumberFormat(displayLocale, { style: "currency", currency: currencyCode }).format(amount);
+  } catch {
+    return String(amount);
+  }
 }
 
 function openCreate(): void {
@@ -490,7 +531,7 @@ function draftToRecord(state: EditState, schema: CollectionSchema): CollectionIt
     }
     const raw = state.text[key];
     if (raw === undefined || raw === "") continue;
-    if (field.type === "number") {
+    if (field.type === "number" || field.type === "money") {
       const num = Number(raw);
       record[key] = Number.isFinite(num) ? num : raw;
     } else {

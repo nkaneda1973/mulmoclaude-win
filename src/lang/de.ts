@@ -1342,7 +1342,7 @@ const deMessages = {
     notFound: "Sammlung nicht gefunden",
     loadFailed: "Laden fehlgeschlagen",
     requiredField: "Dieses Feld ist erforderlich",
-    refPlaceholder: "Auswählen…",
+    selectPlaceholder: "Auswählen…",
     source: {
       user: "Benutzer",
       project: "Projekt",

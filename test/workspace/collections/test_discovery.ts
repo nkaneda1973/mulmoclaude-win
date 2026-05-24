@@ -167,6 +167,88 @@ describe("discoverCollections — field-type support", () => {
     const collections = await listCollections();
     assert.equal(collections.length, 0);
   });
+
+  // PR-B: money + enum field types.
+
+  it("accepts a schema using `money` with and without an explicit currency", async () => {
+    writeSkill("test-money", {
+      title: "Money",
+      icon: "payments",
+      dataPath: "data/money/items",
+      primaryKey: "id",
+      fields: {
+        id: { type: "string", label: "ID", primary: true, required: true },
+        rateUsd: { type: "money", currency: "USD", label: "Rate (USD)" },
+        rateDefault: { type: "money", label: "Rate (default currency)" },
+      },
+    });
+    const collections = await listCollections();
+    assert.equal(collections.length, 1);
+    assert.equal(collections[0]?.schema.fields.rateUsd?.type, "money");
+    assert.equal(collections[0]?.schema.fields.rateUsd?.currency, "USD");
+    assert.equal(collections[0]?.schema.fields.rateDefault?.currency, undefined);
+  });
+
+  it("rejects a schema with `money` whose `currency` is empty", async () => {
+    writeSkill("test-money-empty-currency", {
+      title: "Money",
+      icon: "payments",
+      dataPath: "data/moneybad/items",
+      primaryKey: "id",
+      fields: {
+        id: { type: "string", label: "ID", primary: true, required: true },
+        rate: { type: "money", currency: "", label: "Rate" }, // empty string fails min(1)
+      },
+    });
+    const collections = await listCollections();
+    assert.equal(collections.length, 0);
+  });
+
+  it("accepts a schema using `enum` with a non-empty `values` array", async () => {
+    writeSkill("test-enum-ok", {
+      title: "Invoice-like",
+      icon: "list",
+      dataPath: "data/enumok/items",
+      primaryKey: "id",
+      fields: {
+        id: { type: "string", label: "ID", primary: true, required: true },
+        status: { type: "enum", values: ["draft", "sent", "paid", "void"], label: "Status", required: true },
+      },
+    });
+    const collections = await listCollections();
+    assert.equal(collections.length, 1);
+    assert.deepEqual(collections[0]?.schema.fields.status?.values, ["draft", "sent", "paid", "void"]);
+  });
+
+  it("rejects a schema with `enum` but no `values`", async () => {
+    writeSkill("test-enum-no-values", {
+      title: "Bad Enum",
+      icon: "warning",
+      dataPath: "data/enumbad/items",
+      primaryKey: "id",
+      fields: {
+        id: { type: "string", label: "ID", primary: true, required: true },
+        status: { type: "enum", label: "Status" }, // missing `values`
+      },
+    });
+    const collections = await listCollections();
+    assert.equal(collections.length, 0);
+  });
+
+  it("rejects a schema with `enum` whose `values` is an empty array", async () => {
+    writeSkill("test-enum-empty", {
+      title: "Bad Enum",
+      icon: "warning",
+      dataPath: "data/enumempty/items",
+      primaryKey: "id",
+      fields: {
+        id: { type: "string", label: "ID", primary: true, required: true },
+        status: { type: "enum", values: [], label: "Status" },
+      },
+    });
+    const collections = await listCollections();
+    assert.equal(collections.length, 0);
+  });
 });
 
 describe("discoverCollections — structural validation", () => {

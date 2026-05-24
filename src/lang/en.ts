@@ -1324,7 +1324,7 @@ const enMessages = {
     notFound: "Collection not found",
     loadFailed: "Failed to load",
     requiredField: "This field is required",
-    refPlaceholder: "Select…",
+    selectPlaceholder: "Select…",
     source: {
       user: "User",
       project: "Project",

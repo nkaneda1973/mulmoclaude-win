@@ -11,7 +11,7 @@
 // plans/done/feat-skill-driven-apps-worklog.md — historical names predate
 // the rename).
 
-export type CollectionFieldType = "string" | "text" | "email" | "number" | "date" | "boolean" | "markdown" | "ref";
+export type CollectionFieldType = "string" | "text" | "email" | "number" | "date" | "boolean" | "markdown" | "ref" | "money" | "enum";
 
 export type CollectionSource = "user" | "project";
 
@@ -30,6 +30,17 @@ export interface CollectionFieldSpec {
    *  (future) validate referential integrity. Required when type
    *  is `ref`; ignored on every other type. */
   to?: string;
+  /** When `type === "money"`: ISO 4217 currency code passed to
+   *  `Intl.NumberFormat` for table display (e.g. "USD", "JPY",
+   *  "EUR"). Defaults to "USD" when omitted. The stored value is
+   *  always a plain decimal number — currency is presentation only.
+   *  Ignored on non-money types. */
+  currency?: string;
+  /** When `type === "enum"`: the closed set of allowed string
+   *  values. The form renders a `<select>` populated from this
+   *  list; storage is a plain string. Required when type is
+   *  `enum`; ignored on every other type. */
+  values?: readonly string[];
 }
 
 export interface CollectionSchema {
