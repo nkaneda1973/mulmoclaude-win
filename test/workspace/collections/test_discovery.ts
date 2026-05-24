@@ -70,19 +70,51 @@ describe("discoverCollections — field-type support", () => {
     assert.equal(collections[0]?.schema.fields.active?.type, "boolean");
   });
 
-  it("rejects a schema with an unknown field type (still v0)", async () => {
-    writeSkill("test-ref-not-yet", {
-      title: "Ref",
+  it("accepts a schema using `ref` with a non-empty `to` (added in feat-collections-ref-field)", async () => {
+    writeSkill("test-ref-ok", {
+      title: "Worklog-like",
       icon: "link",
-      dataPath: "data/ref/items",
+      dataPath: "data/refok/items",
       primaryKey: "id",
       fields: {
         id: { type: "string", label: "ID", primary: true, required: true },
-        clientId: { type: "ref", label: "Client" }, // ref is deferred
+        clientId: { type: "ref", to: "mc-clients", label: "Client", required: true },
       },
     });
     const collections = await listCollections();
-    assert.equal(collections.length, 0, "schema with unsupported field type must be skipped");
+    assert.equal(collections.length, 1);
+    assert.equal(collections[0]?.schema.fields.clientId?.type, "ref");
+    assert.equal(collections[0]?.schema.fields.clientId?.to, "mc-clients");
+  });
+
+  it("rejects a schema with `ref` but no `to`", async () => {
+    writeSkill("test-ref-bad", {
+      title: "Broken Ref",
+      icon: "link",
+      dataPath: "data/refbad/items",
+      primaryKey: "id",
+      fields: {
+        id: { type: "string", label: "ID", primary: true, required: true },
+        clientId: { type: "ref", label: "Client" }, // missing `to`
+      },
+    });
+    const collections = await listCollections();
+    assert.equal(collections.length, 0, "schema with type:ref but no `to` must be skipped");
+  });
+
+  it("rejects a schema with an unknown field type", async () => {
+    writeSkill("test-unknown-type", {
+      title: "Unknown",
+      icon: "warning",
+      dataPath: "data/unknown/items",
+      primaryKey: "id",
+      fields: {
+        id: { type: "string", label: "ID", primary: true, required: true },
+        weird: { type: "geocoord", label: "Geo" }, // not in v0 enum
+      },
+    });
+    const collections = await listCollections();
+    assert.equal(collections.length, 0);
   });
 });
 

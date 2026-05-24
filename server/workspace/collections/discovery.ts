@@ -14,12 +14,22 @@ import { USER_SKILLS_DIR, projectSkillsDir } from "../skills/paths.js";
 import { SCHEMA_FILE, resolveDataDir, safeSlugName } from "./paths.js";
 import type { CollectionDetail, CollectionSchema, CollectionSource, CollectionSummary } from "./types.js";
 
-const FieldSpecSchema = z.object({
-  type: z.enum(["string", "text", "email", "number", "date", "boolean", "markdown"]),
-  label: z.string().min(1),
-  primary: z.boolean().optional(),
-  required: z.boolean().optional(),
-});
+const FieldSpecSchema = z
+  .object({
+    type: z.enum(["string", "text", "email", "number", "date", "boolean", "markdown", "ref"]),
+    label: z.string().min(1),
+    primary: z.boolean().optional(),
+    required: z.boolean().optional(),
+    /** Target collection slug, required iff type === "ref". The
+     *  refine below enforces the cross-field rule (Zod has no
+     *  first-class discriminated union for this shape; refine is
+     *  the standard escape hatch). */
+    to: z.string().min(1).optional(),
+  })
+  .refine((spec) => spec.type !== "ref" || (typeof spec.to === "string" && spec.to.length > 0), {
+    message: "fields with type 'ref' must declare a non-empty `to` (target collection slug)",
+    path: ["to"],
+  });
 
 const CollectionSchemaZ = z.object({
   title: z.string().min(1),
