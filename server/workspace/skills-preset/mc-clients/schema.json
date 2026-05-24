@@ -23,6 +23,11 @@
       "type": "text",
       "label": "Address"
     },
+    "hourlyRate": {
+      "type": "money",
+      "currency": "USD",
+      "label": "Hourly rate"
+    },
     "notes": {
       "type": "markdown",
       "label": "Notes"

@@ -191,11 +191,24 @@
                         <option value="">{{ t("collectionsView.selectPlaceholder") }}</option>
                         <option v-for="opt in refOptions(subField.to)" :key="opt.slug" :value="opt.slug">{{ opt.display }}</option>
                       </select>
+                      <!-- money sub-field: same currency-prefix
+                           treatment as the top-level money input. -->
+                      <div v-else-if="subField.type === 'money'" class="relative">
+                        <span class="absolute inset-y-0 left-0 flex items-center pl-1 text-xs text-gray-500 pointer-events-none">{{
+                          currencySymbol(subField.currency)
+                        }}</span>
+                        <input
+                          v-model="row.text[subKey]"
+                          type="number"
+                          step="0.01"
+                          :required="subField.required"
+                          class="w-full rounded border border-gray-300 pl-6 pr-1 py-0.5 text-sm focus:border-blue-400 focus:outline-none"
+                        />
+                      </div>
                       <input
                         v-else
                         v-model="row.text[subKey]"
                         :type="inputTypeFor(subField.type)"
-                        :step="subField.type === 'money' ? '0.01' : undefined"
                         :required="subField.required"
                         class="w-full rounded border border-gray-300 px-1 py-0.5 text-sm focus:border-blue-400 focus:outline-none"
                       />
@@ -234,12 +247,28 @@
               class="w-full rounded border border-gray-200 bg-gray-50 px-2 py-1 text-sm text-gray-700"
               :data-testid="`collections-input-${key}`"
             />
+            <!-- money input: currency symbol as a left-pinned prefix
+                 so the user can see which currency they're typing
+                 into (the bare number input gave no visual hint). -->
+            <div v-else-if="field.type === 'money'" class="relative">
+              <span class="absolute inset-y-0 left-0 flex items-center pl-2 text-xs text-gray-500 pointer-events-none">{{
+                currencySymbol(field.currency)
+              }}</span>
+              <input
+                :id="`collections-field-${key}`"
+                v-model="editing.text[key]"
+                type="number"
+                step="0.01"
+                :required="isFieldRequiredInUi(field)"
+                class="w-full rounded border border-gray-300 pl-7 pr-2 py-1 text-sm focus:border-blue-400 focus:outline-none"
+                :data-testid="`collections-input-${key}`"
+              />
+            </div>
             <input
-              v-else-if="['string', 'email', 'number', 'date', 'ref', 'money'].includes(field.type)"
+              v-else-if="['string', 'email', 'number', 'date', 'ref'].includes(field.type)"
               :id="`collections-field-${key}`"
               v-model="editing.text[key]"
               :type="inputTypeFor(field.type)"
-              :step="field.type === 'money' ? '0.01' : undefined"
               :required="isFieldRequiredInUi(field)"
               :disabled="field.primary === true && editing.mode === 'edit'"
               class="w-full rounded border border-gray-300 px-2 py-1 text-sm focus:border-blue-400 focus:outline-none disabled:bg-gray-100 disabled:text-gray-500"
@@ -526,6 +555,23 @@ function inputTypeFor(type: FieldType): string {
   return "text";
 }
 
+/** Extract the localized currency symbol for a given ISO code
+ *  (`USD` → `$`, `JPY` → `¥`, `EUR` → `€`). Used in the form's
+ *  money input so the user can see which currency they're typing
+ *  into — the schema declares the code per-field, but a bare
+ *  number input gave no visual hint of currency. Falls back to
+ *  the raw code on any Intl failure. */
+function currencySymbol(currency: string | undefined): string {
+  const code = currency && currency.length > 0 ? currency : "USD";
+  try {
+    const parts = new Intl.NumberFormat(locale.value, { style: "currency", currency: code }).formatToParts(0);
+    const part = parts.find((entry) => entry.type === "currency");
+    return part?.value ?? code;
+  } catch {
+    return code;
+  }
+}
+
 /** Format a money value via `Intl.NumberFormat`. Falls back to the
  *  raw number on any failure (unknown currency code, non-finite
  *  amount, etc.) so a malformed record still renders something
@@ -534,7 +580,13 @@ function inputTypeFor(type: FieldType): string {
  *  user's settings even though the currency is declared by the
  *  schema. */
 function formatMoney(value: unknown, currency: string | undefined, displayLocale: string): string {
-  if (value === undefined || value === null || value === "") return "—";
+  // `null` is intentionally NOT in this guard — `derivedDisplay`
+  // short-circuits on null before calling here, and the table
+  // cell branch passes `item[key]` from JSON where missing keys
+  // arrive as `undefined`, not `null` (we never persist explicit
+  // null). CodeQL flagged the original `value === null` as
+  // unreachable; removed per github-code-quality on PR #1497.
+  if (value === undefined || value === "") return "—";
   const amount = typeof value === "number" ? value : Number(value);
   if (!Number.isFinite(amount)) return String(value);
   const currencyCode = currency && currency.length > 0 ? currency : "USD";
@@ -724,6 +776,31 @@ function rowDraftToRecord(rowDraft: TableRowDraft, subFields: Record<string, Fie
   return row;
 }
 
+/** Walk every row of a `table` field's draft, returning the label
+ *  of the first required sub-field that's empty in any row.
+ *  Returns null when every required cell is filled (or when no
+ *  rows / no required sub-fields exist).
+ *
+ *  Why this needs to exist: save is triggered via a `type="button"`
+ *  click that calls `saveEditor` directly, which skips native HTML5
+ *  form submission. The `:required` attributes on row inputs are
+ *  therefore never enforced by the browser — we have to enforce
+ *  them here. (Codex P1 review on PR #1497.) */
+function firstMissingTableSubField(field: FieldSpec, rows: TableRowDraft[] | undefined): string | null {
+  if (!field.of || !rows) return null;
+  for (let rowIdx = 0; rowIdx < rows.length; rowIdx++) {
+    const row = rows[rowIdx];
+    for (const [subKey, subField] of Object.entries(field.of)) {
+      if (!subField.required) continue;
+      // Boolean required is a no-op (same reasoning as the
+      // top-level skip below).
+      if (subField.type === "boolean") continue;
+      if (!row.text[subKey]) return `${field.label} #${rowIdx + 1}: ${subField.label}`;
+    }
+  }
+  return null;
+}
+
 /** Client-side required-field check. Returns the human-readable
  *  label of the first missing required field, or null if everything
  *  required is filled. Extracted from `saveEditor` to keep that
@@ -735,18 +812,29 @@ function rowDraftToRecord(rowDraft: TableRowDraft, subFields: Record<string, Fie
  *    "blank → server-generated id" flow even for schemas that mark
  *    the primary field required)
  *  - booleans (`false` is a valid answer; required is a no-op)
- *  - derived (computed, not user-entered) */
+ *  - derived (computed, not user-entered)
+ *
+ *  Table fields are special: their `required` flag means "at least
+ *  one row", AND each row's sub-fields validate per their own
+ *  `required` flags — even if the table itself is optional. The
+ *  table block therefore runs OUTSIDE the `if (!field.required)`
+ *  short-circuit. */
+function validateOneField(key: string, field: FieldSpec, draft: EditState): string | null {
+  if (field.type === "table" && field.of) {
+    const rows = draft.table[key];
+    if (field.required && (!rows || rows.length === 0)) return field.label;
+    return firstMissingTableSubField(field, rows);
+  }
+  if (!field.required) return null;
+  if (draft.mode === "create" && field.primary === true) return null;
+  if (field.type === "boolean" || field.type === "derived") return null;
+  return draft.text[key] ? null : field.label;
+}
+
 function firstMissingRequiredField(draft: EditState, schema: CollectionSchema): string | null {
   for (const [key, field] of Object.entries(schema.fields)) {
-    if (!field.required) continue;
-    if (draft.mode === "create" && field.primary === true) continue;
-    if (field.type === "boolean" || field.type === "derived") continue;
-    if (field.type === "table") {
-      const rows = draft.table[key];
-      if (!rows || rows.length === 0) return field.label;
-      continue;
-    }
-    if (!draft.text[key]) return field.label;
+    const missing = validateOneField(key, field, draft);
+    if (missing) return missing;
   }
   return null;
 }
@@ -778,17 +866,20 @@ const liveRecord = computed<CollectionItem | null>(() => {
   return draftToRecord(editing.value, collection.value.schema);
 });
 
-/** Evaluate a derived field's formula against the live draft,
- *  then evaluate any top-level fields that have downstream derived
- *  fields (subtotal → tax → total). Two-pass eval: first pass
- *  fills `subtotal` from the live record; second pass evaluates
- *  fields that reference subtotal (tax, total).
+/** Evaluate every derived field against `base`, iterating until
+ *  the values stop changing (or until we've used at most one pass
+ *  per derived field — the natural upper bound on chain length,
+ *  reached when the fields appear in worst-case dependency order
+ *  and each pass settles only one slot).
  *
- *  Three passes is enough for invoice's depth (subtotal → tax →
- *  total). If a future schema needs deeper chains, raise the cap. */
+ *  Per CodeRabbit on PR #1497: the previous hard-coded 3-pass
+ *  ceiling silently capped longer chains. The new bound is exact
+ *  for any DAG over derived fields and an early `break` on
+ *  fixed-point keeps the common-case cost the same. */
 function deriveAll(schema: CollectionSchema, base: CollectionItem): CollectionItem {
   const enriched: CollectionItem = { ...base };
-  for (let pass = 0; pass < 3; pass++) {
+  const maxPasses = Object.values(schema.fields).filter((field) => field.type === "derived").length;
+  for (let pass = 0; pass < maxPasses; pass++) {
     let mutated = false;
     for (const [key, field] of Object.entries(schema.fields)) {
       if (field.type !== "derived" || !field.formula) continue;

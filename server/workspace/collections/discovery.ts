@@ -52,8 +52,13 @@ const SubFieldSpecSchema = z
     label: z.string().min(1),
     required: z.boolean().optional(),
     to: z.string().min(1).optional(),
-    currency: z.string().min(1).optional(),
-    values: z.array(z.string().min(1)).min(1).optional(),
+    // `trim().min(1)` rather than bare `min(1)` so a whitespace-
+    // only string ("   ") fails validation — otherwise the cell
+    // formatter / dropdown would render visual blanks that look
+    // like missing data. Applied consistently to every "non-empty
+    // string" slot in the schema (CodeRabbit PR #1497).
+    currency: z.string().trim().min(1).optional(),
+    values: z.array(z.string().trim().min(1)).min(1).optional(),
   })
   .refine(refRefine, refMessage)
   .refine(enumRefine, enumMessage);
@@ -65,10 +70,10 @@ const FieldSpecSchema = z
     primary: z.boolean().optional(),
     required: z.boolean().optional(),
     to: z.string().min(1).optional(),
-    currency: z.string().min(1).optional(),
-    values: z.array(z.string().min(1)).min(1).optional(),
+    currency: z.string().trim().min(1).optional(),
+    values: z.array(z.string().trim().min(1)).min(1).optional(),
     of: z.record(z.string(), SubFieldSpecSchema).optional(),
-    formula: z.string().min(1).optional(),
+    formula: z.string().trim().min(1).optional(),
     /** Inner type to render a derived value as (e.g. `"money"`).
      *  Restricted to the non-composite display targets — derived
      *  values are scalars, so rendering them via `table` or another
