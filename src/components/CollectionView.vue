@@ -172,6 +172,7 @@
                         v-model="row.bool[subKey]"
                         type="checkbox"
                         class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-400"
+                        @change="markRowBoolTouched(row, String(subKey))"
                       />
                       <select
                         v-else-if="subField.type === 'enum' && Array.isArray(subField.values) && subField.values.length > 0"
@@ -385,10 +386,15 @@ interface ItemMutationResponse {
 /** One row of a `table`-typed field, in draft form. Same shape as
  *  a top-level EditState's `text`/`bool` slots but flat — v0
  *  disallows nested tables and derived columns, so a row never
- *  needs its own table/derived sub-buckets. */
+ *  needs its own table/derived sub-buckets. The boolean
+ *  presence/touched maps mirror the top-level boolean omission
+ *  semantics per row, so a row's explicit `false` round-trips
+ *  through a no-op edit instead of being dropped. */
 interface TableRowDraft {
   text: Record<string, string>;
   bool: Record<string, boolean>;
+  boolOriginallyPresent: Record<string, boolean>;
+  boolTouched: Record<string, boolean>;
 }
 
 interface EditState {
@@ -605,25 +611,43 @@ function formatMoney(value: unknown, currency: string | undefined, displayLocale
 function emptyRow(subFields: Record<string, FieldSpec>): TableRowDraft {
   const text: Record<string, string> = {};
   const bool: Record<string, boolean> = {};
+  const boolOriginallyPresent: Record<string, boolean> = {};
+  const boolTouched: Record<string, boolean> = {};
   for (const [subKey, subField] of Object.entries(subFields)) {
-    if (subField.type === "boolean") bool[subKey] = false;
-    else text[subKey] = "";
+    if (subField.type === "boolean") {
+      bool[subKey] = false;
+      boolOriginallyPresent[subKey] = false; // brand-new row
+      boolTouched[subKey] = false;
+    } else {
+      text[subKey] = "";
+    }
   }
-  return { text, bool };
+  return { text, bool, boolOriginallyPresent, boolTouched };
 }
 
 function rowFromItem(item: Record<string, unknown>, subFields: Record<string, FieldSpec>): TableRowDraft {
   const text: Record<string, string> = {};
   const bool: Record<string, boolean> = {};
+  const boolOriginallyPresent: Record<string, boolean> = {};
+  const boolTouched: Record<string, boolean> = {};
   for (const [subKey, subField] of Object.entries(subFields)) {
     const raw = item[subKey];
     if (subField.type === "boolean") {
       bool[subKey] = raw === true;
+      // `typeof raw === "boolean"` (not `raw === true`) so an
+      // existing explicit `false` is recorded as present and
+      // round-trips on a no-op save.
+      boolOriginallyPresent[subKey] = typeof raw === "boolean";
+      boolTouched[subKey] = false;
     } else {
       text[subKey] = raw === undefined || raw === null ? "" : String(raw);
     }
   }
-  return { text, bool };
+  return { text, bool, boolOriginallyPresent, boolTouched };
+}
+
+function markRowBoolTouched(row: TableRowDraft, subKey: string): void {
+  row.boolTouched[subKey] = true;
 }
 
 function addTableRow(key: string, subFields: Record<string, FieldSpec>): void {
@@ -777,14 +801,17 @@ function rowDraftToRecord(rowDraft: TableRowDraft, subFields: Record<string, Fie
   const row: Record<string, unknown> = {};
   for (const [subKey, subField] of Object.entries(subFields)) {
     if (subField.type === "boolean") {
-      // Mirror the top-level boolean omission rule (lighter-weight
-      // — no per-row touched tracking): emit only when `true` or
-      // when the sub-field is required. An absent optional boolean
-      // stays absent through a no-op edit, so consumers that
-      // distinguish absence from `false` aren't clobbered.
-      // (github-actions review PR #1497.)
+      // Full mirror of the top-level boolean omission rule: emit if
+      // it was originally present (preserve an existing explicit
+      // `false`), OR the user actively toggled it this session, OR
+      // it's required, OR it's now `true`. Otherwise omit so a
+      // brand-new untouched optional boolean stays absent (default
+      // applies) — round-tripping both "absent" and explicit
+      // "false" losslessly. (Codex PR #1497, two rounds.)
       const value = rowDraft.bool[subKey] === true;
-      if (value || subField.required) row[subKey] = value;
+      if (rowDraft.boolOriginallyPresent[subKey] || rowDraft.boolTouched[subKey] || value || subField.required) {
+        row[subKey] = value;
+      }
       continue;
     }
     const value = scalarDraftToValue(rowDraft.text[subKey], subField.type);
