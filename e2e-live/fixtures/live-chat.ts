@@ -1592,3 +1592,86 @@ export function bashCommandFromCall(call: ToolCallTraceRecord): string | null {
   const { command } = call.args;
   return typeof command === "string" ? command : null;
 }
+
+// ── Notifier inject (env-gated test seam) ───────────────────────────
+
+/**
+ * Minimal `engine.publish` input shape the L-17 test inject endpoint
+ * accepts. Mirrors `PublishInput` from `server/notifier/types.ts` but
+ * stays scoped to the fields the canary actually exercises — title,
+ * severity, lifecycle, pluginPkg. `body` / `navigateTarget` /
+ * `pluginData` are intentionally omitted; the spec asserts the badge
+ * count, not the row contents.
+ */
+export interface NotifierInjectInput {
+  pluginPkg: string;
+  severity: "info" | "nudge" | "urgent";
+  lifecycle?: "fyi" | "action";
+  title: string;
+}
+
+type NotifierInjectProbe = { ok: true; id: string } | { ok: false; status: number; reason: string };
+
+/**
+ * POST `{ action: "publish", ... }` to `/api/notifier` via the test
+ * seam (env-gated by `MULMOCLAUDE_E2E_NOTIFIER_INJECT=1` on the dev
+ * server — see top-of-file note in `server/api/routes/notifier.ts`).
+ *
+ * Returns a discriminated probe so the L-17 spec can `test.skip` on
+ * a 400 "unknown action" response (= seam not enabled on this dev
+ * server) instead of failing opaquely. The bearer token rides on the
+ * same `<meta name="mulmoclaude-auth">` channel every other authed
+ * fixture uses, so the helper inherits the bearer-token trust model.
+ */
+export async function injectNotifierEntry(page: Page, input: NotifierInjectInput): Promise<NotifierInjectProbe> {
+  return await page.evaluate(
+    async ({ url, body }): Promise<NotifierInjectProbe> => {
+      const meta = document.querySelector('meta[name="mulmoclaude-auth"]');
+      const token = meta?.getAttribute("content") ?? "";
+      try {
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        const text = await res.text();
+        if (!res.ok) return { ok: false, status: res.status, reason: text || `HTTP ${res.status}` };
+        const parsed = JSON.parse(text) as unknown;
+        if (parsed === null || typeof parsed !== "object" || !("id" in parsed) || typeof (parsed as { id: unknown }).id !== "string") {
+          return { ok: false, status: res.status, reason: `unexpected publish response: ${text}` };
+        }
+        return { ok: true, id: (parsed as { id: string }).id };
+      } catch (err) {
+        return { ok: false, status: 0, reason: `POST ${url} threw: ${err instanceof Error ? err.message : String(err)}` };
+      }
+    },
+    { url: API_ROUTES.notifier.dispatch, body: { action: "publish", ...input } },
+  );
+}
+
+/**
+ * Clear a notifier entry by id via the public `{ action: "clear" }`
+ * dispatch. Used by the L-17 spec teardown so an injected fyi entry
+ * doesn't survive into the next run's bell.
+ */
+export async function clearNotifierEntry(page: Page, entryId: string): Promise<void> {
+  const result = await page.evaluate(
+    async ({ url, targetId }) => {
+      const meta = document.querySelector('meta[name="mulmoclaude-auth"]');
+      const token = meta?.getAttribute("content") ?? "";
+      try {
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "clear", id: targetId }),
+        });
+        if (!res.ok) return { ok: false as const, reason: `clear ${targetId} returned HTTP ${res.status}` };
+        return { ok: true as const };
+      } catch (err) {
+        return { ok: false as const, reason: `clear ${targetId} threw: ${err instanceof Error ? err.message : String(err)}` };
+      }
+    },
+    { url: API_ROUTES.notifier.dispatch, targetId: entryId },
+  );
+  if (!result.ok) throw new Error(`clearNotifierEntry: ${result.reason}`);
+}

@@ -1,8 +1,25 @@
-import { expect, test } from "@playwright/test";
+import { randomUUID } from "node:crypto";
 
-import { ONE_MINUTE_MS } from "../../server/utils/time.ts";
-import { deleteSession, getCurrentSessionId, sendChatMessage, startNewSession, waitForAssistantResponseComplete } from "../fixtures/live-chat.ts";
+import { expect, test, type Page } from "@playwright/test";
 
+import { ONE_MINUTE_MS, ONE_SECOND_MS } from "../../server/utils/time.ts";
+import {
+  clearNotifierEntry,
+  deleteSession,
+  getCurrentSessionId,
+  injectNotifierEntry,
+  sendChatMessage,
+  startNewSession,
+  waitForAssistantResponseComplete,
+} from "../fixtures/live-chat.ts";
+
+const L17_TIMEOUT_MS = ONE_MINUTE_MS;
+// Inject takes one notifier-engine write + one pubsub fan-out + one
+// composable refresh on the SPA side; in practice the badge appears in
+// well under 1s, but 5s gives generous headroom for a loaded laptop
+// running multiple workers in parallel without making a real flake
+// look like a transient wait.
+const L17_BADGE_SETTLE_MS = 5 * ONE_SECOND_MS;
 const L18_TIMEOUT_MS = 3 * ONE_MINUTE_MS;
 const L19_TIMEOUT_MS = 2 * ONE_MINUTE_MS;
 const L20_TIMEOUT_MS = ONE_MINUTE_MS;
@@ -18,7 +35,122 @@ const PRESENT_FORM_RAW_KEY_PREFIX = "pluginPresentForm.";
 // time. Same justification as media.spec.ts / wiki-nav.spec.ts.
 test.describe.configure({ mode: "parallel" });
 
+// Compact representation of the session-history-toggle unread badge
+// for the L-17 before/after comparison. Visibility alone isn't enough
+// — a badge that goes from "2" to "3" would still be visible at both
+// snapshots, so the spec also captures the displayed count. `text` is
+// `null` when the badge is hidden (which is `unreadCount === 0` by
+// the component's `v-if`).
+interface UnreadBadgeSnapshot {
+  visible: boolean;
+  text: string | null;
+}
+
+async function snapshotUnreadBadge(badge: ReturnType<Page["getByTestId"]>): Promise<UnreadBadgeSnapshot> {
+  const visible = await badge.isVisible();
+  if (!visible) return { visible: false, text: null };
+  const text = await badge.textContent();
+  return { visible: true, text: text === null ? null : text.trim() };
+}
+
 test.describe("ui (real LLM / static)", () => {
+  test("L-17: notifier engine publish はベルバッジだけを更新し session-history unread badge は変えない (B-50)", async ({ page }) => {
+    test.setTimeout(L17_TIMEOUT_MS);
+    // Covers B-50: PR #818 (`fix/skip-bell-on-bridge-completion`)
+    // commented out `publishNotification()` in `runAgentInBackground`'s
+    // finally block because bridge-origin agent completions already
+    // tick the Session History side panel's unread badge via
+    // `endRun()` flipping `session.hasUnread = true`. Two badges for
+    // one event was the duplicate-notification user report.
+    //
+    // We can't drive a real bridge-origin agent run cheaply (would
+    // need a connected bridge WebSocket + a real LLM round-trip), so
+    // the canary takes the cheaper-but-still-meaningful slice: prove
+    // that the notifier engine boundary itself stays single-purpose.
+    // A single `engine.publish` ticks **only** `[notification-badge]`,
+    // **never** `[session-history-unread-badge]`. If a future refactor
+    // accidentally couples the notifier publish path to
+    // `session.hasUnread` (e.g. via a shared event channel), the
+    // session-history badge would tick on every publish too — exactly
+    // the two-badges-for-one-event shape PR #818 fixed.
+    //
+    // The publish action is gated behind `MULMOCLAUDE_E2E_NOTIFIER_INJECT=1`
+    // on the dev server. Without it the POST returns 400 "unknown
+    // action" and we skip — same shape as production sees, so a
+    // developer running `yarn dev` without the env doesn't get a
+    // confusing failure.
+    await page.goto("/");
+    // The notification bell renders on every route (in SidebarHeader);
+    // we don't need to land on /chat for this canary.
+    const bell = page.getByTestId("notification-bell");
+    await expect(bell, "notification-bell must mount on the top chrome").toBeVisible();
+
+    // Capture the unread badge baseline BEFORE the inject. The badge
+    // has `v-if="unreadCount > 0"`, so the testid is absent at zero
+    // and present at ≥1. We compare visibility + textContent so a
+    // stray unread-count change (count went from 2 → 3 with the
+    // badge already visible) still fails the assertion.
+    const unreadBadge = page.getByTestId("session-history-unread-badge");
+    const unreadBefore = await snapshotUnreadBadge(unreadBadge);
+
+    // Probe the seam. If publish is gated off, skip — the spec
+    // is only meaningful when the engine actually accepts the
+    // inject. The nonce keeps parallel workers from clobbering each
+    // other's entries (and from confusing this run with stale rows
+    // left by a prior crashed run).
+    const nonce = randomUUID().slice(0, 8);
+    const title = `e2e-live-l17-${nonce}`;
+    const probe = await injectNotifierEntry(page, {
+      pluginPkg: "e2e-live-l17",
+      severity: "info",
+      lifecycle: "fyi",
+      title,
+    });
+    if (!probe.ok) {
+      test.skip(
+        probe.status === 400,
+        `MULMOCLAUDE_E2E_NOTIFIER_INJECT=1 is required on the dev server to enable the publish action — got HTTP ${probe.status}: ${probe.reason}`,
+      );
+      throw new Error(`injectNotifierEntry unexpected failure: HTTP ${probe.status} — ${probe.reason}`);
+    }
+    const injectedId = probe.id;
+
+    try {
+      // Bell row appears via the `notifier` pubsub channel +
+      // useNotifications composable refresh. Match the nonce-bearing
+      // row so background notifications the dev server happens to
+      // publish on its own (Encore obligations, ghost-bell recovery)
+      // don't false-pass the visibility check. Opening the panel is
+      // the only way to inspect row testids — the badge above is a
+      // counter, not a list.
+      await bell.click();
+      const ourRow = page.getByTestId(`notification-item-${injectedId}`);
+      await expect(ourRow, "the injected notifier row must mount in the bell panel").toBeVisible({ timeout: L17_BADGE_SETTLE_MS });
+      await expect(ourRow, "the injected row must carry the unique title (proves our publish landed)").toContainText(title);
+      // Close the panel so the post-test screenshot is tidy and so
+      // the unread-badge probe below isn't visually obscured by the
+      // popup on a small viewport.
+      await page.keyboard.press("Escape");
+
+      // B-50 regression assertion. The notifier publish must not have
+      // flipped any session's `hasUnread`, so the unread badge state
+      // must be identical to the pre-inject snapshot. If a future
+      // refactor accidentally couples the notifier publish path to
+      // `session.hasUnread` (e.g. via a shared event channel), the
+      // session-history badge would tick on every publish — exactly
+      // the two-badges-for-one-event shape PR #818 fixed.
+      const unreadAfter = await snapshotUnreadBadge(unreadBadge);
+      expect(unreadAfter, "notifier publish must not affect [session-history-unread-badge] — B-50 regression").toEqual(unreadBefore);
+    } finally {
+      // Restore engine state regardless of assertion outcome — the
+      // dev server persists active entries to `~/mulmoclaude/data/
+      // notifier/active.json`, so a leaked row would survive across
+      // test runs and pollute the bell. `clearNotifierEntry` is a
+      // no-op when the id no longer exists, so failures don't cascade.
+      await clearNotifierEntry(page, injectedId);
+    }
+  });
+
   test("L-18: presentForm の i18n キーが raw 文字列として DOM に漏れない", async ({ page }) => {
     // fake-echo detects `presentForm` in the prompt + the `id='...'
     // label='...'` shape, posts to /api/form (the same endpoint the
