@@ -749,7 +749,12 @@ async function starPresetViaCatalog(page: Page, slug: string): Promise<void> {
   const starBtn = page.getByTestId("skill-catalog-detail-star-btn");
   const starredIndicator = page.getByTestId("skill-catalog-detail-starred");
   await expect(starBtn.or(starredIndicator), `catalog detail must surface either ☆ Star or "Starred" for ${slug}`).toBeVisible({ timeout: ONE_MINUTE_MS });
-  if ((await starredIndicator.count()) === 0) {
+  // `isVisible()` (not `count() > 0`) so a future v-show refactor
+  // that keeps both elements in the DOM but hides one cannot flip
+  // this branch silently — current Vue v-if/v-else makes them
+  // mutually exclusive in the DOM, but the visibility check stays
+  // correct under either rendering strategy (Codex iter-2 review).
+  if (!(await starredIndicator.isVisible())) {
     await starBtn.click();
   }
   await expect(
