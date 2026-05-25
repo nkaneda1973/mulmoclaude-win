@@ -738,8 +738,9 @@ test.describe("skills (real LLM / static)", () => {
     //       (proves starCatalogEntry copied `data/skills/catalog/preset/<slug>/`
     //       → `.claude/skills/<slug>/` AND the subsequent registry
     //       refresh picked it up)
-    //   (e) finally: fs-unstar so the workspace ends in the same
-    //       "unstarred" state regardless of starting point
+    //   (e) finally: restore to the EXACT original starred state
+    //       (snapshot at test start), so a user who actually uses
+    //       mc-invoice doesn't lose their existing star
     //
     // No LLM dispatch / no agent turn — pure UI + filesystem chain.
     // That keeps it fast and lets the CI matrix run it without
@@ -747,8 +748,27 @@ test.describe("skills (real LLM / static)", () => {
     // independent of fake-echo's reach. mc-invoice is picked because
     // it's a launcher preset (catalog row guaranteed) that's rarely
     // starred by default.
+    //
+    // Symmetric state restoration (Codex iter-5 review): snapshot
+    // the original starred state BEFORE touching disk. If the user /
+    // CI had `mc-invoice` starred (they actually use it), `finally`
+    // leaves it starred. If unstarred, `finally` fs-unstars whatever
+    // the test added. Either way the workspace ends in the same
+    // state it started — no silent destruction of a real user's
+    // existing star.
+    //
+    // Concurrency note: L-33B mutates a shared, fixed slug. No other
+    // e2e-live test currently touches mc-invoice and Playwright runs
+    // each test once per file, so there's no actual race today. The
+    // defensive `.or()` on Star vs "Starred" inside
+    // `clickStarOnCatalogDetail` (Codex iter-5 review) is
+    // forward-compat for a future webkit project / sibling spec that
+    // also mutates catalog state.
+    const wasOriginallyStarred = (await snapshotProjectSkillSlugs()).has(L33B_PRESET_SLUG);
     try {
-      await removeProjectSkill(L33B_PRESET_SLUG);
+      if (wasOriginallyStarred) {
+        await removeProjectSkill(L33B_PRESET_SLUG);
+      }
       await page.goto("/skills");
       const catalogRow = page.getByTestId(`skill-catalog-item-${L33B_PRESET_SLUG}`);
       await expect(
@@ -756,22 +776,20 @@ test.describe("skills (real LLM / static)", () => {
         `catalog list must include ${L33B_PRESET_SLUG} — proves syncPresetSkills landed the launcher preset under data/skills/catalog/preset/`,
       ).toBeVisible({ timeout: ONE_MINUTE_MS });
       const skillRow = page.getByTestId(`skill-item-${L33B_PRESET_SLUG}`);
-      await expect(
-        skillRow,
-        `${L33B_PRESET_SLUG} project-skill row must be absent before star — pre-cleanup fs-unstar must have taken effect`,
-      ).toHaveCount(0);
-      await catalogRow.click();
-      await page.getByTestId("skill-catalog-detail-star-btn").click();
-      await expect(
-        skillRow,
-        `${L33B_PRESET_SLUG} project-skill row must appear after ☆ Star — proves catalog→active rail (starCatalogEntry + registry refresh) is wired`,
-      ).toBeVisible({ timeout: ONE_MINUTE_MS });
+      await expect(skillRow, `${L33B_PRESET_SLUG} project-skill row must be absent before star — pre-test fs-unstar must have taken effect`).toHaveCount(0);
+      // Reuse the L-33 helper: same defensive Star vs "Starred" .or()
+      // pattern, same final `skill-item-<slug>` visibility assertion
+      // (proves catalog→active rail wiring). Sharing the helper keeps
+      // both canaries in lockstep — a future refactor to the star
+      // UI testids only needs updating one site.
+      await starPresetViaCatalog(page, L33B_PRESET_SLUG);
     } finally {
-      // fs-rm is idempotent (ENOENT-tolerant via removeProjectSkill).
-      // Restoring to the "unstarred" baseline matches what the next
-      // L-33B run expects, regardless of whether the user started
-      // with mc-invoice starred or unstarred.
-      await removeProjectSkill(L33B_PRESET_SLUG);
+      // Restore the EXACT original starred state. removeProjectSkill
+      // is idempotent (ENOENT-tolerant) so it's safe even if we never
+      // reached the click step (e.g. an early assertion threw).
+      if (!wasOriginallyStarred) {
+        await removeProjectSkill(L33B_PRESET_SLUG);
+      }
     }
   });
 });
