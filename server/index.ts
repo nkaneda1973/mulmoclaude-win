@@ -58,6 +58,7 @@ import { initAccountingEventPublisher } from "./accounting/eventPublisher.js";
 import { getRole, loadAllRoles } from "./workspace/roles.js";
 import { discoverSkills } from "./workspace/skills/index.js";
 import { WORKSPACE_PATHS } from "./workspace/paths.js";
+import { resolveClientDir } from "./utils/clientDir.js";
 import { serverError } from "./utils/httpError.js";
 import { makeUuid } from "./utils/id.js";
 import { mcpToolsRouter, mcpTools, isMcpToolEnabled } from "./agent/mcp-tools/index.js";
@@ -727,17 +728,14 @@ if (env.isProduction) {
   // the file and substitutes the bearer token placeholder on each
   // request — see the wildcard fallback below.
   //
-  // Default layout: `prepare-dist.js` copies `dist/client/` to
-  // `<pkg>/client/` so `../client` from `<pkg>/server/` resolves
-  // (`packages/mulmoclaude/bin/prepare-dist.js`). When running the
-  // server straight from source — fresh-user smoke tests spawn
-  // `tsx server/index.ts` without that copy step — there is no
-  // `<repo-root>/client/`, so `MULMOCLAUDE_CLIENT_DIR` lets the
-  // caller point at `<repo-root>/dist/client/` directly. Empty
-  // string is treated as "not set" so a shell that exports the var
-  // unset doesn't break the prepared-package default.
-  const clientDirOverride = process.env.MULMOCLAUDE_CLIENT_DIR;
-  const clientDir = typeof clientDirOverride === "string" && clientDirOverride.length > 0 ? clientDirOverride : path.join(__dirname, "../client");
+  // `resolveClientDir` picks `<__dirname>/../client/` by default
+  // (the prepared-package layout `bin/prepare-dist.js` produces)
+  // and falls over to `MULMOCLAUDE_CLIENT_DIR` when the env is set
+  // — fresh-user smoke specs spawn `tsx server/index.ts` straight
+  // from source (no prepare-dist copy step) and point the env at
+  // `<repo-root>/dist/client/`. See server/utils/clientDir.ts for
+  // the unit-tested resolver.
+  const clientDir = resolveClientDir(__dirname, process.env.MULMOCLAUDE_CLIENT_DIR);
   app.use(express.static(clientDir, { index: false }));
   const indexHtmlPath = path.join(clientDir, "index.html");
   app.get("/{*splat}", (_req: Request, res: Response) => {
