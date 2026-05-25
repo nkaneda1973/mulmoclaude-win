@@ -40,7 +40,7 @@
         >
           <span class="material-icons text-sm text-gray-400">{{ iconFor(item.head.toolName) }}</span>
           <span class="text-sm font-medium text-gray-800 truncate">{{ item.head.title || item.head.toolName }}</span>
-          <span v-if="item.isMapGroup && item.members.length > 1" class="text-[10px] text-gray-400 shrink-0">{{ `${item.members.length}×` }}</span>
+          <span v-if="item.isGroup && item.members.length > 1" class="text-[10px] text-gray-400 shrink-0">{{ `${item.members.length}×` }}</span>
           <span v-if="resultTimestamps.get(item.head.uuid)" class="text-[10px] text-gray-400 shrink-0">{{
             formatSmartTime(resultTimestamps.get(item.head.uuid)!)
           }}</span>
@@ -90,7 +90,7 @@
             v-if="getPlugin(item.head.toolName)?.viewComponent"
             :key="`${item.key}-${googleMapKeyFor(item.head.toolName) ?? ''}`"
             :selected-result="item.head"
-            :results="item.isMapGroup ? item.members : undefined"
+            :results="item.isGroup ? item.members : undefined"
             :send-text-message="sendTextMessage"
             :google-map-key="googleMapKeyFor(item.head.toolName)"
             @update-result="(r: ToolResultComplete) => emit('updateResult', r)"
@@ -114,6 +114,7 @@ import { clampIframeHeight } from "../utils/dom/iframeHeightClamp";
 import type { TextResponseData } from "../plugins/textResponse/types";
 import { formatSmartTime } from "../utils/format/date";
 import { isRecord } from "../utils/types";
+import { buildStackDisplayItems } from "../utils/canvas/stackGrouping";
 import CanvasViewToggle from "./CanvasViewToggle.vue";
 import CopyChatButton from "./CopyChatButton.vue";
 import type { LayoutMode } from "../utils/canvas/layoutMode";
@@ -206,20 +207,10 @@ function setNaturalWrapperRef(uuid: string, element: HTMLElement | null): void {
   }
 }
 
-// One rendered card per display item. A `mapControl` result carrying
-// a `groupId` collapses with every other result of the same groupId
-// into ONE card (positioned at the group's first occurrence), so the
-// markers / routes accumulate on one shared map instead of spawning a
-// card per call. `members` holds the group's results in order;
-// `head` is the latest one (drives the header + legacy View fields).
-// Non-grouped results stay as singletons (members = [head]).
-interface DisplayItem {
-  key: string;
-  head: ToolResultComplete;
-  members: ToolResultComplete[];
-  isMapGroup: boolean;
-}
-
+// `mapControl` results carrying a `groupId` collapse into one card
+// (the View accumulates markers / routes). Grouping is session-wide,
+// so `displayItems` is the rendered card order — scroll-spy below
+// iterates THIS, not the flat `toolResults`. See stackGrouping.ts.
 function groupIdOf(result: ToolResultComplete): string | null {
   if (result.toolName !== TOOL_NAMES.mapControl) return null;
   const { data } = result;
@@ -228,26 +219,7 @@ function groupIdOf(result: ToolResultComplete): string | null {
   return typeof groupId === "string" && groupId.length > 0 ? groupId : null;
 }
 
-const displayItems = computed<DisplayItem[]>(() => {
-  const items: DisplayItem[] = [];
-  const groupIndexById = new Map<string, number>();
-  for (const result of props.toolResults) {
-    const groupId = groupIdOf(result);
-    if (groupId !== null) {
-      const existingIndex = groupIndexById.get(groupId);
-      if (existingIndex !== undefined) {
-        items[existingIndex].members.push(result);
-        items[existingIndex].head = result; // latest call drives the header
-        continue;
-      }
-      groupIndexById.set(groupId, items.length);
-      items.push({ key: `mapgroup:${groupId}`, head: result, members: [result], isMapGroup: true });
-    } else {
-      items.push({ key: result.uuid, head: result, members: [result], isMapGroup: false });
-    }
-  }
-  return items;
-});
+const displayItems = computed(() => buildStackDisplayItems(props.toolResults, groupIdOf, (result) => result.uuid));
 
 // Register the group card element under EVERY member uuid so the
 // scroll-spy and scroll-to-selection logic (which key on individual
@@ -424,11 +396,17 @@ function computeActiveUuidFromScroll(): string | null {
   const container = containerRef.value;
   const paddedTop = container.getBoundingClientRect().top + readPaddingTop(container);
   let activeUuid: string | null = null;
-  for (const result of props.toolResults) {
-    const element = itemRefs.get(result.uuid);
+  // Iterate RENDERED card order (`displayItems`), not the flat
+  // `toolResults`. A merged map group shares one DOM element across
+  // multiple member uuids; walking `toolResults` would let a later
+  // member (positioned after a non-grouped card) resolve back to the
+  // group's earlier element and wrongly win the active slot. Each
+  // card resolves via its head uuid; the head uuid is what we emit.
+  for (const item of displayItems.value) {
+    const element = itemRefs.get(item.head.uuid);
     if (!element) continue;
     if (element.getBoundingClientRect().top <= paddedTop) {
-      activeUuid = result.uuid;
+      activeUuid = item.head.uuid;
     } else {
       break;
     }
