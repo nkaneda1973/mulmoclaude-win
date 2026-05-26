@@ -153,9 +153,9 @@ posting time when that is unset.
 ## When to ask vs. when to act
 
 If the user gives you clear info ("invoice Acme $5000 for May consulting"),
-just write the record: one line item `{ description: "May consulting",
-quantity: 1, rate: 5000 }`, `currency: "USD"` (the `$` is the tell — a `¥`
-amount would be `JPY`), status `draft`, today's `issueDate`, `dueDate`
+just write the record: one line item with `description` "May consulting",
+`quantity` 1 and `rate` 5000; `currency` `USD` (the `$` is the tell; a `¥`
+amount would be `JPY`); `status` `draft`; today's `issueDate`; `dueDate`
 empty (or 30 days out if a default is set elsewhere).
 
 Use `presentForm` only when something is ambiguous: multiple clients match

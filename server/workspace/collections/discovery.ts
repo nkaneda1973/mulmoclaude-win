@@ -162,6 +162,34 @@ const ActionSpecSchema = z.object({
   when: ActionWhenSchema.optional(),
 });
 
+// Field types that can hold a currency code string. A `currencyField`
+// pointer must resolve to one of these — pointing at a number / boolean
+// / table would never yield a usable ISO code.
+const CODE_FIELD_TYPES = new Set(["string", "text", "enum"]);
+
+interface FieldLike {
+  type: string;
+  currencyField?: string;
+  of?: Record<string, { currencyField?: string }>;
+}
+
+// Every `currencyField` declared anywhere in the schema — top-level
+// fields and a table's `of` sub-fields. Sub-field money cells resolve
+// currency against the TOP-LEVEL record (rows carry no currency), so
+// their pointers are validated against the top-level field set too.
+function collectCurrencyFieldRefs(fields: Record<string, FieldLike>): string[] {
+  const refs: string[] = [];
+  for (const field of Object.values(fields)) {
+    if (typeof field.currencyField === "string" && field.currencyField.length > 0) refs.push(field.currencyField);
+    if (field.of) {
+      for (const sub of Object.values(field.of)) {
+        if (typeof sub.currencyField === "string" && sub.currencyField.length > 0) refs.push(sub.currencyField);
+      }
+    }
+  }
+  return refs;
+}
+
 const CollectionSchemaZ = z
   .object({
     title: z.string().min(1),
@@ -190,6 +218,15 @@ const CollectionSchemaZ = z
   .refine((schema) => schema.actions === undefined || new Set(schema.actions.map((action) => action.id)).size === schema.actions.length, {
     message: "schema `actions` must have unique `id`s",
     path: ["actions"],
+  })
+  // A `currencyField` pointer must name a real top-level field that
+  // holds a code string — a typo (`curreny`) would otherwise pass the
+  // per-field check, then silently fall back to the literal / USD at
+  // render and mislabel amounts. Checked at the schema level because a
+  // field can't see its siblings.
+  .refine((schema) => collectCurrencyFieldRefs(schema.fields).every((name) => CODE_FIELD_TYPES.has(schema.fields[name]?.type ?? "")), {
+    message: "a money field's `currencyField` must name a top-level `string`, `text`, or `enum` field that holds the currency code",
+    path: ["fields"],
   });
 
 interface LoadedCollection {

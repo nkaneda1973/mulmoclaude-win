@@ -127,11 +127,13 @@
                     {{ t("common.yes") }}
                   </span>
                   <span
-                    v-else
+                    v-else-if="item[key] === false"
                     class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-50 text-slate-400 border border-slate-200/20"
                   >
                     {{ t("common.no") }}
                   </span>
+                  <!-- eslint-disable-next-line @intlify/vue-i18n/no-raw-text -- bare "—" for an omitted boolean: distinct from an explicit false (the edit pipeline tracks presence via boolOriginallyPresent). -->
+                  <span v-else class="text-slate-300">—</span>
                 </span>
 
                 <!-- Ref router-link badge -->
@@ -548,11 +550,13 @@
                     {{ t("common.yes") }}
                   </span>
                   <span
-                    v-else
+                    v-else-if="viewing[key] === false"
                     class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-50 text-slate-400 border border-slate-200/20"
                   >
                     {{ t("common.no") }}
                   </span>
+                  <!-- eslint-disable-next-line @intlify/vue-i18n/no-raw-text -- bare "—" for an omitted boolean: distinct from an explicit false. -->
+                  <span v-else class="text-slate-300">—</span>
                 </template>
 
                 <!-- Ref details link -->

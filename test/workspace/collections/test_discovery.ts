@@ -238,6 +238,38 @@ describe("discoverCollections — field-type support", () => {
     assert.equal(collections[0]?.schema.fields.total?.currencyField, "currency");
   });
 
+  it("rejects a `currencyField` that names a non-existent field", async () => {
+    writeSkill("test-currencyfield-typo", {
+      title: "Typo Currency Field",
+      icon: "warning",
+      dataPath: "data/curfieldtypo/items",
+      primaryKey: "id",
+      fields: {
+        id: { type: "string", label: "ID", primary: true, required: true },
+        currency: { type: "enum", values: ["USD", "JPY"], label: "Currency", required: true },
+        rate: { type: "money", currencyField: "curreny", label: "Rate" }, // typo: no such field
+      },
+    });
+    const collections = await listCollections();
+    assert.equal(collections.length, 0, "a currencyField pointing at a missing field must be skipped");
+  });
+
+  it("rejects a `currencyField` that points at a non-code field", async () => {
+    writeSkill("test-currencyfield-wrongtype", {
+      title: "Wrong-type Currency Field",
+      icon: "warning",
+      dataPath: "data/curfieldwrong/items",
+      primaryKey: "id",
+      fields: {
+        id: { type: "string", label: "ID", primary: true, required: true },
+        amount: { type: "number", label: "Amount" },
+        rate: { type: "money", currencyField: "amount", label: "Rate" }, // points at a number, not a code field
+      },
+    });
+    const collections = await listCollections();
+    assert.equal(collections.length, 0, "a currencyField pointing at a non-code field must be skipped");
+  });
+
   it("rejects `money` with an empty `currency` string", async () => {
     writeSkill("test-money-bad", {
       title: "Money",
