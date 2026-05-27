@@ -24,7 +24,11 @@ export type CollectionFieldType =
   | "enum"
   | "table"
   | "derived"
-  | "embed";
+  | "embed"
+  // Holds a workspace-relative image path (e.g. a `data/attachments/...`
+  // upload); rendered as an <img> in the table + detail view. Stored and
+  // edited as a plain string.
+  | "image";
 
 export type CollectionSource = "user" | "project";
 

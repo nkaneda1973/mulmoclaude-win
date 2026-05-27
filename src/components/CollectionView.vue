@@ -179,6 +179,14 @@
                   >{{ derivedDisplay(field, evaluateDerivedAgainstItem(field, String(key), item), item) }}</span
                 >
 
+                <img
+                  v-else-if="field.type === 'image' && typeof item[key] === 'string' && item[key]"
+                  :src="resolveImageSrc(String(item[key]))"
+                  :alt="field.label"
+                  class="max-h-10 max-w-16 object-contain rounded border border-slate-200 bg-white"
+                  :data-testid="`collections-cell-image-${key}`"
+                />
+
                 <span v-else class="block truncate text-slate-600">{{ formatCell(item[key], field.type) }}</span>
               </td>
 
@@ -417,7 +425,7 @@
 
             <!-- Scalar inputs -->
             <input
-              v-else-if="['string', 'email', 'number', 'date', 'ref'].includes(field.type)"
+              v-else-if="['string', 'email', 'number', 'date', 'ref', 'image'].includes(field.type)"
               :id="`collections-field-${key}`"
               v-model="editing.text[key]"
               :type="inputTypeFor(field.type)"
@@ -535,7 +543,7 @@
               v-for="(field, key) in collection.schema.fields"
               :key="key"
               class="flex flex-col gap-1"
-              :class="['table', 'markdown', 'embed'].includes(field.type) ? 'col-span-full' : 'col-span-1'"
+              :class="['table', 'markdown', 'embed', 'image'].includes(field.type) ? 'col-span-full' : 'col-span-1'"
             >
               <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider select-none">{{ field.label }}</div>
 
@@ -623,6 +631,15 @@
                 <!-- Embed view -->
                 <CollectionEmbedView v-else-if="field.type === 'embed' && embedViews[key]" :view="embedViews[key]" :field-key="String(key)" />
 
+                <!-- Image (workspace-relative path → <img> via auth-exempt /api/files/raw) -->
+                <img
+                  v-else-if="field.type === 'image' && typeof viewing[key] === 'string' && viewing[key]"
+                  :src="resolveImageSrc(String(viewing[key]))"
+                  :alt="field.label"
+                  class="max-h-64 max-w-full object-contain rounded-lg border border-slate-200 bg-slate-50"
+                  :data-testid="`collections-detail-image-${key}`"
+                />
+
                 <!-- Fallback text styling -->
                 <span v-else class="text-slate-800 font-semibold">{{ formatCell(viewing[key], field.type) }}</span>
               </div>
@@ -650,8 +667,9 @@ import { useConfirm } from "../composables/useConfirm";
 import { useAppApi } from "../composables/useAppApi";
 import { evaluateDerived, type FormulaContext } from "../utils/collections/derivedFormula";
 import { actionVisible } from "../utils/collections/actionVisible";
+import { resolveImageSrc } from "../utils/image/resolve";
 
-type FieldType = "string" | "text" | "email" | "number" | "date" | "boolean" | "markdown" | "ref" | "money" | "enum" | "table" | "derived" | "embed";
+type FieldType = "string" | "text" | "email" | "number" | "date" | "boolean" | "markdown" | "ref" | "money" | "enum" | "table" | "derived" | "embed" | "image";
 
 interface FieldSpec {
   type: FieldType;
