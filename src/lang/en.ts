@@ -134,8 +134,8 @@ const enMessages = {
     copiedMarkdown: "Copied!",
   },
   rightSidebar: {
-    permalink: "Permalink",
-    copyPermalink: "Copy permalink",
+    permalink: "Selected message permalink",
+    copyPermalink: "Copy permalink to selected message",
     copiedPermalink: "Copied!",
     toggleSystemPrompt: "Toggle system prompt",
     systemPrompt: "System Prompt",

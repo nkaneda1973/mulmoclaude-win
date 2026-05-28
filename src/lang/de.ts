@@ -116,8 +116,8 @@ const deMessages = {
     copiedMarkdown: "Kopiert!",
   },
   rightSidebar: {
-    permalink: "Permalink",
-    copyPermalink: "Permalink kopieren",
+    permalink: "Permalink zur ausgewählten Nachricht",
+    copyPermalink: "Permalink zur ausgewählten Nachricht kopieren",
     copiedPermalink: "Kopiert!",
     toggleSystemPrompt: "System-Prompt umschalten",
     systemPrompt: "System-Prompt",

@@ -152,9 +152,8 @@ const { copied, copy } = useClipboardCopy();
 // "investigate this message" pointers into a chat without polluting
 // browser navigation.
 const permalink = computed<string | null>(() => {
-  if (!props.sessionId) return null;
-  const base = `${window.location.origin}/chat/${props.sessionId}`;
-  return props.selectedResultUuid ? `${base}?result=${props.selectedResultUuid}` : base;
+  if (!props.sessionId || !props.selectedResultUuid) return null;
+  return `${window.location.origin}/chat/${props.sessionId}?result=${props.selectedResultUuid}`;
 });
 
 const { copied: permalinkCopied, copy: copyPermalink } = useClipboardCopy();
