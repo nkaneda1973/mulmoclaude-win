@@ -24,7 +24,7 @@ import { mkdir } from "node:fs/promises";
 import { log } from "../../system/logger/index.js";
 import { errorMessage } from "../../utils/errors.js";
 import { ONE_SECOND_MS } from "../../utils/time.js";
-import { discoverCollections, loadCollection, type LoadedCollection } from "./discovery.js";
+import { discoverCollections, loadCollection, type DiscoveryOptions, type LoadedCollection } from "./discovery.js";
 import { reconcileAllItems, reconcileItem, sweepStaleActiveEntries } from "./notifications.js";
 
 // Collections don't get added / removed rapidly; 30 s is a comfortable
@@ -49,30 +49,61 @@ interface CollectionWatcher {
 const watchers = new Map<string, CollectionWatcher>();
 let rediscoveryTimer: ReturnType<typeof setInterval> | null = null;
 let started = false;
+/** Discovery options threaded into every `discoverCollections` /
+ *  `loadCollection` / `sweepStaleActiveEntries` call this module
+ *  makes. Production: empty (live workspace). Tests:
+ *  `{ workspaceRoot, userSkillsDir }` pointing at a `mkdtempSync`
+ *  tree. Stored at module level so per-event handlers can read it
+ *  without threading through every signature. */
+let discoveryOpts: DiscoveryOptions = {};
+
+/** Per-key single-flight slot. Declared here (before
+ *  `stopCollectionWatchers`, which needs to clear it during teardown)
+ *  rather than next to `scheduleItemReconcile` below; the consumer is
+ *  documented at that call site. */
+interface ReconcileSlot {
+  running: Promise<void>;
+  pending: boolean;
+}
+const itemSlots = new Map<string, ReconcileSlot>();
+
+/** Test-only configuration knobs. Production callers pass nothing and
+ *  get the live workspace defaults; tests pass a tmpdir-rooted
+ *  `discoveryOpts` so the watcher reads schemas from the test fixture,
+ *  and override `rediscoveryIntervalMs` (or set it to `null` to
+ *  disable the auto-tick entirely so the test drives sync manually). */
+export interface CollectionWatcherOptions {
+  discoveryOpts?: DiscoveryOptions;
+  rediscoveryIntervalMs?: number | null;
+}
 
 /** Boot entry point: sweep stale active entries, then mount watchers
  *  for every discovered collection and arm the periodic re-discovery
  *  poll. Idempotent — a second call is a no-op so test harnesses and
  *  re-init paths can call it freely. */
-export async function startCollectionWatchers(): Promise<void> {
+export async function startCollectionWatchers(opts: CollectionWatcherOptions = {}): Promise<void> {
   if (started) return;
   started = true;
+  discoveryOpts = opts.discoveryOpts ?? {};
   // Boot reconcile is split in two: sweep first (drop bell entries
   // whose files / collections / schemas vanished while the server was
   // down), then `syncWatchers` runs the per-collection forward fill
   // (publish for items added during downtime). Order matters only
   // weakly — sweep's clears can race the forward fill's publishes,
   // but both paths are idempotent and converge on the same end state.
-  await sweepStaleActiveEntries();
+  await sweepStaleActiveEntries(discoveryOpts);
   await syncWatchers();
-  rediscoveryTimer = setInterval(() => {
-    syncWatchers().catch((err: unknown) => {
-      log.warn("collections", "watcher rediscovery failed", { error: errorMessage(err) });
-    });
-  }, REDISCOVERY_INTERVAL_MS);
-  // `unref` on the timer so a clean process exit isn't blocked
-  // waiting for the next tick.
-  rediscoveryTimer.unref();
+  const intervalMs = opts.rediscoveryIntervalMs === undefined ? REDISCOVERY_INTERVAL_MS : opts.rediscoveryIntervalMs;
+  if (intervalMs !== null) {
+    rediscoveryTimer = setInterval(() => {
+      syncWatchers().catch((err: unknown) => {
+        log.warn("collections", "watcher rediscovery failed", { error: errorMessage(err) });
+      });
+    }, intervalMs);
+    // `unref` on the timer so a clean process exit isn't blocked
+    // waiting for the next tick.
+    rediscoveryTimer.unref();
+  }
 }
 
 /** Tear down every watcher and stop the rediscovery interval. Used by
@@ -91,7 +122,17 @@ export async function stopCollectionWatchers(): Promise<void> {
     }
   }
   watchers.clear();
+  itemSlots.clear();
+  discoveryOpts = {};
   started = false;
+}
+
+/** Test-only: manually trigger one rediscovery + reconcile pass. Lets
+ *  tests drive the syncWatchers flow synchronously instead of waiting
+ *  for the auto-tick (which they disable via
+ *  `rediscoveryIntervalMs: null` in `startCollectionWatchers`). */
+export async function _syncWatchersForTesting(): Promise<void> {
+  await syncWatchers();
 }
 
 /** Reconcile the watcher set against the currently-discovered
@@ -111,7 +152,7 @@ export async function stopCollectionWatchers(): Promise<void> {
 async function syncWatchers(): Promise<void> {
   let collections;
   try {
-    collections = await discoverCollections();
+    collections = await discoverCollections(discoveryOpts);
   } catch (err) {
     log.warn("collections", "watcher discover failed", { error: errorMessage(err) });
     return;
@@ -129,7 +170,7 @@ async function syncWatchers(): Promise<void> {
   // entries). Bounded by the active set size; only runs when this
   // tick actually changed something.
   if (vanishedMutated || schemaMutated || addedMutated) {
-    await sweepStaleActiveEntries();
+    await sweepStaleActiveEntries(discoveryOpts);
   }
 }
 
@@ -165,7 +206,7 @@ async function reconcileChangedSchemas(collections: readonly LoadedCollection[])
     if (existing.schemaJson === nextJson) continue;
     existing.schemaJson = nextJson;
     log.info("collections", "watcher schema changed, re-reconciling", { slug: collection.slug });
-    await reconcileAllItems(collection.slug, collection.schema, collection.dataDir);
+    await reconcileAllItems(collection.slug, collection.schema, collection.dataDir, discoveryOpts);
     mutated = true;
   }
   return mutated;
@@ -190,7 +231,7 @@ async function startWatcherFor(slug: string, schema: import("./types.js").Collec
     // Boot reconcile this collection's existing items BEFORE mounting
     // the watcher: a pending item the user added during downtime
     // needs to get its bell entry even if no event fires today.
-    await reconcileAllItems(slug, schema, dataDir);
+    await reconcileAllItems(slug, schema, dataDir, discoveryOpts);
     const watcher = watch(dataDir, { persistent: false }, (_eventType, filename) => {
       // Errors from inside the callback would propagate as unhandled
       // rejections — wrap so a single bad event can't unwind the
@@ -209,7 +250,12 @@ async function startWatcherFor(slug: string, schema: import("./types.js").Collec
   }
 }
 
-/** Per-key single-flight slot. While a reconcile is in flight for a
+/** Test-only: the per-key single-flight scheduler. Exported via the
+ *  `_` prefix so test code can drive rapid-fire calls directly and
+ *  observe the trailing coalesce — `fs.watch` event timing is too
+ *  flaky to assert against.
+ *
+ *  Single-flight semantics: while a reconcile is in flight for a
  *  given (slug, itemId), additional events on the same key set
  *  `pending = true` and return — the running reconcile re-runs once
  *  after it completes, capturing any state change that happened during
@@ -218,11 +264,9 @@ async function startWatcherFor(slug: string, schema: import("./types.js").Collec
  *  single reconcile + one trailing re-run, preventing concurrent
  *  reads of `active.json` from racing the engine's write queue and
  *  producing duplicate publishes. */
-interface ReconcileSlot {
-  running: Promise<void>;
-  pending: boolean;
+export function _scheduleItemReconcileForTesting(slug: string, schema: import("./types.js").CollectionSchema, dataDir: string, itemId: string): Promise<void> {
+  return scheduleItemReconcile(slug, schema, dataDir, itemId);
 }
-const itemSlots = new Map<string, ReconcileSlot>();
 
 function scheduleItemReconcile(slug: string, schema: import("./types.js").CollectionSchema, dataDir: string, itemId: string): Promise<void> {
   const key = `${slug}\x00${itemId}`;
@@ -244,7 +288,7 @@ function scheduleItemReconcile(slug: string, schema: import("./types.js").Collec
       let keepGoing = true;
       while (keepGoing) {
         slot.pending = false;
-        await reconcileItem(slug, schema, dataDir, itemId);
+        await reconcileItem(slug, schema, dataDir, itemId, discoveryOpts);
         keepGoing = slot.pending;
       }
     } finally {
@@ -261,10 +305,10 @@ function scheduleItemReconcile(slug: string, schema: import("./types.js").Collec
  *  (rare, platform-specific) triggers a full directory rescan to be
  *  safe. */
 async function onEvent(slug: string, filename: string | Buffer | null): Promise<void> {
-  const collection = await loadCollection(slug);
+  const collection = await loadCollection(slug, discoveryOpts);
   if (!collection) return;
   if (filename === null) {
-    await reconcileAllItems(slug, collection.schema, collection.dataDir);
+    await reconcileAllItems(slug, collection.schema, collection.dataDir, discoveryOpts);
     return;
   }
   const name = typeof filename === "string" ? filename : filename.toString("utf-8");

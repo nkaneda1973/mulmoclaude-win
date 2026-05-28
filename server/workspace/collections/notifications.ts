@@ -39,8 +39,8 @@ import {
 import { clear as notifierClear, listAll, publish as notifierPublish } from "../../notifier/engine.js";
 import { log } from "../../system/logger/index.js";
 import { errorMessage } from "../../utils/errors.js";
-import { loadCollection } from "./discovery.js";
-import { listItems, readItem } from "./io.js";
+import { loadCollection, type DiscoveryOptions } from "./discovery.js";
+import { listItems, readItem, type IoOptions } from "./io.js";
 import type { CollectionItem, CollectionSchema } from "./types.js";
 
 /** The legacy-id prefix every collection-completion bell entry carries.
@@ -160,15 +160,21 @@ export async function clearItemNotification(slug: string, itemId: string): Promi
 /** Reconcile one item to the desired bell state. Re-reads the record
  *  from disk so the decision is grounded in current truth, not in the
  *  event payload. Safe to call when the file is missing (delete path)
- *  — `readItem` returns null and we clear. */
-export async function reconcileItem(slug: string, schema: CollectionSchema, dataDir: string, itemId: string): Promise<void> {
+ *  — `readItem` returns null and we clear.
+ *
+ *  `ioOpts` flows into `readItem`'s workspace-containment check —
+ *  production callers (the watcher) pass nothing and rely on the live
+ *  `workspacePath`; tests pass `{ workspaceRoot: <tmpdir> }` so the
+ *  containment check accepts a fixture dataDir outside the real
+ *  workspace. */
+export async function reconcileItem(slug: string, schema: CollectionSchema, dataDir: string, itemId: string, ioOpts: IoOptions = {}): Promise<void> {
   if (!schema.completionField) {
     // Schema doesn't track completion — make sure no stale entry sticks
     // around from a previous schema state.
     await clearItemNotification(slug, itemId);
     return;
   }
-  const item = await readItem(dataDir, itemId);
+  const item = await readItem(dataDir, itemId, ioOpts);
   if (item === null) {
     await clearItemNotification(slug, itemId);
     return;
@@ -184,12 +190,14 @@ export async function reconcileItem(slug: string, schema: CollectionSchema, data
  *  reconcile it. Catches up changes that happened while the server was
  *  down — items added (need to publish), items marked done (need to
  *  clear), items deleted (covered by `sweepStaleActiveEntries` below,
- *  not this function — this only sees files that exist). */
-export async function reconcileAllItems(slug: string, schema: CollectionSchema, dataDir: string): Promise<void> {
+ *  not this function — this only sees files that exist).
+ *
+ *  See `reconcileItem` for the `ioOpts` test-seam rationale. */
+export async function reconcileAllItems(slug: string, schema: CollectionSchema, dataDir: string, ioOpts: IoOptions = {}): Promise<void> {
   if (!schema.completionField) return;
   let items: CollectionItem[];
   try {
-    items = await listItems(dataDir);
+    items = await listItems(dataDir, ioOpts);
   } catch (err) {
     log.warn("collections", "reconcile list failed", { slug, dataDir, error: errorMessage(err) });
     return;
@@ -198,7 +206,7 @@ export async function reconcileAllItems(slug: string, schema: CollectionSchema, 
   for (const item of items) {
     const raw = item[primaryKey];
     if (typeof raw !== "string" || raw.length === 0) continue;
-    await reconcileItem(slug, schema, dataDir, raw);
+    await reconcileItem(slug, schema, dataDir, raw, ioOpts);
   }
 }
 
@@ -207,8 +215,12 @@ export async function reconcileAllItems(slug: string, schema: CollectionSchema, 
  *  no longer tracks completion, or whose item is now done. Required to
  *  reverse-cover the cases `reconcileAllItems` misses (it only walks
  *  files that exist on disk; a bell entry whose file vanished would be
- *  invisible to it). */
-export async function sweepStaleActiveEntries(): Promise<void> {
+ *  invisible to it).
+ *
+ *  Accepts `DiscoveryOptions` so tests can point at a tmpdir workspace
+ *  without touching `~/mulmoclaude/`. Production callers pass nothing
+ *  and get the live workspace defaults. */
+export async function sweepStaleActiveEntries(opts: DiscoveryOptions = {}): Promise<void> {
   let entries;
   try {
     entries = await listAll();
@@ -222,12 +234,12 @@ export async function sweepStaleActiveEntries(): Promise<void> {
     if (!parsed) continue;
     const { slug, itemId } = parsed;
     try {
-      const collection = await loadCollection(slug);
+      const collection = await loadCollection(slug, opts);
       if (!collection || !collection.schema.completionField) {
         await notifierClear(entry.id);
         continue;
       }
-      const item = await readItem(collection.dataDir, itemId);
+      const item = await readItem(collection.dataDir, itemId, opts);
       if (item === null || itemIsDone(collection.schema, item)) {
         await notifierClear(entry.id);
       }
