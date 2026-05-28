@@ -11,13 +11,9 @@
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
 
-import { startChat } from "../../api/routes/agent.js";
-import { PLUGIN_SESSION_ORIGIN_PREFIX } from "../../../src/types/session.js";
-import { ENCORE_SEED_ROLE_ID } from "../../../src/config/roles.js";
-import { ENCORE_PLUGIN_PKG } from "../notifier.js";
 import { log } from "../../system/logger/index.js";
 import { EncoreError, type EncoreDispatchResult } from "./shared.js";
-import { translateSeedPrompt } from "./seedTranslator.js";
+import { seedChat } from "./chatSeeder.js";
 
 export const StartSetupChatArgs = z.object({
   kind: z.literal("startSetupChat"),
@@ -34,13 +30,7 @@ const SEED_PROMPT =
 
 export async function handleStartSetupChat(args: z.infer<typeof StartSetupChatArgs>): Promise<EncoreDispatchResult> {
   const chatSessionId = randomUUID();
-  const message = await translateSeedPrompt(SEED_PROMPT, args.locale);
-  const result = await startChat({
-    message,
-    roleId: ENCORE_SEED_ROLE_ID,
-    chatSessionId,
-    origin: `${PLUGIN_SESSION_ORIGIN_PREFIX}${ENCORE_PLUGIN_PKG}`,
-  });
+  const result = await seedChat({ seedPrompt: SEED_PROMPT, locale: args.locale, chatSessionId });
   if (result.kind === "error") {
     throw new EncoreError(result.status ?? 500, `startSetupChat: startChat failed — ${result.error}`);
   }

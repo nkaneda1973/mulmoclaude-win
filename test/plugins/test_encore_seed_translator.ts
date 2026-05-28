@@ -74,6 +74,20 @@ describe("Encore seed translator", () => {
     assert.equal(result, "Important seed.", "failure must not propagate — chat must still start");
   });
 
+  it("splits on paragraph boundaries so long ticket seeds clear the per-sentence cap", async () => {
+    const seen: string[][] = [];
+    const fake: TranslateBatchFn = async (input) => {
+      seen.push([...input.sentences]);
+      return input.sentences.map((sentence) => `[ja]${sentence}`);
+    };
+    setBackend(fake);
+
+    const result = await translateSeedPrompt("first paragraph.\n\nsecond paragraph.\n\nthird.", "ja");
+
+    assert.deepEqual(seen, [["first paragraph.", "second paragraph.", "third."]]);
+    assert.equal(result, "[ja]first paragraph.\n\n[ja]second paragraph.\n\n[ja]third.");
+  });
+
   it("falls back to the English source when the backend returns an empty translation", async () => {
     const fake: TranslateBatchFn = async (input) => input.sentences.map(() => "");
     setBackend(fake);

@@ -17,6 +17,12 @@ import type { TranslateBatchFn, TranslationService } from "../../services/transl
 
 const NAMESPACE = "encore-seed";
 const SOURCE_LANGUAGE = "en";
+// Translation service caps each sentence at 1024 chars. Ticket seed
+// prompts (the bell-click path) routinely exceed that, so we split
+// on paragraph boundaries before translating and rejoin afterwards.
+// Bonus: each paragraph caches independently, so reused boilerplate
+// (e.g. the call-shape rules block) only gets translated once.
+const PARAGRAPH_SEPARATOR = "\n\n";
 
 let cachedService: TranslationService | null = null;
 let translateBatchOverride: TranslateBatchFn | null = null;
@@ -37,14 +43,26 @@ function getService(): TranslationService {
  *  fails — never throws. */
 export async function translateSeedPrompt(prompt: string, locale: string | undefined): Promise<string> {
   if (!locale || locale === SOURCE_LANGUAGE) return prompt;
+  const paragraphs = prompt.split(PARAGRAPH_SEPARATOR);
+  const nonEmpty = paragraphs.filter((paragraph) => paragraph.length > 0);
+  if (nonEmpty.length === 0) return prompt;
   try {
     const { translations } = await getService().translate({
       namespace: NAMESPACE,
       targetLanguage: locale,
-      sentences: [prompt],
+      sentences: nonEmpty,
     });
-    const [translated] = translations;
-    return translated && translated.length > 0 ? translated : prompt;
+    if (translations.length !== nonEmpty.length) return prompt;
+    const byIndex = new Map<number, string>();
+    nonEmpty.forEach((_, index) => byIndex.set(index, translations[index]));
+    let cursor = 0;
+    const stitched = paragraphs.map((paragraph) => {
+      if (paragraph.length === 0) return paragraph;
+      const translated = byIndex.get(cursor) ?? paragraph;
+      cursor += 1;
+      return translated.length > 0 ? translated : paragraph;
+    });
+    return stitched.join(PARAGRAPH_SEPARATOR);
   } catch (err) {
     log.warn("encore", "seed prompt translation failed; falling back to English", {
       locale,

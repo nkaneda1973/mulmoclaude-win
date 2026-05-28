@@ -12,14 +12,10 @@ import { randomUUID } from "node:crypto";
 import { ticketPath } from "../paths.js";
 import { readTextOrNull, writeText } from "../../utils/files/encore-io.js";
 import * as encoreNotifier from "../notifier.js";
-import { ENCORE_PLUGIN_PKG } from "../notifier.js";
-import { startChat } from "../../api/routes/agent.js";
-import { PLUGIN_SESSION_ORIGIN_PREFIX } from "../../../src/types/session.js";
-import { ENCORE_SEED_ROLE_ID } from "../../../src/config/roles.js";
 import { log } from "../../system/logger/index.js";
 import type { Ticket } from "../tick.js";
 import { EncoreError, type EncoreDispatchResult } from "./shared.js";
-import { translateSeedPrompt } from "./seedTranslator.js";
+import { seedChat } from "./chatSeeder.js";
 
 export const ResolveNotificationArgs = z.object({
   kind: z.literal("resolveNotification"),
@@ -76,13 +72,7 @@ function orphanMessage(cleared: boolean, hadNotificationId: boolean): string {
 
 async function seedChatForTicket(ticket: Ticket, ticketRel: string, pendingId: string, locale: string | undefined): Promise<string> {
   const chatSessionId = randomUUID();
-  const message = await translateSeedPrompt(ticket.seedPrompt, locale);
-  const result = await startChat({
-    message,
-    roleId: ENCORE_SEED_ROLE_ID,
-    chatSessionId,
-    origin: `${PLUGIN_SESSION_ORIGIN_PREFIX}${ENCORE_PLUGIN_PKG}`,
-  });
+  const result = await seedChat({ seedPrompt: ticket.seedPrompt, locale, chatSessionId });
   if (result.kind === "error") {
     throw new EncoreError(result.status ?? 500, `resolveNotification: startChat failed — ${result.error}`);
   }
