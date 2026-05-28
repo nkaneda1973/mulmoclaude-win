@@ -83,26 +83,37 @@ export interface CollectionWatcherOptions {
  *  re-init paths can call it freely. */
 export async function startCollectionWatchers(opts: CollectionWatcherOptions = {}): Promise<void> {
   if (started) return;
-  started = true;
+  // `started` only flips on AFTER boot finishes. If sweep or
+  // syncWatchers throws mid-boot, an earlier latch-then-await pattern
+  // would leave the flag stuck at `true`, permanently disabling
+  // subsequent boot attempts until process restart. Reset state on
+  // failure so a supervisor / test harness can retry.
   discoveryOpts = opts.discoveryOpts ?? {};
-  // Boot reconcile is split in two: sweep first (drop bell entries
-  // whose files / collections / schemas vanished while the server was
-  // down), then `syncWatchers` runs the per-collection forward fill
-  // (publish for items added during downtime). Order matters only
-  // weakly — sweep's clears can race the forward fill's publishes,
-  // but both paths are idempotent and converge on the same end state.
-  await sweepStaleActiveEntries(discoveryOpts);
-  await syncWatchers();
-  const intervalMs = opts.rediscoveryIntervalMs === undefined ? REDISCOVERY_INTERVAL_MS : opts.rediscoveryIntervalMs;
-  if (intervalMs !== null) {
-    rediscoveryTimer = setInterval(() => {
-      syncWatchers().catch((err: unknown) => {
-        log.warn("collections", "watcher rediscovery failed", { error: errorMessage(err) });
-      });
-    }, intervalMs);
-    // `unref` on the timer so a clean process exit isn't blocked
-    // waiting for the next tick.
-    rediscoveryTimer.unref();
+  try {
+    // Boot reconcile is split in two: sweep first (drop bell entries
+    // whose files / collections / schemas vanished while the server
+    // was down), then `syncWatchers` runs the per-collection forward
+    // fill (publish for items added during downtime). Order matters
+    // only weakly — sweep's clears can race the forward fill's
+    // publishes, but both paths are idempotent and converge on the
+    // same end state.
+    await sweepStaleActiveEntries(discoveryOpts);
+    await syncWatchers();
+    const intervalMs = opts.rediscoveryIntervalMs === undefined ? REDISCOVERY_INTERVAL_MS : opts.rediscoveryIntervalMs;
+    if (intervalMs !== null) {
+      rediscoveryTimer = setInterval(() => {
+        syncWatchers().catch((err: unknown) => {
+          log.warn("collections", "watcher rediscovery failed", { error: errorMessage(err) });
+        });
+      }, intervalMs);
+      // `unref` on the timer so a clean process exit isn't blocked
+      // waiting for the next tick.
+      rediscoveryTimer.unref();
+    }
+    started = true;
+  } catch (err) {
+    discoveryOpts = {};
+    throw err;
   }
 }
 
@@ -308,7 +319,15 @@ async function onEvent(slug: string, filename: string | Buffer | null): Promise<
   const collection = await loadCollection(slug, discoveryOpts);
   if (!collection) return;
   if (filename === null) {
+    // Some platforms (older Linux kernels, certain network mounts)
+    // omit the filename on a watch event — we don't know which record
+    // changed. `reconcileAllItems` covers items whose file still
+    // exists; pair it with a sweep so any record deleted inside the
+    // same opaque event has its stale bell entry cleared too. Without
+    // the sweep, a delete that fires with filename === null would
+    // persist as a phantom entry until the next rediscovery tick.
     await reconcileAllItems(slug, collection.schema, collection.dataDir, discoveryOpts);
+    await sweepStaleActiveEntries(discoveryOpts);
     return;
   }
   const name = typeof filename === "string" ? filename : filename.toString("utf-8");
