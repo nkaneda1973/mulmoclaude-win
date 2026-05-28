@@ -177,6 +177,19 @@
                   >{{ derivedDisplay(field, evaluateDerivedAgainstItem(field, String(key), item), item) }}</span
                 >
 
+                <!-- URL string → external link (new tab). `@click.stop` so
+                     clicking the link doesn't also open the row's detail. -->
+                <a
+                  v-else-if="isExternalUrl(item[key])"
+                  :href="String(item[key])"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="block truncate text-blue-600 hover:text-blue-800 hover:underline font-semibold"
+                  :data-testid="`collections-url-link-${key}-${item[collection.schema.primaryKey]}`"
+                  @click.stop
+                  >{{ String(item[key]) }}</a
+                >
+
                 <span v-else class="block truncate text-slate-600">{{ formatCell(item[key], field.type) }}</span>
               </td>
 
