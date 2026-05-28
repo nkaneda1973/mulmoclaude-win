@@ -2,13 +2,14 @@
   <div class="w-80 flex-shrink-0 border-l border-gray-200 flex flex-col bg-white text-gray-900">
     <div ref="historyContainer" class="flex-1 overflow-y-auto min-h-0">
       <div v-if="permalink" class="bg-white border-b border-gray-200 p-4 space-y-2">
-        <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{{ t("rightSidebar.permalink") }}</span>
+        <span id="permalink-label" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{{ t("rightSidebar.permalink") }}</span>
         <div class="flex items-center gap-2">
           <input
             :value="permalink"
             readonly
             class="flex-1 min-w-0 text-xs font-mono bg-gray-50 border border-gray-200 rounded px-2 py-1 text-gray-700"
             data-testid="permalink-input"
+            aria-labelledby="permalink-label"
             @focus="selectAllOnFocus"
           />
           <button
