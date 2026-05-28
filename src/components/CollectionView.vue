@@ -1616,6 +1616,11 @@ function firstMissingTableSubField(field: FieldSpec, rows: TableRowDraft[] | und
  *  function's cognitive complexity under the lint cap.
  *
  *  Skip rules:
+ *  - fields hidden by a `when` gate (no visible input to fill, so a
+ *    required gated field must not block save — otherwise a schema
+ *    like `rating: { required, when: { field: "visited", in: ["true"] }}`
+ *    is unsavable while `visited` is false; Codex P2 on #1555). Checked
+ *    against the live draft `record` so it tracks the in-progress form.
  *  - primary key in create mode (server auto-generates an id when
  *    blank, so blocking here would deny the documented
  *    "blank → server-generated id" flow even for schemas that mark
@@ -1628,7 +1633,10 @@ function firstMissingTableSubField(field: FieldSpec, rows: TableRowDraft[] | und
  *  `required` flags — even if the table itself is optional. The
  *  table block therefore runs OUTSIDE the `if (!field.required)`
  *  short-circuit. */
-function validateOneField(key: string, field: FieldSpec, draft: EditState): string | null {
+function validateOneField(key: string, field: FieldSpec, draft: EditState, record: CollectionItem): string | null {
+  // A `when`-hidden field has no input the user can fill — never treat
+  // it as missing (covers the table branch below too, so it sits first).
+  if (!fieldVisible(field, record)) return null;
   if (field.type === "table" && field.of) {
     const rows = draft.table[key];
     if (field.required && (!rows || rows.length === 0)) return field.label;
@@ -1642,8 +1650,11 @@ function validateOneField(key: string, field: FieldSpec, draft: EditState): stri
 }
 
 function firstMissingRequiredField(draft: EditState, schema: CollectionSchema): string | null {
+  // Resolve `when` gates against the same draft record the form renders
+  // from, so visibility-skip matches exactly what the user sees.
+  const record = draftToRecord(draft, schema);
   for (const [key, field] of Object.entries(schema.fields)) {
-    const missing = validateOneField(key, field, draft);
+    const missing = validateOneField(key, field, draft, record);
     if (missing) return missing;
   }
   return null;
