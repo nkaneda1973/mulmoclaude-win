@@ -20,10 +20,15 @@ import { ENCORE_SEED_ROLE_ID } from "../../../src/config/roles.js";
 import { ENCORE_PLUGIN_PKG } from "../notifier.js";
 import { log } from "../../system/logger/index.js";
 import { EncoreError, loadDsl, type EncoreDispatchResult } from "./shared.js";
+import { translateSeedPrompt } from "./seedTranslator.js";
 
 export const StartObligationChatArgs = z.object({
   kind: z.literal("startObligationChat"),
   obligationId: z.string().min(1),
+  /** Browser UI locale (BCP-47) — used to localize the seed prompt so
+   *  the LLM's first reply isn't anchored to English. Optional;
+   *  unset / `en` skips translation. */
+  locale: z.string().optional(),
 });
 
 function buildSeedPrompt(obligationId: string, displayName: string): string {
@@ -40,8 +45,9 @@ export async function handleStartObligationChat(args: z.infer<typeof StartObliga
   }
 
   const chatSessionId = randomUUID();
+  const message = await translateSeedPrompt(buildSeedPrompt(args.obligationId, dsl.displayName), args.locale);
   const result = await startChat({
-    message: buildSeedPrompt(args.obligationId, dsl.displayName),
+    message,
     roleId: ENCORE_SEED_ROLE_ID,
     chatSessionId,
     origin: `${PLUGIN_SESSION_ORIGIN_PREFIX}${ENCORE_PLUGIN_PKG}`,

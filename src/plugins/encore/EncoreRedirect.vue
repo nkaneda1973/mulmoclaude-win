@@ -24,12 +24,15 @@
 // { orphan: true }, and we render the "already resolved" line.
 
 import { computed, onMounted, ref } from "vue";
+import { useI18n } from "vue-i18n";
 import { pluginEndpoints } from "../api";
 import { apiCall } from "../../utils/api";
 import { META } from "./manageEncoreMeta";
 import type { EncoreEndpoints } from "./manageEncoreDefinition";
 
 const props = defineProps<{ pendingId: string }>();
+
+const { locale } = useI18n();
 
 const status = ref<"starting" | "redirecting" | "error" | "orphan">("starting");
 const errorMessage = ref<string | null>(null);
@@ -63,6 +66,7 @@ async function resolveAndRedirect(): Promise<void> {
         kind: "resolveNotification",
         pendingId: props.pendingId,
         notificationId: notificationId.value ?? undefined,
+        locale: locale.value,
       },
     });
     if (!response.ok) {

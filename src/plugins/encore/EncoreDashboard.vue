@@ -83,7 +83,7 @@ interface ListTicketsResponse {
   tickets?: TicketSummary[];
 }
 
-const { t } = useI18n();
+const { t, locale } = useI18n();
 
 const loading = ref(true);
 const errorMessage = ref<string | null>(null);
@@ -187,7 +187,7 @@ async function startChatForObligation(obligationId: string): Promise<void> {
     const { method, url } = endpoints.dispatch;
     const response = await apiCall<StartObligationChatResult>(url, {
       method,
-      body: { kind: "startObligationChat", obligationId },
+      body: { kind: "startObligationChat", obligationId, locale: locale.value },
     });
     if (!response.ok) {
       errorMessage.value = response.error;
@@ -220,7 +220,7 @@ async function startSetupChat(): Promise<void> {
     const { method, url } = endpoints.dispatch;
     const response = await apiCall<StartObligationChatResult>(url, {
       method,
-      body: { kind: "startSetupChat" },
+      body: { kind: "startSetupChat", locale: locale.value },
     });
     if (!response.ok) {
       errorMessage.value = response.error;

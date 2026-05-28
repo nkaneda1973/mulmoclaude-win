@@ -19,6 +19,7 @@ import { ENCORE_SEED_ROLE_ID } from "../../../src/config/roles.js";
 import { log } from "../../system/logger/index.js";
 import type { Ticket } from "../tick.js";
 import { EncoreError, type EncoreDispatchResult } from "./shared.js";
+import { translateSeedPrompt } from "./seedTranslator.js";
 
 export const ResolveNotificationArgs = z.object({
   kind: z.literal("resolveNotification"),
@@ -27,6 +28,10 @@ export const ResolveNotificationArgs = z.object({
    *  by the host's NotificationBell.vue. Lets us clear orphan bell
    *  entries whose ticket was already swept. */
   notificationId: z.string().optional(),
+  /** Browser UI locale (BCP-47) — used to localize the ticket's
+   *  English seed prompt so the LLM's first reply isn't anchored to
+   *  English. Optional; unset / `en` skips translation. */
+  locale: z.string().optional(),
 });
 
 async function handleOrphanResolve(args: z.infer<typeof ResolveNotificationArgs>): Promise<EncoreDispatchResult> {
@@ -69,10 +74,11 @@ function orphanMessage(cleared: boolean, hadNotificationId: boolean): string {
   return head;
 }
 
-async function seedChatForTicket(ticket: Ticket, ticketRel: string, pendingId: string): Promise<string> {
+async function seedChatForTicket(ticket: Ticket, ticketRel: string, pendingId: string, locale: string | undefined): Promise<string> {
   const chatSessionId = randomUUID();
+  const message = await translateSeedPrompt(ticket.seedPrompt, locale);
   const result = await startChat({
-    message: ticket.seedPrompt,
+    message,
     roleId: ENCORE_SEED_ROLE_ID,
     chatSessionId,
     origin: `${PLUGIN_SESSION_ORIGIN_PREFIX}${ENCORE_PLUGIN_PKG}`,
@@ -107,7 +113,7 @@ export async function handleResolveNotification(args: z.infer<typeof ResolveNoti
   // Idempotency: if this ticket already has a chat session, reuse
   // it rather than spawning a duplicate on double-click.
   const { chatSessionId: existing } = ticket;
-  const chatSessionId = existing ?? (await seedChatForTicket(ticket, ticketRel, args.pendingId));
+  const chatSessionId = existing ?? (await seedChatForTicket(ticket, ticketRel, args.pendingId, args.locale));
   if (existing) {
     log.info("encore", "resolveNotification: reusing existing chat", { pendingId: args.pendingId, chatSessionId });
   }
