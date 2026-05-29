@@ -258,6 +258,7 @@ import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import type { SchedulerData, ScheduledItem } from "./index";
 import { useFreshPluginData } from "../../composables/useFreshPluginData";
 import { apiPost } from "../../utils/api";
+import { confirmItemDelete } from "../../utils/confirmDelete";
 import { pluginEndpoints } from "../api";
 import type { SchedulerEndpoints } from "./automationsDefinition";
 import TasksTab from "./TasksTab.vue";
@@ -591,8 +592,7 @@ async function callApi(body: Record<string, unknown>): Promise<boolean> {
 }
 
 async function remove(item: ScheduledItem): Promise<void> {
-  const confirmed = window.confirm(t("pluginScheduler.deleteConfirm", { title: item.title }));
-  if (!confirmed) return;
+  if (!confirmItemDelete(t("pluginScheduler.deleteConfirm", { title: item.title }))) return;
   if (selectedId.value === item.id) selectedId.value = null;
   await callApi({ action: "delete", id: item.id });
 }

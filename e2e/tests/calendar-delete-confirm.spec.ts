@@ -20,34 +20,33 @@ const SAMPLE_ITEM: Item = {
   props: {},
 };
 
-async function mountCalendarWithItem(page: Page, item: Item, deleteHandler: (route: Route) => void): Promise<void> {
+async function stubSchedulerEndpoint(page: Page, item: Item, deleteHandler: (route: Route) => void): Promise<void> {
   await mockAllApis(page);
-
   let currentItems = [item];
-
   await page.route("**/api/scheduler", async (route) => {
     const request = route.request();
-    if (request.method() === "GET") {
-      await route.fulfill({ json: { data: { items: currentItems } } });
-      return;
-    }
     if (request.method() === "POST") {
       const body = JSON.parse(request.postData() ?? "{}") as { action?: string; id?: string };
       if (body.action === "delete") {
         deleteHandler(route);
         currentItems = currentItems.filter((each) => each.id !== body.id);
-        await route.fulfill({ json: { data: { items: currentItems } } });
-        return;
       }
     }
     await route.fulfill({ json: { data: { items: currentItems } } });
   });
+}
 
+async function openCalendarListView(page: Page, item: Item): Promise<void> {
   await page.goto("/calendar");
   await expect(page.getByTestId("scheduler-view-root")).toBeVisible();
   // Switch to list view via testid — the ✕ delete button only renders there.
   await page.getByTestId("scheduler-view-mode-list").click();
   await expect(page.getByTestId(`scheduler-item-delete-${item.id}`)).toBeVisible();
+}
+
+async function mountCalendarWithItem(page: Page, item: Item, deleteHandler: (route: Route) => void): Promise<void> {
+  await stubSchedulerEndpoint(page, item, deleteHandler);
+  await openCalendarListView(page, item);
 }
 
 test.describe("Calendar — delete confirmation", () => {
