@@ -152,6 +152,34 @@ registration crash above).
 shows the detail modal over the card; Edit writes back and the list
 refreshes.
 
+## Follow-up: inline panels instead of modals
+
+The item detail / edit / create surfaces were modals (`fixed inset-0`),
+which felt unnatural — and in the chat card a full-viewport overlay over
+a card is jarring. Replaced with **inline panels** (applies to both the
+standalone `/collections/:slug` page and the chat card — `CollectionView`
+itself):
+
+- **Detail & edit** expand as a panel **directly under the open row**
+  (`<tr>` + full-width `<td :colspan>`). Edit reuses the detail **2-col
+  grid layout** (label + input), so detail↔edit is visually continuous.
+- **Create** rides a **synthetic top row** (`CREATE_ROW_ID`) whose data
+  row is hidden — only its expansion (the form) shows, pinned above the
+  list. This keeps the edit form in a SINGLE template location (no
+  duplication, no child component, no `vue/no-mutating-props` fight).
+- **One panel open at a time** (`viewing` / `editing` single refs;
+  `openView`/`openEdit`/`openCreate` clear the others). Clicking the open
+  row toggles it closed. Panels cap at `max-h-[60vh]` with internal
+  scroll so the list isn't pushed far down.
+- Empty / no-match states are suppressed while creating so the create
+  panel still renders on an empty collection.
+- No `fixed`-overlay modal remains for records (the **chat** modal is
+  unchanged). e2e asserts `.fixed.inset-0.z-30` count is 0 after Edit.
+
+e2e (`present-collection.spec.ts`) covers: detail-on-mount, Edit→in-place
+edit form, and Add→top create panel. All 12 existing collection specs
+(standalone route) still pass.
+
 ## Out of scope (v1)
 
 - ref-link in-card navigation (see limitation above)

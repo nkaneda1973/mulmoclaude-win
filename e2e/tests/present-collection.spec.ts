@@ -85,9 +85,53 @@ test("presentCollection card renders the collection without crashing", async ({ 
   await page.goto(SESSION_PATH);
 
   await expect(page.getByTestId("present-collection")).toBeVisible({ timeout: 10_000 });
-  // itemId "avatar" was passed → the read-only detail modal opens on mount.
+  // itemId "avatar" was passed → the read-only detail panel opens inline on mount.
   await expect(page.getByTestId("collections-detail")).toBeVisible();
   await expect(page.getByTestId("collections-detail-title")).toHaveText("avatar");
+
+  // The panel must fit the View width, never the (possibly wider) table
+  // width — otherwise a wide collection clips the right of the panel.
+  const cardBox = await page.getByTestId("present-collection").boundingBox();
+  const detailBox = await page.getByTestId("collections-detail").boundingBox();
+  expect(cardBox && detailBox && detailBox.width <= cardBox.width + 1).toBeTruthy();
+
+  expect(pageErrors, pageErrors.join("\n")).toHaveLength(0);
+});
+
+test("Edit on an open record swaps the inline panel to the edit form in place", async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on("pageerror", (err) => pageErrors.push(`${err.message}\n${err.stack ?? ""}`));
+
+  await setup(page);
+  await page.goto(SESSION_PATH);
+
+  await expect(page.getByTestId("collections-detail")).toBeVisible({ timeout: 10_000 });
+  // Edit flips the SAME inline expansion to the edit form (no modal).
+  await page.getByTestId("collections-detail-edit").click();
+  await expect(page.getByTestId("collections-edit")).toBeVisible();
+  await expect(page.getByTestId("collections-detail")).toBeHidden();
+  await expect(page.getByTestId("collections-input-title")).toHaveValue("アバター");
+  // No fixed-overlay modal is used anymore.
+  await expect(page.locator(".fixed.inset-0.z-30")).toHaveCount(0);
+
+  expect(pageErrors, pageErrors.join("\n")).toHaveLength(0);
+});
+
+test("Add opens the create form as a panel pinned at the top of the list", async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on("pageerror", (err) => pageErrors.push(`${err.message}\n${err.stack ?? ""}`));
+
+  await setup(page);
+  await page.goto(SESSION_PATH);
+  await expect(page.getByTestId("present-collection")).toBeVisible({ timeout: 10_000 });
+
+  await page.getByTestId("collections-add-item").click();
+  const createForm = page.getByTestId("collections-create");
+  await expect(createForm).toBeVisible();
+  // The create panel sits above the first data row (synthetic top row).
+  const createBox = await createForm.boundingBox();
+  const firstRow = await page.getByTestId("collections-row-avatar").boundingBox();
+  expect(createBox && firstRow && createBox.y < firstRow.y).toBeTruthy();
 
   expect(pageErrors, pageErrors.join("\n")).toHaveLength(0);
 });
