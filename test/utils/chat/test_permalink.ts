@@ -35,6 +35,18 @@ describe("buildMessagePermalink", () => {
     assert.equal(buildMessagePermalink("https://example.com:8443", SESSION, UUID), `https://example.com:8443/chat/${SESSION}?result=${UUID}`);
   });
 
+  it("URL-encodes dynamic segments so reserved characters cannot break the link", () => {
+    // Regression: if a future caller passes non-UUID ids (slugs, kebab-ids,
+    // raw user input echoes), characters like '?', '&', '#', '/', ' ' must
+    // not bleed into the URL grammar.
+    const dirtyId = "weird id?with&reserved/chars#x y";
+    const url = buildMessagePermalink(ORIGIN, dirtyId, dirtyId);
+    assert.equal(url, `${ORIGIN}/chat/${encodeURIComponent(dirtyId)}?result=${encodeURIComponent(dirtyId)}`);
+    // Sanity-check the structural invariant: exactly one literal '?' delimits
+    // the query string (the rest of the reserved chars must be percent-encoded).
+    assert.equal(url?.split("?").length, 2);
+  });
+
   it("does not produce a session-only URL when resultUuid is missing (no '?result=' suffix-stripped fallback)", () => {
     // Regression: previously the section would render a session-only URL when nothing was selected,
     // which conflicted with the "selected message permalink" label. The helper must return null

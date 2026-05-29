@@ -125,7 +125,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick } from "vue";
+import { ref, computed, nextTick, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import type { ToolCallHistoryItem } from "../types/toolCallHistory";
 import { formatTime } from "../utils/format/date";
@@ -151,6 +151,14 @@ const { copied, copy } = useClipboardCopy();
 const permalink = computed<string | null>(() => buildMessagePermalink(window.location.origin, props.sessionId, props.selectedResultUuid));
 
 const { copied: permalinkCopied, copy: copyPermalink } = useClipboardCopy();
+
+// Reset the "Copied" indicator when the permalink target changes —
+// otherwise the checkmark sticks around after the user clicks a
+// different message and misleadingly suggests the new URL is what
+// landed on the clipboard.
+watch(permalink, () => {
+  permalinkCopied.value = false;
+});
 
 async function onCopyPermalink(): Promise<void> {
   if (permalink.value) await copyPermalink(permalink.value);

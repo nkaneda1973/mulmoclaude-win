@@ -12,5 +12,9 @@
 
 export function buildMessagePermalink(origin: string, sessionId: string | null, resultUuid: string | null): string | null {
   if (!sessionId || !resultUuid) return null;
-  return `${origin}/chat/${sessionId}?result=${resultUuid}`;
+  // Encode the dynamic segments defensively: UUIDs don't contain reserved
+  // URL characters today, but the helper signature accepts arbitrary
+  // strings — escaping keeps the contract honest if a future caller
+  // passes a non-UUID id (slugs, kebab-ids, etc.).
+  return `${origin}/chat/${encodeURIComponent(sessionId)}?result=${encodeURIComponent(resultUuid)}`;
 }
