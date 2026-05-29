@@ -66,6 +66,7 @@
               class="h-8 w-8 flex items-center justify-center"
               :class="viewMode === mode.key ? 'bg-blue-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'"
               :title="mode.label"
+              :data-testid="`scheduler-view-mode-${mode.key}`"
               @click="viewMode = mode.key"
             >
               <span class="material-icons text-sm">{{ mode.icon }}</span>
