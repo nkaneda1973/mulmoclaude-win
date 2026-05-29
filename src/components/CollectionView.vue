@@ -498,8 +498,12 @@
     <div
       v-if="chatOpen && collection"
       class="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 transition-all duration-300"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="collections-chat-title"
       data-testid="collections-chat-modal"
       @click.self="closeChat"
+      @keydown.esc="closeChat"
     >
       <div class="bg-white rounded-2xl shadow-2xl w-full max-w-xl flex flex-col border border-slate-200 overflow-hidden">
         <header class="px-6 py-4 border-b border-slate-100 flex items-center gap-3 bg-slate-50/50">
@@ -507,7 +511,7 @@
             <span class="material-icons text-lg">forum</span>
           </div>
           <div class="flex-1">
-            <h2 class="text-sm font-bold text-slate-800 uppercase tracking-wide">{{ t("collectionsView.chatTitle") }}</h2>
+            <h2 id="collections-chat-title" class="text-sm font-bold text-slate-800 uppercase tracking-wide">{{ t("collectionsView.chatTitle") }}</h2>
             <span class="text-xs text-slate-400 font-semibold">{{ collection.title }}</span>
           </div>
           <button
