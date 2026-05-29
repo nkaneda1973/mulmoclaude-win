@@ -1018,6 +1018,11 @@ const deMessages = {
     submit: "Senden",
     progress: "{filled} von {total} Pflichtfeldern ausgefüllt",
   },
+  pluginPresentCollection: {
+    fallbackTitle: "Sammlung",
+    itemLabel: "Eintrag: {id}",
+    listLabel: "Alle Datensätze",
+  },
   pluginPresentHtml: {
     saveAsPdf: "Als PDF speichern (öffnet Druckdialog)",
     pdf: "PDF",

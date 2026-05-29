@@ -1012,6 +1012,11 @@ const esMessages = {
     submit: "Enviar",
     progress: "{filled} de {total} campos obligatorios completados",
   },
+  pluginPresentCollection: {
+    fallbackTitle: "Colección",
+    itemLabel: "Elemento: {id}",
+    listLabel: "Todos los registros",
+  },
   pluginPresentHtml: {
     saveAsPdf: "Guardar como PDF (abre el diálogo de impresión)",
     pdf: "PDF",

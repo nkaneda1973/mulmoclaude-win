@@ -2,6 +2,7 @@
   <div class="h-full flex flex-col bg-slate-50/30">
     <header class="flex items-center gap-3 px-6 py-4 border-b border-slate-200 bg-white">
       <button
+        v-if="!embedded"
         type="button"
         class="h-8 w-8 flex items-center justify-center rounded text-slate-500 hover:bg-slate-50 hover:text-slate-800 transition-colors"
         :title="t('collectionsView.backToIndex')"
@@ -758,7 +759,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRoute, useRouter } from "vue-router";
 import { apiDelete, apiGet, apiPost, apiPut } from "../utils/api";
@@ -943,11 +944,49 @@ interface EditState {
   originalId: string | null;
 }
 
+/** `slug` / `selected` are supplied only in EMBEDDED mode (the
+ *  `presentCollection` chat card mounts this component and drives both
+ *  from the tool result). In standalone route mode (the
+ *  `/collections/:slug` page) both are undefined and the component reads
+ *  `route.params.slug` / `route.query.selected` as before. */
+const props = defineProps<{
+  slug?: string;
+  selected?: string;
+}>();
+
+const emit = defineEmits<{
+  /** Embedded mode only: the open record changed (id) or closed (null).
+   *  The card persists this in its tool-result `viewState` so the open
+   *  item survives a re-render. */
+  select: [id: string | null];
+}>();
+
 const { t, locale } = useI18n();
 const route = useRoute();
 const router = useRouter();
 const { openConfirm } = useConfirm();
 const appApi = useAppApi();
+
+/** Embedded when a `slug` prop is supplied; standalone (route-driven)
+ *  otherwise. Switches the slug/selected source and the open/close
+ *  navigation behaviour. */
+const embedded = computed<boolean>(() => props.slug !== undefined);
+
+/** Active collection slug: the prop in embedded mode, else the route
+ *  param. */
+const activeSlug = computed<string | undefined>(() => {
+  if (props.slug !== undefined) return props.slug;
+  const { slug } = route.params;
+  return typeof slug === "string" && slug.length > 0 ? slug : undefined;
+});
+
+/** Active open-record id: the prop in embedded mode (may be undefined),
+ *  else the `?selected=` query. */
+const activeSelected = computed<string | undefined>(() => {
+  if (embedded.value) return props.selected;
+  const { selected } = route.query;
+  return typeof selected === "string" ? selected : undefined;
+});
 
 const collection = ref<CollectionDetail | null>(null);
 const items = ref<CollectionItem[]>([]);
@@ -1562,18 +1601,27 @@ function closeEditor(): void {
   saveError.value = null;
 }
 
-/** Open mode (read-only detail). */
+/** Open mode (read-only detail). In embedded mode, report the open id
+ *  so the host card can persist it in `viewState`. */
 function openView(item: CollectionItem): void {
   viewing.value = item;
   actionError.value = null;
+  if (embedded.value && collection.value) {
+    emit("select", String(item[collection.value.schema.primaryKey] ?? ""));
+  }
 }
 
-/** Close open mode and drop the `?selected=` query param so a
- *  refresh / back-button doesn't immediately reopen the record and
- *  the URL reflects the closed state. */
+/** Close open mode. Embedded mode reports the close via `select(null)`
+ *  (the card clears its `viewState`); standalone mode drops the
+ *  `?selected=` query param so a refresh / back-button doesn't reopen
+ *  the record and the URL reflects the closed state. */
 function closeView(): void {
   viewing.value = null;
   actionError.value = null;
+  if (embedded.value) {
+    emit("select", null);
+    return;
+  }
   if (route.query.selected !== undefined) {
     const query = { ...route.query };
     delete query.selected;
@@ -1603,7 +1651,7 @@ function findItemById(itemId: string): CollectionItem | undefined {
  *  back / forward and a removed param both close the modal instead
  *  of leaving stale UI on screen (Codex P2 + CodeRabbit on #1502). */
 function syncViewToSelected(): void {
-  const { selected } = route.query;
+  const selected = activeSelected.value;
   if (typeof selected !== "string" || selected.length === 0) {
     viewing.value = null;
     return;
@@ -1929,10 +1977,14 @@ function goBack(): void {
   router.push({ name: PAGE_ROUTES.collections, params: {} }).catch(() => {});
 }
 
+// Load on slug change, immediate so the initial value (route param or
+// prop) triggers the first fetch — replaces the old `onMounted` +
+// separate slug watch. Works identically for route mode (reads
+// `route.params.slug`) and embedded mode (reads the `slug` prop).
 watch(
-  () => route.params.slug,
+  activeSlug,
   (slug) => {
-    if (typeof slug === "string" && slug.length > 0) {
+    if (slug) {
       loadCollection(slug);
     } else {
       collection.value = null;
@@ -1941,26 +1993,15 @@ watch(
       loading.value = false;
     }
   },
+  { immediate: true },
 );
 
-// React to `?selected=` changing while already on this collection:
-// follow it to open the new record, OR close the modal when the
-// param is removed (browser back) or points at a missing id. The
-// initial / cross-collection case is handled by `loadCollection`;
+// React to the active selection changing while already on this
+// collection: follow it to open the new record, OR close the modal when
+// it's cleared (browser back / card close) or points at a missing id.
+// The initial / cross-collection case is handled by `loadCollection`;
 // here we only act once items are loaded.
-watch(
-  () => route.query.selected,
-  () => {
-    if (!loading.value && collection.value) syncViewToSelected();
-  },
-);
-
-onMounted(() => {
-  const { slug } = route.params;
-  if (typeof slug === "string" && slug.length > 0) {
-    loadCollection(slug);
-  } else {
-    loading.value = false;
-  }
+watch(activeSelected, () => {
+  if (!loading.value && collection.value) syncViewToSelected();
 });
 </script>

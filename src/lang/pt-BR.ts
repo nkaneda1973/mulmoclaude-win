@@ -1004,6 +1004,11 @@ const ptBRMessages = {
     submit: "Enviar",
     progress: "{filled} de {total} campos obrigatórios preenchidos",
   },
+  pluginPresentCollection: {
+    fallbackTitle: "Coleção",
+    itemLabel: "Item: {id}",
+    listLabel: "Todos os registros",
+  },
   pluginPresentHtml: {
     saveAsPdf: "Salvar como PDF (abre o diálogo de impressão)",
     pdf: "PDF",
