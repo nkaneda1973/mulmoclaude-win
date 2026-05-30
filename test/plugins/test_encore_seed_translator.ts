@@ -10,7 +10,12 @@ import { mkdtempSync, realpathSync, rmSync } from "node:fs";
 import path from "node:path";
 import { tmpdir } from "node:os";
 
-import { __resetSeedTranslatorForTests, __setSeedTranslateBatchForTests, translateSeedPrompt } from "../../server/encore/handlers/seedTranslator.js";
+import {
+  __resetSeedTranslatorForTests,
+  __setSeedTranslateBatchForTests,
+  stitchParagraphs,
+  translateSeedPrompt,
+} from "../../server/encore/handlers/seedTranslator.js";
 import type { TranslateBatchFn } from "../../server/services/translation/types.js";
 
 let workspaceRoot: string;
@@ -95,5 +100,31 @@ describe("Encore seed translator", () => {
     const result = await translateSeedPrompt("Important seed.", "ja");
 
     assert.equal(result, "Important seed.");
+  });
+});
+
+describe("stitchParagraphs (pure helper)", () => {
+  it("interleaves translations against non-empty paragraphs in order", () => {
+    const result = stitchParagraphs(["alpha", "beta", "gamma"], ["[A]", "[B]", "[G]"]);
+    assert.equal(result, "[A]\n\n[B]\n\n[G]");
+  });
+
+  it("preserves empty paragraphs without consuming a translation slot", () => {
+    // Splitting "a\n\n\n\nb" yields ["a", "", "b"] — the middle empty
+    // entry must stay empty and the second translation must apply to
+    // "b", not get swallowed by the gap.
+    const result = stitchParagraphs(["a", "", "b"], ["[A]", "[B]"]);
+    assert.equal(result, "[A]\n\n\n\n[B]");
+  });
+
+  it("falls back to the source paragraph when its translation slot is missing", () => {
+    // Translation backend returned fewer entries than non-empty paragraphs.
+    const result = stitchParagraphs(["one", "two", "three"], ["[1]", "[2]"]);
+    assert.equal(result, "[1]\n\n[2]\n\nthree");
+  });
+
+  it("falls back to the source paragraph when its translation is empty", () => {
+    const result = stitchParagraphs(["alpha", "beta"], ["[A]", ""]);
+    assert.equal(result, "[A]\n\nbeta");
   });
 });

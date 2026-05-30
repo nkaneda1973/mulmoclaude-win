@@ -38,6 +38,22 @@ function getService(): TranslationService {
   return cachedService;
 }
 
+/** Reassemble translated paragraphs back into the original layout,
+ *  preserving empty separators (consecutive blank lines) and falling
+ *  back per-paragraph to the source when a translation is missing or
+ *  empty. Pure / synchronous so the layout invariants are testable
+ *  without a translation backend. */
+export function stitchParagraphs(paragraphs: readonly string[], translations: readonly string[]): string {
+  let cursor = 0;
+  const stitched = paragraphs.map((paragraph) => {
+    if (paragraph.length === 0) return paragraph;
+    const translated = translations[cursor] ?? paragraph;
+    cursor += 1;
+    return translated.length > 0 ? translated : paragraph;
+  });
+  return stitched.join(PARAGRAPH_SEPARATOR);
+}
+
 /** Translate an English seed prompt into `locale`. Returns the original
  *  prompt when `locale` is unset, `en`, or the translation backend
  *  fails — never throws. */
@@ -53,16 +69,7 @@ export async function translateSeedPrompt(prompt: string, locale: string | undef
       sentences: nonEmpty,
     });
     if (translations.length !== nonEmpty.length) return prompt;
-    const byIndex = new Map<number, string>();
-    nonEmpty.forEach((_, index) => byIndex.set(index, translations[index]));
-    let cursor = 0;
-    const stitched = paragraphs.map((paragraph) => {
-      if (paragraph.length === 0) return paragraph;
-      const translated = byIndex.get(cursor) ?? paragraph;
-      cursor += 1;
-      return translated.length > 0 ? translated : paragraph;
-    });
-    return stitched.join(PARAGRAPH_SEPARATOR);
+    return stitchParagraphs(paragraphs, translations);
   } catch (err) {
     log.warn("encore", "seed prompt translation failed; falling back to English", {
       locale,
