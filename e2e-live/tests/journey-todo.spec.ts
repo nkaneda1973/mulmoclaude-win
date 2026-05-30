@@ -106,20 +106,25 @@ async function deleteTodoByMarker(page: Page, marker: string): Promise<void> {
     if (page.isClosed()) return;
     const card = scopeCardByMarker(page, marker);
     if ((await card.count()) === 0) return;
-    page.once("dialog", (dialog) => {
-      dialog.accept().catch(() => undefined);
-    });
-    const flushed = waitForTodoDispatch(page);
-    await card.click();
-    await page.getByTestId("todo-edit-dialog-delete").click();
-    // Gate cleanup completion on both the server-side delete dispatch
-    // AND the SPA dropping the card. Without these waits parallel
-    // workers can race against this marker still being on disk when
-    // they list todos, surfacing as stray rows in unrelated specs
+    await triggerDeleteWithConfirmAccept(page, card);
+    // Gate cleanup completion on the SPA dropping the card row, which
+    // only flips after applyResult() rehydrates items[] from the
+    // delete dispatch response. Without this wait parallel workers
+    // can race against this marker still being on disk when they
+    // list todos, surfacing as stray rows in unrelated specs
     // (Codex iter-1 nit).
-    await flushed;
     await expect(card, "deleted todo must vanish from the kanban").toHaveCount(0, { timeout: DISPATCH_FLUSH_TIMEOUT_MS });
   } catch (err) {
     console.warn(`deleteTodoByMarker: best-effort cleanup skipped for marker ${marker}`, err);
   }
+}
+
+async function triggerDeleteWithConfirmAccept(page: Page, card: Locator): Promise<void> {
+  page.once("dialog", (dialog) => {
+    dialog.accept().catch(() => undefined);
+  });
+  const flushed = waitForTodoDispatch(page);
+  await card.click();
+  await page.getByTestId("todo-edit-dialog-delete").click();
+  await flushed;
 }
