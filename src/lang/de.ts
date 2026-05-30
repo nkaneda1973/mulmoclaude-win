@@ -635,6 +635,7 @@ const deMessages = {
     goToday: "Zu Heute",
     next: "Weiter",
     deleteItem: "Eintrag löschen",
+    deleteConfirm: "„{title}“ löschen?",
     closeEditor: "Editor schließen",
     apiError: "⚠ Scheduler-Aktualisierung fehlgeschlagen: {error}",
     tabCalendar: "Kalender",
@@ -912,6 +913,7 @@ const deMessages = {
   },
   todoExplorer: {
     heading: "To-do",
+    deleteConfirm: "„{text}“ löschen?",
     doneRatio: "{done}/{total} erledigt",
     addButton: "+ Hinzufügen",
     addColumnButton: "+ Spalte",

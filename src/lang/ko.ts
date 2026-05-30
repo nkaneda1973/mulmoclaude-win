@@ -622,6 +622,7 @@ const koMessages = {
     goToday: "오늘로 이동",
     next: "다음",
     deleteItem: "항목 삭제",
+    deleteConfirm: '"{title}"을(를) 삭제하시겠습니까?',
     closeEditor: "에디터 닫기",
     apiError: "⚠ 스케줄러 업데이트 실패: {error}",
     tabCalendar: "달력",
@@ -895,6 +896,7 @@ const koMessages = {
   },
   todoExplorer: {
     heading: "할 일",
+    deleteConfirm: '"{text}"을(를) 삭제하시겠습니까?',
     doneRatio: "{done}/{total} 완료",
     addButton: "+ 추가",
     addColumnButton: "+ 칼럼",

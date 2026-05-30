@@ -620,6 +620,7 @@ const jaMessages = {
     goToday: "今日へ移動",
     next: "次へ",
     deleteItem: "項目を削除",
+    deleteConfirm: "「{title}」を削除しますか？",
     closeEditor: "エディタを閉じる",
     apiError: "⚠ スケジューラの更新に失敗: {error}",
     tabCalendar: "カレンダー",
@@ -894,6 +895,7 @@ const jaMessages = {
   },
   todoExplorer: {
     heading: "Todo",
+    deleteConfirm: "「{text}」を削除しますか？",
     doneRatio: "{done}/{total} 完了",
     addButton: "+ 追加",
     addColumnButton: "+ 列",

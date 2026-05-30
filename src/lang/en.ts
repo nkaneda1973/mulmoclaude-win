@@ -646,6 +646,7 @@ const enMessages = {
     goToday: "Go to today",
     next: "Next",
     deleteItem: "Delete item",
+    deleteConfirm: 'Delete "{title}"?',
     closeEditor: "Close editor",
     apiError: "⚠ Failed to update scheduler: {error}",
     tabCalendar: "Calendar",
@@ -894,6 +895,7 @@ const enMessages = {
   },
   todoExplorer: {
     heading: "Todo",
+    deleteConfirm: 'Delete "{text}"?',
     doneRatio: "{done}/{total} done",
     addButton: "+ Add",
     addColumnButton: "+ Column",

@@ -626,6 +626,7 @@ const frMessages = {
     goToday: "Aller à aujourd'hui",
     next: "Suivant",
     deleteItem: "Supprimer l'élément",
+    deleteConfirm: "Supprimer « {title} » ?",
     closeEditor: "Fermer l'éditeur",
     apiError: "⚠ Échec de la mise à jour du planificateur : {error}",
     tabCalendar: "Calendrier",
@@ -903,6 +904,7 @@ const frMessages = {
   },
   todoExplorer: {
     heading: "Tâches",
+    deleteConfirm: "Supprimer « {text} » ?",
     doneRatio: "{done}/{total} faites",
     addButton: "+ Ajouter",
     addColumnButton: "+ Colonne",
