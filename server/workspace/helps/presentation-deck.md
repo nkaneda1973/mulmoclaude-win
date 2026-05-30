@@ -162,6 +162,43 @@ The two approaches handle the color scheme / fonts differently — this matters 
       }
     },
     {
+      "text": "Revenue has compounded for four straight quarters, accelerating quarter over quarter.",
+      "image": {
+        "type": "slide",
+        "slide": {
+          "layout": "split",
+          "accentColor": "success",
+          "left": {
+            "title": "Revenue Trend",
+            "label": "GROWTH",
+            "accentColor": "success",
+            "ratio": 45,
+            "content": [
+              { "type": "text", "value": "Four straight quarters of accelerating ARR.", "bold": true },
+              { "type": "bullets", "items": ["+71% over the trailing year", "Expansion now outpaces new logos", "Q1 2026 closed at $21.2M ARR"] }
+            ]
+          },
+          "right": {
+            "title": "Quarterly ARR",
+            "ratio": 55,
+            "content": [
+              {
+                "type": "chart",
+                "title": "Quarterly ARR ($M)",
+                "chartData": {
+                  "type": "bar",
+                  "data": {
+                    "labels": ["Q2 '25", "Q3 '25", "Q4 '25", "Q1 '26"],
+                    "datasets": [{ "label": "ARR", "data": [12.4, 14.1, 16.8, 21.2] }]
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
       "text": "Four capabilities set Aurora apart from batch tooling.",
       "image": {
         "type": "slide",
