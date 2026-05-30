@@ -4,7 +4,7 @@ import { type Locator, type Page, type Response, expect, test } from "@playwrigh
 
 import { ONE_MINUTE_MS, ONE_SECOND_MS } from "../../server/utils/time.ts";
 import { isRecord } from "../../server/utils/types.ts";
-import { deleteSession, readWorkspaceFile, sendChatMessage, setupRoleSession, waitForAssistantTurn } from "../fixtures/live-chat.ts";
+import { deleteSession, placeWorkspaceFile, readWorkspaceFile, sendChatMessage, setupRoleSession, waitForAssistantTurn } from "../fixtures/live-chat.ts";
 
 // L-JOURNEY-* — "the feature actually works end-to-end via the real
 // LLM" net (plans/feat-e2e-live.md §「最優先方針 (2026-05-30)」). Two
@@ -59,10 +59,14 @@ const TODO_DISPATCH_FLUSH_TIMEOUT_MS = 10 * ONE_SECOND_MS;
 const RUNTIME_DISPATCH_URL_FRAGMENT = "/api/plugins/runtime/";
 const TODO_PLUGIN_SLUG_FRAGMENT = "todo-plugin";
 
-// Accounting book DB (mirrors plugin-dispatch.spec.ts). The inline
-// chat View collapses once a newer turn lands, so the delete leg is
-// confirmed against this source-of-truth file rather than the View.
+// Workspace DB files (mirrors plugin-dispatch.spec.ts). Used both by
+// the accounting delete-confirmation (config.json is the source of
+// truth the inline View hydrates from — it collapses once a newer
+// turn lands) AND by the finally-block best-effort cleanup that prunes
+// a leaked marker row if a test threw before its delete leg.
 const ACCOUNTING_CONFIG_REL = "data/accounting/config.json";
+const CALENDAR_DB_REL = "data/scheduler/items.json";
+const TODO_DB_REL = "data/plugins/%40mulmoclaude%2Ftodo-plugin/todos.json";
 
 // Per-test unique marker (epoch ms + 6 hex). Mirrors
 // plugin-dispatch.spec.ts so a stray artifact left by a failed run is
@@ -93,6 +97,7 @@ test.describe("L-JOURNEY-* (real LLM add → View reflection → lifecycle)", ()
         timeout: VIEW_REFLECT_TIMEOUT_MS,
       });
     } finally {
+      await bestEffortPruneMarkerRow(CALENDAR_DB_REL, undefined, "title", marker);
       for (const sid of sessions) await deleteSession(page, sid);
     }
   });
@@ -114,6 +119,7 @@ test.describe("L-JOURNEY-* (real LLM add → View reflection → lifecycle)", ()
         timeout: VIEW_REFLECT_TIMEOUT_MS,
       });
     } finally {
+      await bestEffortPruneMarkerRow(TODO_DB_REL, undefined, "text", marker);
       for (const sid of sessions) await deleteSession(page, sid);
     }
   });
@@ -132,7 +138,15 @@ test.describe("L-JOURNEY-* (real LLM add → View reflection → lifecycle)", ()
       // view only mounts via the openBook envelope inline in chat.
       const app = page.getByTestId("accounting-app").last();
       await expect(app, "openBook must mount the accounting view inline in the chat").toBeVisible({ timeout: VIEW_REFLECT_TIMEOUT_MS });
-      await expect(app.getByTestId("accounting-book-select"), "the LLM-created book must be the active book in the switcher").toContainText(marker);
+      // The book-select is a native <select> bound to activeBookId, so
+      // the SELECTED option (`option:checked`) is the active book —
+      // assert against that, not the whole select (whose text contains
+      // every book's option and would false-green if another book were
+      // active). Codex iter-1 must-fix.
+      await expect(
+        app.getByTestId("accounting-book-select").locator("option:checked"),
+        "the LLM-created book must be the ACTIVE book in the switcher",
+      ).toContainText(marker, { timeout: VIEW_REFLECT_TIMEOUT_MS });
 
       // Delete is a second LLM turn. That collapses the openBook
       // envelope above (inline plugin views render expanded only while
@@ -143,6 +157,7 @@ test.describe("L-JOURNEY-* (real LLM add → View reflection → lifecycle)", ()
       await waitForAssistantTurn(page);
       await assertBookDeletedFromDb(marker);
     } finally {
+      await bestEffortPruneMarkerRow(ACCOUNTING_CONFIG_REL, "books", "name", marker);
       for (const sid of sessions) await deleteSession(page, sid);
     }
   });
@@ -276,18 +291,65 @@ function accountingDeletePrompt(marker: string): string {
 async function assertBookDeletedFromDb(marker: string): Promise<void> {
   await expect(async () => {
     const raw = await readWorkspaceFile(ACCOUNTING_CONFIG_REL);
-    expect(bookNamesFromConfig(raw), `book '${marker}' must be gone from ${ACCOUNTING_CONFIG_REL} after the LLM deleteBook turn`).not.toContain(marker);
+    // File gone entirely is the strongest form of "book absent".
+    if (raw === null) return;
+    // Fail CLOSED on corrupt / schema-drifted JSON (Codex iter-1
+    // must-fix): a parse / shape failure throws, which inside `toPass`
+    // keeps retrying (tolerating a transient mid-write read) and then
+    // fails at the timeout rather than silently passing the delete
+    // check on a broken DB.
+    const names = parseBookNamesStrict(raw);
+    expect(names, `book '${marker}' must be gone from ${ACCOUNTING_CONFIG_REL} after the LLM deleteBook turn`).not.toContain(marker);
   }).toPass({ timeout: VIEW_REFLECT_TIMEOUT_MS });
 }
 
-function bookNamesFromConfig(raw: string | null): string[] {
-  if (raw === null) return [];
+function parseBookNamesStrict(raw: string): string[] {
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
-  } catch {
-    return [];
+  } catch (err) {
+    throw new Error(`${ACCOUNTING_CONFIG_REL} is not valid JSON after deleteBook (corrupt DB): ${err instanceof Error ? err.message : String(err)}`);
   }
-  if (!isRecord(parsed) || !Array.isArray(parsed.books)) return [];
+  if (!isRecord(parsed) || !Array.isArray(parsed.books)) {
+    throw new Error(`${ACCOUNTING_CONFIG_REL} did not have the expected { books: [...] } shape after deleteBook`);
+  }
   return parsed.books.filter(isRecord).map((book) => (typeof book.name === "string" ? book.name : ""));
+}
+
+// ---------------------------------------------------------------------------
+// shared cleanup
+// ---------------------------------------------------------------------------
+
+// Best-effort teardown for the row a test created, run from `finally`
+// so an early failure (before the in-`try` delete leg) cannot leak a
+// marker row into a shared workspace DB (Codex iter-1 must-fix). It is
+// existence-GATED: it reads first and only writes when the marker row
+// is still present, so the happy path (lifecycle delete already
+// removed it) performs zero writes and cannot clobber a concurrent
+// spec's write — the only write happens on the rare early-failure
+// path, scoped to removing this test's own nonce-stamped row. Never
+// throws: a cleanup hiccup must not turn a passing test red.
+async function bestEffortPruneMarkerRow(workspaceRel: string, arrayPath: string | undefined, matchField: string, marker: string): Promise<void> {
+  try {
+    const raw = await readWorkspaceFile(workspaceRel);
+    if (raw === null) return;
+    const parsed: unknown = JSON.parse(raw);
+    const rows = extractRows(parsed, arrayPath);
+    if (rows === null || !rows.some((row) => isRecord(row) && row[matchField] === marker)) return;
+    const kept = rows.filter((row) => !(isRecord(row) && row[matchField] === marker));
+    await placeWorkspaceFile(workspaceRel, JSON.stringify(reassembleRows(parsed, arrayPath, kept), null, 2));
+  } catch (err) {
+    console.warn(`bestEffortPruneMarkerRow: cleanup skipped for ${workspaceRel}`, err);
+  }
+}
+
+function extractRows(parsed: unknown, arrayPath: string | undefined): unknown[] | null {
+  if (arrayPath === undefined) return Array.isArray(parsed) ? parsed : null;
+  if (!isRecord(parsed)) return null;
+  return Array.isArray(parsed[arrayPath]) ? parsed[arrayPath] : null;
+}
+
+function reassembleRows(parsed: unknown, arrayPath: string | undefined, kept: unknown[]): unknown {
+  if (arrayPath === undefined) return kept;
+  return isRecord(parsed) ? { ...parsed, [arrayPath]: kept } : { [arrayPath]: kept };
 }
