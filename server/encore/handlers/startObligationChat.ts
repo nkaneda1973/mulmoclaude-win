@@ -34,8 +34,9 @@ export const StartObligationChatArgs = z.object({
 
 // Canonical English seed. `src/lang/en.ts` carries a matching template
 // (`{displayName}` / `{obligationId}` placeholders) as the i18n source
-// of truth for the 7 translations.
-function buildSeedPrompt(obligationId: string, displayName: string): string {
+// of truth for the 7 translations; exported so a test can assert the
+// `en.ts` template interpolates to exactly this string (lockstep guard).
+export function buildObligationSeedPrompt(obligationId: string, displayName: string): string {
   // Mention the obligationId explicitly so the LLM can call
   // `manageEncore({ kind: "query", obligationId })` to read the
   // current state on its first turn without guessing.
@@ -50,7 +51,7 @@ export async function handleStartObligationChat(args: z.infer<typeof StartObliga
 
   const chatSessionId = randomUUID();
   const result = await startChat({
-    message: args.seedPrompt ?? buildSeedPrompt(args.obligationId, dsl.displayName),
+    message: args.seedPrompt ?? buildObligationSeedPrompt(args.obligationId, dsl.displayName),
     roleId: ENCORE_SEED_ROLE_ID,
     chatSessionId,
     origin: `${PLUGIN_SESSION_ORIGIN_PREFIX}${ENCORE_PLUGIN_PKG}`,

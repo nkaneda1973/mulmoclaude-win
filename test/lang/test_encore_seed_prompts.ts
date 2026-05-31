@@ -31,6 +31,7 @@ import ptBRMessages from "../../src/lang/pt-BR.js";
 import frMessages from "../../src/lang/fr.js";
 import deMessages from "../../src/lang/de.js";
 import { SETUP_SEED_PROMPT } from "../../server/encore/handlers/startSetupChat.js";
+import { buildObligationSeedPrompt } from "../../server/encore/handlers/startObligationChat.js";
 
 const LOCALES: [string, typeof enMessages][] = [
   ["en", enMessages],
@@ -60,5 +61,18 @@ describe("encore seed prompt i18n (#1545)", () => {
 
   it("en setup seed matches the server's canonical fallback", () => {
     assert.equal(enMessages.encoreDashboard.seedPrompts.setup, SETUP_SEED_PROMPT);
+  });
+
+  // The obligation seed is a template, so we can't compare strings
+  // directly — interpolate the `en.ts` placeholders the same way the
+  // dashboard would (`{displayName}` / `{obligationId}`) and assert the
+  // result equals the server's canonical builder. This locks the `en`
+  // (and omitted-seedPrompt) fallback against the i18n source so the two
+  // can't silently diverge in wording or structure.
+  it("en obligation seed template matches the server's canonical fallback", () => {
+    const displayName = "Sample Obligation";
+    const obligationId = "sample-obligation-id";
+    const interpolated = enMessages.encoreDashboard.seedPrompts.obligation.replaceAll("{displayName}", displayName).replaceAll("{obligationId}", obligationId);
+    assert.equal(interpolated, buildObligationSeedPrompt(obligationId, displayName));
   });
 });
