@@ -87,17 +87,22 @@ function deleteTargets(collection: LoadedCollection, workspaceRoot: string): str
   return [stagingSkillDir(workspaceRoot, collection.slug), collection.skillDir, collection.dataDir];
 }
 
-/** A deletable collection's records must live in its OWN `data/<slug>/`
- *  subtree. `resolveDataDir` only proves the path stays inside the
- *  workspace, so a malformed or hostile schema could point `dataPath`
- *  at a shared root (`data`, `data/skills`, another collection) and
- *  turn the recursive records removal into a workspace-wide wipe whose
- *  archive only captures this one collection. Refuse unless the path is
- *  the per-collection root or a descendant of it. */
-function isDataPathSafe(dataPath: string, slug: string): boolean {
-  const normalized = path.normalize(dataPath);
-  const root = path.join("data", slug);
-  return normalized === root || normalized.startsWith(root + path.sep);
+/** The records directory the delete recursively archives + removes
+ *  (`collection.dataDir`) must live in this collection's OWN
+ *  `data/<slug>/` subtree. `dataDir` is normally derived from
+ *  `schema.dataPath`, but `deleteCollection` accepts a `LoadedCollection`
+ *  whose fields could be inconsistent — so we validate the RESOLVED
+ *  target the destructive ops actually touch, not the schema string.
+ *  `resolveDataDir` only proves containment in the workspace; a shared
+ *  root like `data` or `data/skills` would otherwise turn the recursive
+ *  removal into a workspace-wide wipe whose archive captures only this
+ *  collection. `path.resolve` collapses any `..` before the prefix test
+ *  (symlink escapes are caught separately by the realpath containment
+ *  check in `deleteTargets`). */
+function isDataDirSafe(dataDir: string, slug: string, workspaceRoot: string): boolean {
+  const expectedRoot = path.resolve(workspaceRoot, "data", slug);
+  const resolved = path.resolve(dataDir);
+  return resolved === expectedRoot || resolved.startsWith(expectedRoot + path.sep);
 }
 
 function buildRestoreDoc(collection: LoadedCollection): string {
@@ -163,8 +168,8 @@ export async function deleteCollection(collection: LoadedCollection, opts: Delet
   const workspaceRoot = opts.workspaceRoot ?? workspacePath;
   if (collection.source === "user") return { kind: "user-scope", slug };
   if (isPresetSlug(slug)) return { kind: "preset", slug };
-  if (!isDataPathSafe(collection.schema.dataPath, slug)) {
-    log.warn("collections", "deleteCollection refused: dataPath is not under the per-collection root", { slug, dataPath: collection.schema.dataPath });
+  if (!isDataDirSafe(collection.dataDir, slug, workspaceRoot)) {
+    log.warn("collections", "deleteCollection refused: dataDir is not under the per-collection root", { slug, dataDir: collection.dataDir });
     return { kind: "unsafe-data-path", slug };
   }
   if (deleteTargets(collection, workspaceRoot).some((target) => !isContainedInRoot(target, workspaceRoot))) {
