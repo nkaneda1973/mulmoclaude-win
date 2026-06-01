@@ -116,6 +116,9 @@ const deMessages = {
     copiedMarkdown: "Kopiert!",
   },
   rightSidebar: {
+    permalink: "Permalink zur ausgewählten Nachricht",
+    copyPermalink: "Permalink zur ausgewählten Nachricht kopieren",
+    copiedPermalink: "Kopiert!",
     toggleSystemPrompt: "System-Prompt umschalten",
     systemPrompt: "System-Prompt",
     availableTools: "Verfügbare Tools",
@@ -322,6 +325,12 @@ const deMessages = {
       monthly: "Monatlich",
       biannual: "Halbjährlich",
       annual: "Jährlich",
+    },
+    seedPrompts: {
+      setup:
+        "Ich möchte in Encore eine neue wiederkehrende Verpflichtung einrichten. Führe mich durch, was verfolgt werden soll (Art, Rhythmus, Ziele, Felder), und erstelle dann das DSL und rufe defineEncore auf, wenn es so weit ist.",
+      obligation:
+        'Ich möchte über meine Verpflichtung "{displayName}" (obligationId: {obligationId}) sprechen. Frage zuerst ihren aktuellen Status ab und frage mich dann, was ich tun möchte.',
     },
   },
   fileContentHeader: {
@@ -632,6 +641,7 @@ const deMessages = {
     goToday: "Zu Heute",
     next: "Weiter",
     deleteItem: "Eintrag löschen",
+    deleteConfirm: "„{title}“ löschen?",
     closeEditor: "Editor schließen",
     apiError: "⚠ Scheduler-Aktualisierung fehlgeschlagen: {error}",
     tabCalendar: "Kalender",
@@ -909,6 +919,7 @@ const deMessages = {
   },
   todoExplorer: {
     heading: "To-do",
+    deleteConfirm: "„{text}“ löschen?",
     doneRatio: "{done}/{total} erledigt",
     addButton: "+ Hinzufügen",
     addColumnButton: "+ Spalte",
@@ -1017,6 +1028,11 @@ const deMessages = {
     charactersCountNoMax: "{current} Zeichen",
     submit: "Senden",
     progress: "{filled} von {total} Pflichtfeldern ausgefüllt",
+  },
+  pluginPresentCollection: {
+    fallbackTitle: "Sammlung",
+    itemLabel: "Eintrag: {id}",
+    listLabel: "Alle Datensätze",
   },
   pluginPresentHtml: {
     saveAsPdf: "Als PDF speichern (öffnet Druckdialog)",
@@ -1344,12 +1360,17 @@ const deMessages = {
       "Zusätzliche Tool-Namen, die Claude über {allowedTools} übergeben werden sollen. Einer pro Zeile. Nützlich für in Claude Code integrierte MCP-Server wie Gmail / Google Kalender, nachdem Sie sich über {claudeMcp} authentifiziert haben.",
   },
   collectionsView: {
+    addCollectionLabel: "Sammlung",
+    addCollectionPrompt:
+      "Hilf mir, eine neue Sammlung zu erstellen. Lies zuerst `config/helps/collection-skills.md` für die Konventionen schemabasierter Sammlungen. Verwende dann das Tool `presentForm` (nutze nicht AskUserQuestion), um mich zu fragen, welche Art von Daten ich verfolgen möchte, und erstelle die schema.json und SKILL.md aus meinen Antworten.",
     title: "Sammlungen",
     backToIndex: "Zurück zu Sammlungen",
     indexEmpty: "Keine Sammlungen installiert. Markiere auf der Skills-Seite eine Skill mit Schema, um sie hier zu sehen.",
     editItem: "Bearbeiten",
     openItem: "{id} öffnen",
     confirmDelete: "Diesen Eintrag löschen? Das kann nicht rückgängig gemacht werden.",
+    deleteCollection: "Sammlung löschen",
+    confirmDeleteCollection: "Die gesamte Sammlung „{title}“ einschließlich aller Datensätze löschen? Zuvor wird eine wiederherstellbare Sicherung archiviert.",
     itemsEmpty: "Noch keine Einträge. Klicke auf +, um einen hinzuzufügen.",
     notFound: "Sammlung nicht gefunden",
     loadFailed: "Laden fehlgeschlagen",
@@ -1367,9 +1388,12 @@ const deMessages = {
     clearSearch: "Suche zurücksetzen",
     openCollection: "{title} öffnen",
     createTitle: "Neu hinzufügen",
-    editTitle: "Datensatz bearbeiten",
     derivedLabel: "Abgeleitet",
     embedMissingTitle: "Eingebettete Referenz fehlt",
+    chat: "Chat",
+    chatTitle: "Chat starten",
+    chatPlaceholder: "Beschreibe, was du mit dieser Sammlung tun möchtest…",
+    chatStart: "Chat starten",
     source: {
       user: "Benutzer",
       project: "Projekt",

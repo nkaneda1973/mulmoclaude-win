@@ -134,6 +134,9 @@ const enMessages = {
     copiedMarkdown: "Copied!",
   },
   rightSidebar: {
+    permalink: "Selected message permalink",
+    copyPermalink: "Copy permalink to selected message",
+    copiedPermalink: "Copied!",
     toggleSystemPrompt: "Toggle system prompt",
     systemPrompt: "System Prompt",
     availableTools: "Available Tools",
@@ -338,6 +341,12 @@ const enMessages = {
       monthly: "Monthly",
       biannual: "Biannual",
       annual: "Annual",
+    },
+    seedPrompts: {
+      setup:
+        "I'd like to set up a new recurring obligation in Encore. Please walk me through what to track (kind, cadence, targets, fields), then compose the DSL and call defineEncore when ready.",
+      obligation:
+        "Let's talk about my \"{displayName}\" obligation (obligationId: {obligationId}). Please query its current state first, then ask me what I'd like to do.",
     },
   },
   fileContentHeader: {
@@ -643,6 +652,7 @@ const enMessages = {
     goToday: "Go to today",
     next: "Next",
     deleteItem: "Delete item",
+    deleteConfirm: 'Delete "{title}"?',
     closeEditor: "Close editor",
     apiError: "⚠ Failed to update scheduler: {error}",
     tabCalendar: "Calendar",
@@ -891,6 +901,7 @@ const enMessages = {
   },
   todoExplorer: {
     heading: "Todo",
+    deleteConfirm: 'Delete "{text}"?',
     doneRatio: "{done}/{total} done",
     addButton: "+ Add",
     addColumnButton: "+ Column",
@@ -998,6 +1009,11 @@ const enMessages = {
     charactersCountNoMax: "{current} characters",
     submit: "Submit",
     progress: "{filled} of {total} required fields completed",
+  },
+  pluginPresentCollection: {
+    fallbackTitle: "Collection",
+    itemLabel: "Item: {id}",
+    listLabel: "All records",
   },
   pluginPresentHtml: {
     saveAsPdf: "Save as PDF (opens print dialog)",
@@ -1325,12 +1341,17 @@ const enMessages = {
       "Extra tool names to pass to Claude via {allowedTools}. One per line. Useful for built-in Claude Code MCP servers like Gmail / Google Calendar after you have authenticated via {claudeMcp}.",
   },
   collectionsView: {
+    addCollectionLabel: "Collection",
+    addCollectionPrompt:
+      "Help me create a new collection. First read `config/helps/collection-skills.md` for the schema-driven collection conventions. Then use the `presentForm` tool (do not use AskUserQuestion) to ask me what kind of data I want to track, and author the schema.json and SKILL.md from my answers.",
     title: "Collections",
     backToIndex: "Back to collections",
     indexEmpty: "No collections installed. Star a skill that ships a schema from the Skills page to see it here.",
     editItem: "Edit",
     openItem: "Open {id}",
     confirmDelete: "Delete this item? This cannot be undone.",
+    deleteCollection: "Delete collection",
+    confirmDeleteCollection: 'Delete the entire "{title}" collection, including all its records? A restorable backup is archived first.',
     itemsEmpty: "No items yet. Click + to add one.",
     notFound: "Collection not found",
     loadFailed: "Failed to load",
@@ -1348,9 +1369,12 @@ const enMessages = {
     clearSearch: "Clear search",
     openCollection: "Open {title}",
     createTitle: "Add new",
-    editTitle: "Edit record",
     derivedLabel: "Derived",
     embedMissingTitle: "Embedded reference missing",
+    chat: "Chat",
+    chatTitle: "Start a chat",
+    chatPlaceholder: "Describe what you want to do with this collection…",
+    chatStart: "Start chat",
     source: {
       user: "User",
       project: "Project",

@@ -119,6 +119,9 @@ const jaMessages = {
     copiedMarkdown: "コピーしました",
   },
   rightSidebar: {
+    permalink: "選択中メッセージへのリンク",
+    copyPermalink: "選択中メッセージへのリンクをコピー",
+    copiedPermalink: "コピーしました!",
     toggleSystemPrompt: "システムプロンプトの表示切替",
     systemPrompt: "システムプロンプト",
     availableTools: "利用可能ツール",
@@ -285,7 +288,7 @@ const jaMessages = {
     todos: { label: "Todo" },
     calendar: { label: "カレンダー" },
     automations: { label: "自動化" },
-    encore: { label: "Encore" },
+    encore: { label: "アンコール" },
     wiki: { label: "Wiki" },
     collections: { label: "コレクション" },
     sources: { label: "ソース" },
@@ -295,8 +298,8 @@ const jaMessages = {
     files: { label: "ファイル" },
   },
   encoreDashboard: {
-    title: "Encore",
-    subtitle: "Encore が追跡している定期的な義務の一覧です。",
+    title: "アンコール",
+    subtitle: "繰り返し発生するタスクや義務（アンコール）の一覧です。次回の発生タイミングを追跡します。",
     loading: "義務を読み込み中…",
     errorPrefix: "義務を読み込めませんでした: ",
     empty: "まだ義務がありません。チャットから設定を依頼してください。",
@@ -307,7 +310,7 @@ const jaMessages = {
     chatButtonTitle: "この義務について新しいチャットで相談する",
     bellButtonTitle: "このサイクルについて相談する",
     addButtonLabel: "追加",
-    unexpectedResponse: "Encore から予期しない応答が返されました。",
+    unexpectedResponse: "アンコール から予期しない応答が返されました。",
     fieldsHeading: "サイクルごとに記録する項目",
     fieldRequired: "必須",
     status: {
@@ -321,6 +324,12 @@ const jaMessages = {
       monthly: "毎月",
       biannual: "半年ごと",
       annual: "毎年",
+    },
+    seedPrompts: {
+      setup:
+        "Encore で繰り返し発生する新しい義務を設定したいです。何を追跡するか（種類・周期・対象・項目）を順番に教えてください。準備ができたら DSL を組み立てて defineEncore を呼んでください。",
+      obligation:
+        "「{displayName}」という義務（obligationId: {obligationId}）について相談したいです。まず現在の状態を確認してから、私が何をしたいか聞いてください。",
     },
   },
   fileContentHeader: {
@@ -617,6 +626,7 @@ const jaMessages = {
     goToday: "今日へ移動",
     next: "次へ",
     deleteItem: "項目を削除",
+    deleteConfirm: "「{title}」を削除しますか？",
     closeEditor: "エディタを閉じる",
     apiError: "⚠ スケジューラの更新に失敗: {error}",
     tabCalendar: "カレンダー",
@@ -891,6 +901,7 @@ const jaMessages = {
   },
   todoExplorer: {
     heading: "Todo",
+    deleteConfirm: "「{text}」を削除しますか？",
     doneRatio: "{done}/{total} 完了",
     addButton: "+ 追加",
     addColumnButton: "+ 列",
@@ -998,6 +1009,11 @@ const jaMessages = {
     charactersCountNoMax: "{current} 文字",
     submit: "送信",
     progress: "必須項目 {total} 件中 {filled} 件入力済み",
+  },
+  pluginPresentCollection: {
+    fallbackTitle: "コレクション",
+    itemLabel: "項目: {id}",
+    listLabel: "すべてのレコード",
   },
   pluginPresentHtml: {
     saveAsPdf: "PDF として保存（印刷ダイアログを開きます）",
@@ -1322,12 +1338,17 @@ const jaMessages = {
       "{allowedTools} を介して Claude に渡す追加ツール名。1行につき1つ。Gmail / Google Calendar などの Claude Code 組み込み MCP サーバを、{claudeMcp} で認証した後に利用する場合に便利です。",
   },
   collectionsView: {
+    addCollectionLabel: "コレクション",
+    addCollectionPrompt:
+      "新しいコレクションを作成したいです。まず `config/helps/collection-skills.md` を読んでスキーマ駆動コレクションの規約を確認してください。次に `presentForm` ツールを使って（AskUserQuestion は使わないで）どんなデータを管理したいか質問し、その回答をもとに schema.json と SKILL.md を作成してください。",
     title: "コレクション",
     backToIndex: "コレクション一覧に戻る",
     indexEmpty: "インストール済みのコレクションがありません。スキーマを含むスキルを Skills ページからスター付けすると、ここに表示されます。",
     editItem: "編集",
     openItem: "{id} を開く",
     confirmDelete: "この項目を削除しますか？元に戻せません。",
+    deleteCollection: "コレクションを削除",
+    confirmDeleteCollection: "コレクション「{title}」とそのすべてのレコードを削除しますか？削除前に復元可能なバックアップが保存されます。",
     itemsEmpty: "まだ項目がありません。+ を押して追加してください。",
     notFound: "コレクションが見つかりません",
     loadFailed: "読み込みに失敗しました",
@@ -1345,9 +1366,12 @@ const jaMessages = {
     clearSearch: "検索をクリア",
     openCollection: "{title} を開く",
     createTitle: "新規追加",
-    editTitle: "レコードを編集",
     derivedLabel: "計算値",
     embedMissingTitle: "埋め込み参照が見つかりません",
+    chat: "チャット",
+    chatTitle: "チャットを開始",
+    chatPlaceholder: "このコレクションで行いたいことを入力してください…",
+    chatStart: "チャットを開始",
     source: {
       user: "ユーザー",
       project: "プロジェクト",

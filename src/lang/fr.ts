@@ -114,6 +114,9 @@ const frMessages = {
     copiedMarkdown: "Copié !",
   },
   rightSidebar: {
+    permalink: "Lien vers le message sélectionné",
+    copyPermalink: "Copier le lien vers le message sélectionné",
+    copiedPermalink: "Copié !",
     toggleSystemPrompt: "Basculer le system prompt",
     systemPrompt: "System Prompt",
     availableTools: "Outils disponibles",
@@ -319,6 +322,12 @@ const frMessages = {
       monthly: "Mensuelle",
       biannual: "Semestrielle",
       annual: "Annuelle",
+    },
+    seedPrompts: {
+      setup:
+        "Je souhaite configurer une nouvelle obligation récurrente dans Encore. Guidez-moi sur ce qu'il faut suivre (type, périodicité, cibles, champs), puis composez le DSL et appelez defineEncore une fois prêt.",
+      obligation:
+        'Je voudrais parler de mon obligation "{displayName}" (obligationId: {obligationId}). Interrogez d\'abord son état actuel, puis demandez-moi ce que je voudrais faire.',
     },
   },
   fileContentHeader: {
@@ -623,6 +632,7 @@ const frMessages = {
     goToday: "Aller à aujourd'hui",
     next: "Suivant",
     deleteItem: "Supprimer l'élément",
+    deleteConfirm: "Supprimer « {title} » ?",
     closeEditor: "Fermer l'éditeur",
     apiError: "⚠ Échec de la mise à jour du planificateur : {error}",
     tabCalendar: "Calendrier",
@@ -900,6 +910,7 @@ const frMessages = {
   },
   todoExplorer: {
     heading: "Tâches",
+    deleteConfirm: "Supprimer « {text} » ?",
     doneRatio: "{done}/{total} faites",
     addButton: "+ Ajouter",
     addColumnButton: "+ Colonne",
@@ -1007,6 +1018,11 @@ const frMessages = {
     charactersCountNoMax: "{current} caractères",
     submit: "Envoyer",
     progress: "{filled} sur {total} champs obligatoires remplis",
+  },
+  pluginPresentCollection: {
+    fallbackTitle: "Collection",
+    itemLabel: "Élément : {id}",
+    listLabel: "Tous les enregistrements",
   },
   pluginPresentHtml: {
     saveAsPdf: "Enregistrer en PDF (ouvre la boîte de dialogue d'impression)",
@@ -1333,12 +1349,18 @@ const frMessages = {
       "Noms d'outils supplémentaires à transmettre à Claude via {allowedTools}. Un par ligne. Utile pour les serveurs MCP intégrés à Claude Code comme Gmail / Google Agenda après authentification via {claudeMcp}.",
   },
   collectionsView: {
+    addCollectionLabel: "Collection",
+    addCollectionPrompt:
+      "Aide-moi à créer une nouvelle collection. Lis d'abord `config/helps/collection-skills.md` pour les conventions des collections basées sur un schéma. Utilise ensuite l'outil `presentForm` (n'utilise pas AskUserQuestion) pour me demander quel type de données je veux suivre, et crée le schema.json et le SKILL.md à partir de mes réponses.",
     title: "Collections",
     backToIndex: "Retour aux collections",
     indexEmpty: "Aucune collection installée. Mettez une étoile sur une compétence avec un schema depuis la page Skills pour la voir ici.",
     editItem: "Modifier",
     openItem: "Ouvrir {id}",
     confirmDelete: "Supprimer cet élément ? Cette action est irréversible.",
+    deleteCollection: "Supprimer la collection",
+    confirmDeleteCollection:
+      "Supprimer toute la collection « {title} », y compris tous ses enregistrements ? Une sauvegarde restaurable est archivée au préalable.",
     itemsEmpty: "Aucun élément pour l'instant. Cliquez sur + pour en ajouter un.",
     notFound: "Collection introuvable",
     loadFailed: "Échec du chargement",
@@ -1356,9 +1378,12 @@ const frMessages = {
     clearSearch: "Effacer la recherche",
     openCollection: "Ouvrir {title}",
     createTitle: "Ajouter",
-    editTitle: "Modifier l'enregistrement",
     derivedLabel: "Calculé",
     embedMissingTitle: "Référence intégrée manquante",
+    chat: "Discussion",
+    chatTitle: "Démarrer une discussion",
+    chatPlaceholder: "Décrivez ce que vous voulez faire avec cette collection…",
+    chatStart: "Démarrer la discussion",
     source: {
       user: "Utilisateur",
       project: "Projet",

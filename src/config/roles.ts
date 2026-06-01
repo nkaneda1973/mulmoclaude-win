@@ -58,6 +58,7 @@ export const ROLES: Role[] = [
     availablePlugins: [
       TOOL_NAMES.presentDocument,
       TOOL_NAMES.presentForm,
+      TOOL_NAMES.presentCollection,
       TOOL_NAMES.presentMulmoScript,
       TOOL_NAMES.generateImage,
       TOOL_NAMES.presentHtml,
@@ -92,6 +93,7 @@ export const ROLES: Role[] = [
       TOOL_NAMES.notify,
       TOOL_NAMES.presentDocument,
       TOOL_NAMES.presentForm,
+      TOOL_NAMES.presentCollection,
       // Preset runtime plugins (server/plugins/preset-list.ts).
       // Runtime plugins are gated by `availablePlugins` like the
       // static-GUI / static-MCP entries above; listed here so the
@@ -110,6 +112,9 @@ export const ROLES: Role[] = [
       "Where are the photos I took last weekend?",
       "Play some focus music on Spotify",
       "Remind me to call mom this evening",
+      "Create a contacts collection with name, company, title, email, phone, notes, and a business-card image. When I attach a photo of a business card, read the details off it and add a new contact.",
+      "Create a reading-list collection with a title, a URL field, and a Read checkbox. While Read is unchecked, keep each item in the bell notifications, labeled with its title.",
+      "Create a restaurants collection with name, cuisine, neighborhood, a website URL, a phone number, a Visited checkbox, a 1-to-5 rating, and notes. Hide the rating until I've marked a place as visited — there's nothing to rate before I've been.",
     ],
   },
   {
@@ -118,7 +123,7 @@ export const ROLES: Role[] = [
     icon: "business_center",
     prompt:
       "You are a professional office assistant. Create and edit documents, spreadsheets, and presentations. Read existing files in the workspace for context.\n\n" +
-      "For multi-slide presentations, use presentMulmoScript — first Read `config/helps/business.md` for the template and rules, then follow them exactly.\n\n" +
+      "For multi-slide presentations, use presentMulmoScript — first Read `config/helps/presentation-deck.md` for the deck-authoring guide (structured `slide` layouts or animated `html_tailwind`) and follow it exactly. For simpler chart/diagram-driven decks, `config/helps/business.md` has a lighter template.\n\n" +
       "Use presentHtml for rich interactive output such as dashboards, reports with live controls, or data visualizations. Recommended libraries (load via CDN):\n" +
       "- **UI / layout**: Tailwind CSS — https://cdn.tailwindcss.com\n" +
       "- **Data visualization**: D3.js — https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js",
@@ -134,6 +139,9 @@ export const ROLES: Role[] = [
       TOOL_NAMES.readXPost,
       TOOL_NAMES.searchX,
       TOOL_NAMES.notify,
+      // #1542 — `@mulmoclaude/email-plugin` (devOnly preset, IMAP/SMTP).
+      // v1 dispatch returns stubs; real I/O lands in follow-up PRs.
+      TOOL_NAMES.manageEmail,
     ],
     queries: [
       "Show me the discount cash flow analysis of monthly income of $10,000 for two years. Make it possible to change the discount rate and monthly income.",
@@ -316,7 +324,8 @@ export const ROLES: Role[] = [
       "- **`presentChart`** — pipe Yahoo Finance OHLCV bars into a price chart, or visualise revenue / EPS / margin trends extracted from edgar filings. For multi-period fundamentals (5-year revenue, quarterly EPS), prefer charts over tables.\n" +
       "- **`presentSpreadsheet`** — peer-comparison tables, ratio sheets, simple DCF / scenario models. The user can edit cells and resubmit.\n" +
       "- **`presentDocument`** — long-form write-ups: investment thesis, earnings recap, sector overview, post-mortem on a position. Use markdown with cited filing dates / sections inline.\n" +
-      "- **`presentHtml`** — only when a layout truly needs HTML (side-by-side comparison cards, custom tile views) and the spreadsheet/document/chart trio doesn't fit.\n\n" +
+      "- **`presentHtml`** — only when a layout truly needs HTML (side-by-side comparison cards, custom tile views) and the spreadsheet/document/chart trio doesn't fit.\n" +
+      "- **`presentMulmoScript`** — narrated multi-slide decks for investor updates, earnings recaps, or thesis pitches. Read `config/helps/presentation-deck.md` first for the deck-authoring guide (structured `slide` layouts or animated `html_tailwind`) and follow it exactly.\n\n" +
       "## Discipline\n\n" +
       "- **Cite or stay silent.** Every number from a filing must be anchored to the filing (form, fiscal period, section). Every market-data number must note the as-of timestamp and that it's delayed.\n" +
       "- **No personalised investment advice.** You can summarise filings, compute ratios, build models, and lay out trade-offs — but don't tell the user to buy or sell. Frame outputs as analysis, not recommendations.\n" +
@@ -329,6 +338,7 @@ export const ROLES: Role[] = [
       TOOL_NAMES.presentDocument,
       TOOL_NAMES.presentChart,
       TOOL_NAMES.presentHtml,
+      TOOL_NAMES.presentMulmoScript,
       TOOL_NAMES.readXPost,
       TOOL_NAMES.searchX,
     ],
@@ -339,6 +349,8 @@ export const ROLES: Role[] = [
       "What did TSLA say about FSD revenue in their latest 10-Q?",
       "Show insider transactions filed by META officers in the last 90 days",
       "Build a peer-comparison table for the top 5 US semiconductor companies",
+      "Create a stock quote collection for me, which has ticker symbol, company name, latest stock price, P/E ratio and dividend yield. Then, acquire the data for mag7 stocks and add them to that collection",
+      "Create a my-portfolio collection, which calculates the value of each holding by referencing the data in the stock quote collection. I have 100 shares of Apple and 200 shares of Tesla.",
     ],
   },
   // The `cookingCoach` built-in role was removed (#1286). Recipe

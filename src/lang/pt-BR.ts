@@ -114,6 +114,9 @@ const ptBRMessages = {
     copiedMarkdown: "Copiado!",
   },
   rightSidebar: {
+    permalink: "Link para a mensagem selecionada",
+    copyPermalink: "Copiar link para a mensagem selecionada",
+    copiedPermalink: "Copiado!",
     toggleSystemPrompt: "Alternar system prompt",
     systemPrompt: "System Prompt",
     availableTools: "Ferramentas disponíveis",
@@ -318,6 +321,12 @@ const ptBRMessages = {
       monthly: "Mensal",
       biannual: "Semestral",
       annual: "Anual",
+    },
+    seedPrompts: {
+      setup:
+        "Quero configurar uma nova obrigação recorrente no Encore. Oriente-me sobre o que acompanhar (tipo, periodicidade, alvos, campos) e depois componha o DSL e chame defineEncore quando estiver pronto.",
+      obligation:
+        'Quero conversar sobre a minha obrigação "{displayName}" (obligationId: {obligationId}). Primeiro consulte o estado atual dela e depois pergunte o que eu gostaria de fazer.',
     },
   },
   fileContentHeader: {
@@ -622,6 +631,7 @@ const ptBRMessages = {
     goToday: "Ir para hoje",
     next: "Próximo",
     deleteItem: "Excluir item",
+    deleteConfirm: 'Excluir "{title}"?',
     closeEditor: "Fechar editor",
     apiError: "⚠ Falha ao atualizar o agendador: {error}",
     tabCalendar: "Calendário",
@@ -896,6 +906,7 @@ const ptBRMessages = {
   },
   todoExplorer: {
     heading: "Tarefas",
+    deleteConfirm: 'Excluir "{text}"?',
     doneRatio: "{done}/{total} feitas",
     addButton: "+ Adicionar",
     addColumnButton: "+ Coluna",
@@ -1003,6 +1014,11 @@ const ptBRMessages = {
     charactersCountNoMax: "{current} caracteres",
     submit: "Enviar",
     progress: "{filled} de {total} campos obrigatórios preenchidos",
+  },
+  pluginPresentCollection: {
+    fallbackTitle: "Coleção",
+    itemLabel: "Item: {id}",
+    listLabel: "Todos os registros",
   },
   pluginPresentHtml: {
     saveAsPdf: "Salvar como PDF (abre o diálogo de impressão)",
@@ -1328,12 +1344,17 @@ const ptBRMessages = {
       "Nomes adicionais de ferramentas a serem passados ao Claude via {allowedTools}. Um por linha. Útil para servidores MCP integrados ao Claude Code como Gmail / Google Calendar após autenticar via {claudeMcp}.",
   },
   collectionsView: {
+    addCollectionLabel: "Coleção",
+    addCollectionPrompt:
+      "Ajude-me a criar uma nova coleção. Primeiro leia `config/helps/collection-skills.md` para conhecer as convenções de coleções baseadas em esquema. Depois use a ferramenta `presentForm` (não use AskUserQuestion) para perguntar que tipo de dados quero acompanhar, e crie o schema.json e o SKILL.md a partir das minhas respostas.",
     title: "Coleções",
     backToIndex: "Voltar para coleções",
     indexEmpty: "Nenhuma coleção instalada. Marque com estrela uma skill que inclua um schema na página Skills para vê-la aqui.",
     editItem: "Editar",
     openItem: "Abrir {id}",
     confirmDelete: "Excluir este item? Esta ação não pode ser desfeita.",
+    deleteCollection: "Excluir coleção",
+    confirmDeleteCollection: 'Excluir toda a coleção "{title}", incluindo todos os seus registros? Um backup restaurável é arquivado antes.',
     itemsEmpty: "Ainda não há itens. Clique em + para adicionar um.",
     notFound: "Coleção não encontrada",
     loadFailed: "Falha ao carregar",
@@ -1351,9 +1372,12 @@ const ptBRMessages = {
     clearSearch: "Limpar busca",
     openCollection: "Abrir {title}",
     createTitle: "Adicionar novo",
-    editTitle: "Editar registro",
     derivedLabel: "Derivado",
     embedMissingTitle: "Referência incorporada ausente",
+    chat: "Chat",
+    chatTitle: "Iniciar um chat",
+    chatPlaceholder: "Descreva o que você quer fazer com esta coleção…",
+    chatStart: "Iniciar chat",
     source: {
       user: "Usuário",
       project: "Projeto",

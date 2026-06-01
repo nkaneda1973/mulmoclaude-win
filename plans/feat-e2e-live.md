@@ -1,5 +1,31 @@
 # feat: e2e-live — 実 LLM を叩く総合テスト skill 群
 
+## 🔝 最優先方針 (2026-05-30): L-JOURNEY-* (主要機能の正常系 user journey) を最優先で埋める
+
+> 詳細仕様は §「未確定事項 / TODO (active)」 の **L-JOURNEY-*** エントリ、 進捗は §「実装ステータス」 を参照。 ここは着手順を決める起点としての宣言。
+
+`L-HAPPY-TOUR` は各 View / route が **mount するか (壊れていないか)** までしか見ておらず、 「**この機能が実際に動く** (setup → 副作用 → UI / disk への反映が観測できる)」 を end-to-end で確かめるネットが各機能に 1 本ずつ要る。 これを **L-JOURNEY-\<feature\>** として最優先で埋める。
+
+**設計原則 — e2e-live の journey は「LLM 経由 add」を優先する**:
+
+- e2e-live の存在意義は **実 LLM dispatch 経路の検証**。 UI ボタンをクリックするだけの add → 反映テストは mock e2e でも書けるので、 e2e-live では **たとえ UI に add ボタンがあっても、 add を chat (実 LLM) からツール dispatch させる経路を優先**して組む。
+- 具体形: chat で「〜を追加して」 と指示 → role-gate された manage 系ツール (`manageTodoList` / `manageCalendar` / `manageAccounting` 等) が dispatch → その mutation が **View に反映される** ところまで観測 → edit / delete の lifecycle を UI or LLM で踏む → reload で永続化を確認。
+- 純 UI add 版 (例: 既存 `L-JOURNEY-TODO`) も価値はあるが、 これは下層 (mock e2e) と被るため **LLM add 版を上に積む**。
+
+**今回バッチ (2026-05-30) で実装するもの** — いずれも LLM add 起点:
+
+| journey | role / tool | add 経路 | lifecycle |
+|---|---|---|---|
+| **L-JOURNEY-CAL** | Personal / `manageCalendar` | LLM「〜にイベント追加」 | grid に反映 → delete |
+| **L-JOURNEY-ACCT** | Accounting / `manageAccounting` | LLM「帳簿作成 / 仕訳追加」 | UI に反映 → report 描画 |
+| **L-JOURNEY-TODO-LLM** | Personal / `manageTodoList` | LLM「todo 追加」 | `/todos` card に反映 → check → reload |
+
+**今回バッチの follow-up (個別 PR で実装)** — **LLM-add 可否は機能ごとに異なる** ので個別に記録する (詳細 cover 表は §「未確定事項 / TODO (active)」 の L-JOURNEY-* 表):
+
+- **L-JOURNEY-COLLECTION** — ✅ **実装済** (journey-llm.spec.ts、 後続 PR)。 当初は「`presentCollection` (slug 指定) で inline 編集カードを mount」 を想定していたが、 実機確認の結果 **collection には add 用の manage* ツールが無い** ことが判明 — `presentCollection` は表示専用 (`collectionSlug` + optional `itemId`)。 add は **mc-clients preset skill** が agent に「id を derive して `data/clients/items/<id>.json` を `Write`」 と指示する **skill 駆動の file-write**。 よって本 journey は manage* dispatch 系と違う経路 (skill が workspace JSON を書く → host の `<CollectionView>` が同ファイルを読んで描画) を初めて net する。 形: Personal role で chat → mc-clients skill で client add → `/collections/mc-clients` (standalone route) の `collections-row-*` が marker (name) で visible → UI delete (`collections-row` → `collections-detail` → `collections-detail-remove` → ConfirmModal `host-confirm-ok`) → row 消失。 必要 testid は全て既存 (source 変更なし)。
+- **L-JOURNEY-ROLE** — ✅ **実装済** (journey-llm.spec.ts、 後続 PR)。 `manageRoles` はどの built-in role の `availablePlugins` にも無く LLM dispatch 不可なので **UI-add journey として割り切った**。 ただし create-form を Playwright で driving するのは pure-UI → REST で **mock e2e 領域** (LLM 不要) — e2e-live の価値は「**workspace 定義の custom role が live selector に出現し、 実 LLM ターンを回し、 削除できる**」点 (built-in role しか踏まない既存 roles.spec.ts (L-06〜L-09) の gap)。 そこで create / delete は form ではなく **`POST /api/roles/manage` を authed で叩く** deterministic な setup/teardown とし (新 helper `postAuthedJsonViaPage`)、 test 本体は selector 反映 + 実 LLM ターンに集中。 形: REST で custom role 作成 → `setupRoleSession(page, customId)` で切替 (= `role-option-<id>` クリック + `data-role` assert なので selector 反映 net 兼任) → 「greeting を返して」 で実 LLM 1 ターン → REST delete → `GET /api/roles` で id 消失を fail-closed poll (selector は transient chrome なので source-of-truth で確認、 L-JOURNEY-ACCT と同思想)。 testid 追加なし。 残: create-form 自体の UI 回帰は mock `e2e/` 側で別途張れる。
+- **L-JOURNEY-SOURCE / -NEWS** — `manageSource` も role-gate 無し。 加えて RSS fetch は外部ネット依存で flake リスクが高い。 別途インフラを整えてから。
+
 ## 背景
 
 直近 1 ヶ月の内部バグ報告約 50 件（Appendix 参照）から、**実 LLM を通さないと検出できない回帰**が複数発生していることが判明した。特に B-18（path-traversal 副作用による presentHtml の画像 404）は影響が大きく、PDF DL や mulmoScript 動画 DL でも同根の不具合が発生。
@@ -189,7 +215,7 @@ e2e-live/
 | L-FRESH-BOOT | fresh-user | 新規ユーザー: 空 workspace + 空 HOME から起動して 1 ターン完走 | ✅ |
 | L-FRESH-SANDBOX-BUILD | fresh-user | 新規ユーザー: sandbox image 不在から auto-build 経由で起動 | 未実装 |
 | L-FRESH-PRESET-SKILL | fresh-user | 新規ユーザー: preset skill が catalog → `.claude/skills/` に bridge mirror | 未実装 |
-| L-HAPPY-TOUR | happy-tour | 主要 View / route を一通り踏んで 「壊れていない」 を確認する正常系 sweep | 未実装 |
+| L-HAPPY-TOUR | happy-tour | 主要 View / route を一通り踏んで 「壊れていない」 を確認する正常系 sweep | ✅ 実装済 (happy-tour.spec.ts) |
 
 ## 未実装シナリオ詳細
 
@@ -391,6 +417,14 @@ e2e-live/
 | **L-SETTINGS-EFFORT** Settings → Model effortLevel 双方向同期 (#1323) | ✅ 実装済 | settings.spec.ts、 `config/settings.json` を snapshot (real user file は finally で復元、 codex iter-1 で seed は merge-onto-snapshot に変更し SIGKILL 耐性確保) → Phase 1: seed `{...original, effortLevel:"max"}` → modal open → `settings-tab-model` クリック → `settings-model-effort-select` が `max` を見ている (load path: GET /api/config + cloneAppSettings) → Phase 2: select を `low` に変更 → `@change` auto-save → `settings-model-status` が `low` を含むまで wait → ファイルから `effortLevel: "low"` を直接読み出して確認 (save path: PUT /api/config/settings → atomic write) → Phase 3: 空オプションで clear → status から `low` 消失 → ファイルから `effortLevel` キー自体が消えていることを assert (null sentinel → route の `delete merged.effortLevel` after spread が効いている)。 `buildCliArgs` unit test と config route integration test では取り切れない 「Vue ref ↔ select wire / `@change` auto-save / null sentinel 漏れ」 をブラウザ越しに 1 spec で網羅。 `config/settings.json` は workspace 共有ファイルなので describe は `mode: "serial"`、 同 file を mutate する将来 spec も同じ fence を借りる必要あり。 `restoreSettings` は他の cleanup helper と違い error を握り潰さない (real user data なので silent 破損を避ける、 codex iter-1)。 `readWorkspaceFile` helper を新設 (live-chat.ts、 ENOENT は `null`、 他 IO エラーは throw)。 wall time 1.2s |
 | **L-SETTINGS-EFFORT-SPAWN** settings.json → claude `--effort` 引数到達 (#1323 最終ホップ) | ✅ 実装済 | settings.spec.ts、 L-SETTINGS-EFFORT の sibling として「load → spawn」 ホップを単独で検証 (姉妹は「UI ↔ disk」 のみ)。 `seedWithEffort(original, "low")` で disk に直書き → `startNewSession` → `sendChatMessage("Reply with the single word: ok.")` → `/chat/<id>` URL 確定で session id を早めにキャプチャ (cleanup 確実化) → `ps -A -ww -o command=` を `toPass` で poll し、 `mcp__mulmoclaude` (`--allowedTools` 内に必ず入る固有 marker、 user 並走の Claude Code CLI を除外) を含むプロセスが現れるまで待つ → 全該当プロセスに `--effort low` regex match を assert → `waitForAssistantResponseComplete` で trace を末尾まで撮る → `deleteSession` + `restoreSettings`。 `buildCliArgs` の unit test では掴めない 「`loadSettings → settings.effortLevel → buildCliArgs(effortLevel) → spawn` の鎖が切れる」 系の退行を end-to-end で検出。 1 LLM ターン消費、 wall time ~7s。 ps 出力の長大化対策として `-ww` を渡している (Linux 必須、 macOS は pipe 時 truncate しないが安全側) |
 | **L-W-S-03** `<picture><source srcset>` rewriter | ✅ landed (#1275) | wiki.spec.ts、 unskip 済。 `srcset` 専用 split/rewrite pass (`rewriteSrcset` / `SRCSET_TAG_ATTRS` in `src/utils/image/htmlSrcAttrs.ts`) が #1275 で landed。 spec は `<picture><source srcset>` の srcset が `/api/files/raw` に書き換わること + descriptor 保持 + fallback `<img>` decode を検証 |
+| **L-HAPPY-TOUR** 正常系 sweep (capability axis) | ✅ 実装済 | happy-tour.spec.ts、 16 ステップを `test.step()` で個別ラップして失敗時に壊れた station が trace に直接出る構造。 step 1〜3 は `/api/health` / `/api/plugins/runtime/list` / `/api/plugins/diagnostics` の authed JSON GET を pure assertion (`e2e-live/lib/health-checks.ts`) で検証 — 2026-05-25 報告 (`@mulmoclaude/todo-plugin` bundle 漏れ) の **shape** を step 2 がカバー (dev 検証時は `requireDevOnly: true` で 4 preset 全件要求、 完全な tarball-mode catch は `health-checks.ts` を doctor CLI から再利用する別 PR を待つ)。 step 4〜16 はランチャーバーから到達できる主要 route を順に踏む: `/` → `/todos` → `/calendar` → `/wiki` → `/files` → `/skills` → `/sources` → `/automations` → `/news` → `/roles` → `/encore` → `/collections`。 各 view の root testid (`todo-view-root` / `scheduler-view-root` / `files-view-root` / `sources-view-root` / `roles-view-root` / `collections-view-root` を新設、 `news-view` / `encore-dashboard` / `wiki-lint-chat-button` / `skill-section-catalog` / `chat-sidebar` は既存) が visible + 既存の error banner testid (`todo-api-error` / `scheduler-api-error`) が `toHaveCount(0)` であることのみ assert (深い内容検査は意図的に避ける)。 step 5 は LLM 必須の 1 ターン smoke で `E2E_LIVE_NO_LLM=1` 環境では step body 内 early-return (Playwright の `test.skip()` は test 全体を skip するので使用不可、 Codex iter-2)、 session id は `/chat/<id>` URL 確定直後に capture して marker timeout でも cleanup が走る順序を確保 (Codex iter-1)。 plan step 12 (NotificationBell 警告 0 件) は step 3 と構造重複 + global filter での false-positive 懸念で実装から落とし、 必要時は L-17 baseline-diff shape で再導入する方針 (Codex iter-1)。 `/debug` は dev-only preset の playground で tarball mode で見えない surface のため意図的に除外。 assertion 部を pure 関数に切り出した理由は doctor CLI / pre-release smoke 共有のため (plan「設計指針」 通り)。 wall time 目標 3 分 (timeout 設定値) |
+| **L-DISPATCH-*** 未踏 plugin の 1 ターン dispatch canary (todo / cal / md / xls / svg / html / acct) | ✅ 実装済 | plugin-dispatch.spec.ts、 7 plugins (manageTodoList / manageCalendar / presentDocument / presentSpreadsheet / presentSVG / presentHtml / manageAccounting) を uniform shape で網羅。 manageAutomations は roles.ts line 252 のコメント通り built-in role の availablePlugins に未登録のため対象外 (manageRoles / manageSource と同 status、 source 側の role gate 変更は本 PR scope 外)。 各 spec は `setupRoleSession(page, role, sessionsToCleanup)` で plugin が露出した role に切替 → tool 名を literal で名指しした prompt 送信 → `waitForAssistantTurn` → `readSessionToolCalls(sessionId)` で jsonl trace を読み `mcp__mulmoclaude__<toolName>` の `tool_call` ≥1 件 を assert。 jsonl-only assertion を選んだ理由は 対象 plugin のうち 3 つ (todo / markdown / spreadsheet) に top-level chat-inline View testid が無く、 calendar / automations は SchedulerView を共有 (chat-inline 区別不能)、 accounting は createBook が openBook envelope を mount しない narrate-only path のため、 view-mount assertion を統一 shape で揃えるには testid 追加 refactor が必要 (out-of-scope)。 `setupRoleSession` は L-21B 由来の helper を本 PR で `live-chat.ts` に昇格 (skills.spec.ts も import に切替)。 manageRoles / manageSource は built-in role の `availablePlugins` に未登録で LLM dispatch path に乗らないため 対象外 (role gating 変更が別 PR 必要)、 spotify / edgar は OAuth / 外部設定が前提のため後回し継続。 fake-echo backend は MCP dispatch を再現できないので `E2E_LIVE_NO_LLM=1` で test.describe ごと skip、 CI matrix には未登録 (docker.spec.ts と同位置付け) |
+| **L-JOURNEY-TODO** UI から todo を add → check → reload で残る | ✅ 実装済 | journey-todo.spec.ts、 LLM 不要の純 UI + REST + ファイル永続化 net。 nonce-stamped marker text の todo を Add dialog (`todo-add-dialog-text` / `todo-add-dialog-submit` を新設) 経由で投入 → kanban card (`todo-card-<id>`) が visible → checkbox を check → reload → card と checkbox checked state が両方残ることを assert → cleanup は card click → `todo-edit-dialog-delete` (新設) + `window.confirm` を accept。 L-DISPATCH-TODO は LLM dispatch の jsonl trace 検証のみで「UI から見て動くか」 は cover していなかった、 本 spec が初の正常系 (user journey) 検証。 fake-friendly (`E2E_LIVE_NO_LLM=1` でも走る) なので CI matrix に登録可能 |
+| **L-JOURNEY-CAL** chat で予定 add → /calendar 反映 → UI delete | ✅ 実装済 | journey-llm.spec.ts、 §「最優先方針」 の LLM-add journey 1 本目。 Personal role で `manageCalendar` action='add' を chat dispatch (title=nonce marker, date 2099-12-31) → `/calendar` を list view (`scheduler-view-mode-list`) で開き、 新設 `scheduler-event-item` testid を marker で filter して **LLM mutation が grid に反映** されたことを assert → hover で `scheduler-item-delete-<id>` を出して UI delete + `window.confirm` accept → list から消えることを assert。 cleanup は server-side delete 済なので finally は `deleteSession` のみ (fs 書き込みなし → 共有 items.json への lost-update race を回避)。 LLM 必須 (`E2E_LIVE_NO_LLM=1` で skip) |
+| **L-JOURNEY-ACCT** chat で帳簿作成+open → switcher 反映 → chat で delete → DB から消える | ✅ 実装済 | journey-llm.spec.ts、 Accounting role で `manageAccounting` createBook (name=marker, USD/US) + openBook を 1 ターンで dispatch → openBook envelope が chat 内に `accounting-app` を mount → `accounting-book-select` (BookSwitcher の native select) が marker を含むことで **作成帳簿が active book として反映** されたことを assert (headline、 accounting は standalone route が無く openBook 経由でのみ view mount → roles.ts:288 → navigation せず chat inline で検証)。 delete は 2 ターン目で getBooks→deleteBook(confirm=true) を dispatch。 ただし **inline plugin view は次ターンが来ると collapse する** (最新ターンの時だけ展開) ので deleted-notice を in-place で観測できない → delete leg は source-of-truth (`data/accounting/config.json` の `books` から marker 名が消える) を read-only poll (`toPass`) で確認。 初回実走で deleted-notice assertion が collapse で fail → DB 確認に切替えた (run1 triage) |
+| **L-JOURNEY-TODO-LLM** chat で todo add → /todos 反映 → check→reload → chat で delete | ✅ 実装済 | journey-llm.spec.ts、 既存 L-JOURNEY-TODO (UI add) の **LLM-add 版**。 Personal role で `manageTodoList` action='add' を chat dispatch → `/todos` の `todo-card-<id>` が marker で visible (LLM mutation の UI 反映) → checkbox check → runtime dispatch flush 待ち → reload で card + checked 永続を assert → chat session に戻り `manageTodoList` action='delete' を dispatch (add/delete 両方 LLM で対称) → `/todos` から card 消失を assert。 「ボタンがあっても LLM 経由 add を見る」 e2e-live の典型例 |
+| **L-JOURNEY-COLLECTION** chat で client add (skill 駆動 file-write) → /collections 反映 → UI で delete | ✅ 実装済 | journey-llm.spec.ts、 §「最優先方針」 の follow-up。 **collection には add 用 manage* ツールが無い** ので他 3 journey と経路が異なる — `presentCollection` は表示専用 (`collectionSlug` + optional `itemId`) で、 add は **mc-clients preset skill** が agent に「id を derive して `data/clients/items/<id>.json` を `Write`」 と指示する **skill 駆動の file-write**。 Personal role で chat → `name='<marker>'` の client を mc-clients skill で add → `/collections/mc-clients` (standalone route) を開き、 mount gate に `collections-add-item` (canCreate=true、 非 singleton なので常時可) を待ってから `collections-row-*` を marker で filter → **skill が書いた workspace JSON を `<CollectionView>` が読んで描画した** ことを assert (manage* dispatch を経ない初の「workspace=DB」journey)。 delete は UI: row クリック → `openView` で `collections-detail` 展開 → `collections-detail-remove` → host の `ConfirmModal` (`host-confirm-ok`、 window.confirm ではない) accept → row `toHaveCount(0)`。 必要 testid は全て既存 (source 変更なし)。 cleanup は suite convention 踏襲 (finally は session 削除のみ) — ただし collection item は per-file (`<id>.json`) で shared array でないため finally prune は race-free な点をコメントに明記 (accounting の shared `config.json` との差分)。 LLM 必須 (`E2E_LIVE_NO_LLM=1` で skip) |
+| **L-JOURNEY-ROLE** custom role 作成 → selector 反映 → 実 LLM ターン → delete で消える | ✅ 実装済 | journey-llm.spec.ts、 §「最優先方針」 の follow-up。 `manageRoles` は LLM dispatch 不可なので **UI-add 割り切り**だが、 create-form の Playwright driving は pure-UI→REST で mock e2e 領域 → e2e-live 本体は **workspace 定義 custom role が live selector に出て実 LLM ターンを回す** ことに集中 (built-in role しか踏まない既存 roles.spec.ts (L-06〜L-09) の gap)。 create/delete は form ではなく `POST /api/roles/manage` を authed で叩く deterministic な setup/teardown (新 helper **`postAuthedJsonViaPage`** を live-chat.ts に追加、 `fetchAuthedJsonViaPage` の POST 版)。 流れ: REST で `{action:'create', role:{id=name=marker, icon, prompt, availablePlugins:[]}}` 作成 → `setupRoleSession(page, marker)` で切替 (selectRole が `role-option-<marker>` をクリック + `data-role` を assert するので **selector 反映の net を兼任**) → 「greeting を返して」 で実 LLM 1 ターン (`waitForAssistantTurn`) → `{action:'delete', roleId:marker}` → `GET /api/roles` の id 一覧から marker 消失を fail-closed poll (`toPass`)。 role id は marker (`testId-epochMs-hex`) が server の `/^[a-zA-Z0-9_-]+$/` を満たすのでそのまま流用。 testid 追加なし。 LLM 必須 (`E2E_LIVE_NO_LLM=1` で skip)。 create-form 自体の UI 回帰は mock `e2e/` 側で別途張れる |
 | **L-FRESH-BOOT** 新規ユーザー smoke (first-run UX) | ✅ 実装済 | fresh-boot.spec.ts (`e2e-live/tests/fresh-boot.spec.ts`) + `e2e-live/fixtures/isolated-dev-server.ts`。 階層 2 + 3 設計通り、 `HOME` / `MULMOCLAUDE_WORKSPACE_PATH` / `PORT` 3 軸 + 認証 token を `MULMOCLAUDE_AUTH_TOKEN` で pin、 `NODE_ENV=production` で express が SPA を serve、 `DISABLE_SANDBOX=1` で sandbox build を回避。 `dist/client/` の参照先を `MULMOCLAUDE_CLIENT_DIR` env で振り直す test seam を `server/index.ts` に追加 (prepare-dist が `client/` に copy する production layout を前提とする既定値は不変、 source-run の test だけ override)。 spec は (a) `/api/health` 200、 (b) workspace dir auto-init (`conversations/chat` / `config/helps` / `.session-token`)、 (c) `<meta name="mulmoclaude-auth">` token 注入、 (d) 1 ターン `Reply with the single word: okfresh-<nonce>` の assistant body marker echo、 (e) cleanup 後 host `~/mulmoclaude/` / `~/.claude/skills/` mtime 不変、 の 5 段で boot path 連動性を保証。 helper (`spawnIsolatedDevServer` / `stopIsolatedDevServer` / `assertHostUntouched`) は今後 L-10 / L-13 / L-FRESH-PRESET-SKILL で再利用する設計。 wall time ~15-19s。 `yarn test:e2e:live:fresh-boot` で単独実行可能、 CI no-LLM matrix は spec が自前 server を spawn する構造のため意図的に未登録 (docker.spec.ts と同じ位置付け) |
 
 ### 未実装シナリオの再評価 (2026-05-23)
@@ -411,6 +445,60 @@ e2e-live/
 | **L-FRESH-SANDBOX-BUILD** image 不在 → auto-build | **実装可能** (要 env 新設) | L-FRESH-BOOT の枠 + `MULMOCLAUDE_SANDBOX_IMAGE` env 新設 (階層 3)。 sandbox image を test 専用名で参照させて 「image が無い」 状態を疑似、 host の `mulmoclaude-sandbox:latest` を消さずに済む |
 | **L-FRESH-PRESET-SKILL** preset skill mirror | **実装可能** (要 infra) | L-FRESH-BOOT と同じ infra で空 workspace 起動 → preset migration 経路 (catalog → bridge mirror) を end-to-end で検証 |
 
+## 優先度方針 (2026-05-27)
+
+> **未踏領域の coverage > バグ回帰の再発検出 net**。
+
+これまでの実装順は 「壊れた時の影響が大きいバグ軸の再発防止」 を第一軸にしていたが、 happy-tour 着手時 (2026-05-27) に 「plugin の 1 ターン dispatch test が大量に欠けている」 ことが顕在化した。 バグ軸の retroactive net より、 まだ end-to-end で **一度も触られていない** 機能の 1 ターン canary を先に立てる方が ROI が高い。 理由:
+
+- 既知バグの net は unit test / mock e2e でも代替可能なケースが多い (落ちる shape が判っているので低レイヤで書ける)
+- 未踏領域は 「壊れていることに誰も気付かない」 状態が長期化しやすい (2026-05-25 報告の preset bundle 漏れがその典型)
+- 1 plugin × 1 ターン dispatch test は shape が既存 L-21 / L-21B と同型で 1 spec / 30〜60 分で書ける
+
+したがって以降の Phase 1 着手候補は **「まだ 1 ターン LLM test が無い plugin / 機能」 を最優先**、 既存バグの retroactive net は Phase 2 以降に降格する。
+
+### 未踏 plugin の 1 ターン dispatch test 棚卸し (2026-05-27)
+
+| plugin / 機能 | tool name | 1 ターン test 有無 | 備考 |
+|---|---|---|---|
+| **todo** | `manageTodoList` | ✅ L-DISPATCH-TODO | plugin-dispatch.spec.ts (Personal role + jsonl trace canary) |
+| scheduler (calendar) | `manageCalendar` | ✅ L-DISPATCH-CAL | 同上 (Personal role) |
+| scheduler (automations) | `manageAutomations` | **対象外** | settings role 廃止 (#1283) + 3 つの preset skill に分割 (#1295) で、 `src/config/roles.ts:252` のコメント通り、 どの built-in role の `availablePlugins` にも未登録 → LLM dispatch path に乗らない (manageRoles / manageSource と同 status)。 /automations route + view-mount は L-HAPPY-TOUR step 11 でカバー済 |
+| markdown | `presentDocument` | ✅ L-DISPATCH-MD | 同上 (General role)。 `updateMarkdown` tool は存在しない (route のみ、 plugin-dispatch 着手時に判明) |
+| spreadsheet | `presentSpreadsheet` | ✅ L-DISPATCH-XLS | 同上 (Office role)。 `updateSpreadsheet` tool 不在 (markdown と同じ pattern) |
+| presentSVG | `presentSVG` | ✅ L-DISPATCH-SVG | 同上 (Artist role) |
+| presentHtml | `presentHtml` | ✅ L-DISPATCH-HTML | 同上 (Office role)。 L-01 は file seed 経由なので LLM dispatch path とは別レイヤ、 本 spec が初の dispatch canary |
+| manageRoles | `manageRoles` | **対象外** | どの built-in role の `availablePlugins` にも未登録 → 通常 chat から LLM dispatch 不可。 role gating 変更 (out-of-scope) が必要 |
+| manageSource | `manageSource` | **対象外** | 同上 (role gate 無し、 dispatch path が踏めない) |
+| accounting | `manageAccounting` | ✅ L-DISPATCH-ACCT | plugin-dispatch.spec.ts (Accounting role + createBook action) |
+| spotify (preset) | `spotify` | ❌ | OAuth 必要、 後回し可 |
+| edgar (preset) | `edgar` | ❌ | 設定必要、 後回し可 |
+| news | (read-only view) | ❌ | tool dispatch 無し、 view mount は happy-tour で cover 済 |
+| presentMulmoScript | ✅ L-03 / L-04 | | |
+| chart | ✅ L-21 | | |
+| encore | ✅ L-21B | | |
+| generateImage | ✅ L-05 | | |
+| presentForm | ✅ L-18 | | |
+| skill | ✅ L-22 / L-31 / L-32 / L-33 | | |
+
+実装順は **(a) preset で日常使用される todo / scheduler 系を最優先、 (b) 表示系 (markdown / spreadsheet / SVG / presentHtml) を次、 (c) manageX 系 (roles / source) と accounting、 (d) 外部設定必要な spotify / edgar は infra が揃ってから** の順。 各 spec は L-21 shape を踏襲: 確実な prompt + tool 呼出 jsonl trace 確認 + view side-effect (file / DOM marker) 確認 + cleanup。
+
+## 実装確認の規律 (2026-05-27)
+
+> **新規 spec を追加したら必ず手元で 1 回 pass を確認してから commit する**。 LLM コスト / API call 数を理由に 「lint / typecheck / build が通ったら OK とする」 のは禁止。
+
+backstory: 2026-05-27 の happy-tour 着手で、 spec 著者 (Claude) が 「dev server が main 側だから testid が反映されてない」 「LLM コストが気になる」 を理由に実行を skip し、 lint / build のみで commit を進めた結果、 ユーザーが headed で初回実行した時に step 3 (`/api/plugins/diagnostics` payload shape ミス) + step 6 (`/todos` route が mount するコンポーネント の誤認 — `TodoExplorer.vue` vs `todo-plugin/View.vue`) の 2 件の load-bearing バグが連続で発覚した。 lint / build は **「型と構文が合っているか」 しか見ていない**、 「assertion が実際の payload / DOM と噛み合うか」 は 1 回回さないと判らない。
+
+具体規律:
+
+- MUST 新規 / 大幅改修した spec は手元で **`yarn test:e2e:live:<category>`** を 1 回 pass まで通してから commit
+- MUST dev server が別 branch (main 等) で起動している場合は worktree 側で立て直す依頼を user に出す。 「現状の dev で動かないから skip」 は NG
+- LLM コスト / API call 数は理由にしない — `/make-e2e-live` 上で skill が動いている時点で実 LLM cost は許容範囲、 ユーザーが明示的に skip を指示するまで実 LLM で回す
+- API shape を assert する場合は **必ず route handler を読んでから書く** (server/api/routes/<name>.ts)。 推測で envelope 形 (`unknown[]` vs `{ data: [...] }`) を決めない
+- route と view の関係を assert する場合は **必ず App.vue の `currentPage === 'X'` 分岐を読んでから書く** (`/todos` ↔ `TodoExplorer.vue` のような host vs plugin の取り違えを防ぐ)
+
+これは `/make-e2e-live` skill の Phase 4 「必須チェック」 セクションにも反映する (skill 側の更新は別 PR で良い、 plan 側に source-of-truth を残す)。
+
 ## 実装順 (2026-05-23 時点)
 
 未実装シナリオ + 反映候補 PR を **重要度 (= 必要度) ベース** で並べた次に着手するロードマップ。 同重要度内では infra 依存が少ない順 (= 早く 1 PR で完結する順) で配置するが、 「楽な順」 ではなく 「壊れた時の影響が大きい順」 が第一軸。
@@ -419,7 +507,7 @@ e2e-live/
 
 1. ~~**L-30 skill symlink dangling (B-08、 docker)**~~ — ✅ 実装済 (PR #1492、 docker.spec.ts)。 階層 1 設計指針通り、 ユーザー環境を一切触らない broken symlink seed + valid sibling 対比で discovery resilience を end-to-end で検証
 2. ~~**encore plugin dispatch canary (#1437 / #1440 / #1441 / #1443)**~~ — ✅ **L-21B として実装済** (PR #1493、 skills.spec.ts)。 元: 重要度 **A**、 L-21 (chart) shape を copy するだけ。 新 plugin の deferred-tool dispatch が壊れると plugin View 全消失する退行に直結。 runtime plugin が増えるトレンドで net 強化の効果が最大
-3. **L-HAPPY-TOUR 正常系 sweep** — 重要度 **A**。 2026-05-25 報告 (`npx mulmoclaude@latest` で ToDo 読み込み失敗、 preset plugin `@mulmoclaude/todo-plugin` が bundle 漏れ) のような **「個別 spec で見ていない領域でアプリ全体が破綻する」** クラスの退行を捕まえる net が現状ゼロ。 happy-tour 1 spec で主要 View / route を薄く広く touch することで、 同種事故の事前検出を可能にする。 assertion は doctor CLI / pre-release smoke と share できる pure 関数 (`e2e-live/lib/health-checks.ts` 新設) に切り出す設計とし、 3 経路で再利用する
+3. ~~**L-HAPPY-TOUR 正常系 sweep**~~ — ✅ **実装済** (happy-tour.spec.ts)。 重要度 **A**。 2026-05-25 報告 (`@mulmoclaude/todo-plugin` bundle 漏れ) のような **「個別 spec で見ていない領域でアプリ全体が破綻する」** クラスの退行 net を 1 spec / 12 step で構築。 assertion を `e2e-live/lib/health-checks.ts` に pure 関数で切り出し、 doctor CLI / pre-release smoke で再利用可能な形にした (Spec / CLI 2 経路、 packaged-tarball 用に `requireDevOnly` flag を残してある)
 
 ### Phase 2: 前提 PR + 本体 PR (中〜高重要度、 要 infra 整備)
 
@@ -952,10 +1040,37 @@ active な未着手 / 関心事項:
 - [ ] **e2e-live spec の L-23 / L-24 シナリオ ID rename (follow-up issue)** — `e2e-live/tests/workspace-link-routing.spec.ts:31, 134` で `L-23` / `L-24` を 「workspace link routing」 系シナリオに割り当てているが、 plan 起票時の予約 (`L-23` = X MCP docker、 `L-24` = 旧 sandbox:login) と ID 衝突している (CodeRabbit iter-1 on PR #1481 で検出)。 spec 側を `L-WSLINK-MULTIBYTE` / `L-WSLINK-WIKI-MD` 等にリネームする issue を起こす。 plan 側は L-24 廃止 + L-23 は docker.spec.ts:93 が canonical で進める
 - [x] ~~**テスト専用 dev server 起動 infra** (案 C 拡張)~~ — L-FRESH-BOOT PR で landing (`e2e-live/fixtures/isolated-dev-server.ts`)。 helper は `HOME` / `MULMOCLAUDE_WORKSPACE_PATH` / `PORT` / `MULMOCLAUDE_AUTH_TOKEN` の 4 軸を `spawnIsolatedDevServer` 1 関数で抽象化。 当初想定した 「`/e2e-live-matrix` skill に集約 → mode × Docker 軸の matrix」 まではしておらず、 そこは別 PR で。 L-10 / L-13 / L-FRESH-PRESET-SKILL は今回の helper を `env` 引数で extend する形で乗れる
 - [ ] **「対象外」 ラベル導入** — L-29 のように 「unit test で十分、 e2e-live 移植不要」 と評価したシナリオを 「対象外」 として実装ステータス表に追加。 「未実装」 と区別することで進捗が読みやすい
-- [ ] **L-HAPPY-TOUR (正常系 sweep) 実装** — Phase 1 に追加済。 2026-05-25 報告 (preset plugin `@mulmoclaude/todo-plugin` 等の bundle 漏れで ToDo View が読み込み失敗) のような 「個別 spec で見ていない領域でアプリ全体が破綻する」 退行を捕まえる net。 assertion を `e2e-live/lib/health-checks.ts` 等の pure 関数に切り出し、 doctor CLI 構想 / pre-release smoke と共有する設計を採用したい。 設計詳細は 「未実装シナリオ詳細 → happy-tour」 を参照
+- [x] ~~**L-HAPPY-TOUR (正常系 sweep) 実装**~~ — ✅ 実装済 (happy-tour.spec.ts)。 assertion は `e2e-live/lib/health-checks.ts` に pure 関数として切り出し、 spec / 将来の doctor CLI / pre-release smoke の 3 経路で再利用可能な形に landing。 ステップ 12 (NotificationBell 警告チェック) は step 3 (`/api/plugins/diagnostics`) と構造的に重複し、 user/workspace の既存 urgent entry で false-positive する懸念から本実装では落とした (Codex iter-1)。 必要なら将来 L-17 baseline-diff shape で再導入
 - [ ] **wall-time budget の運用化** — `/e2e-live` 全実行を **30 分以内** に保つ hard constraint を運用化する。 PR で新規シナリオ追加時、 実測時間を PR 本文に記載 + budget を超えたら降格 / 統合 / drop 提案を必須化。 `make-e2e-live` skill 側にも 「追加前に現状の wall time を測る」 ステップを足す
 - [ ] **PR template に下層 gate を追加** — `.github/PULL_REQUEST_TEMPLATE.md` に 「このバグの再発防止 test を最も下のレイヤに置きましたか / e2e-live に置く場合、 unit / mock e2e で取れない理由を 1 行で明記しましたか」 の checkbox を追加。 e2e-live がバグ ID の墓場になるのを構造的に防ぐ
 - [ ] **`/audit-e2e-live` skill 構想** — 既存 L-XX (特にバグ軸) を半年ごとに棚卸し、 下層で同等 cover ができたシナリオを e2e-live から外す proposal を出す skill。 `audit-unclosed-issues` skill の運用 shape を踏襲。 着手は wall-time budget 運用が回り始めてから (圧力が発生してから)
+- [x] ~~**`deleteSession` の general-session false-warning を抑える**~~ — ✅ 解消済。 案 (a) で `setupRoleSession` (live-chat.ts) の `sessionsToCleanup.push(generalSessionId)` を削除し、 1 ターンも chat が打たれない general 側 baseline session を cleanup 対象から外した。 role 側 session の cleanup と on-disk state は不変。 元の TODO 本文: `setupRoleSession` (live-chat.ts) は general role の session を 1 つ作って即 role 切替するため、 general 側 session は **1 ターンも chat を打たない** まま捨てられる。 `/api/sessions` は session jsonl が disk に flush されてから出てくるので、 chat 0 ターンの general session は disk に書かれず list に永久に出てこない → finally の `deleteSession` → `waitForSessionIdle` が 30s タイムアウトして 「best-effort cleanup skipped: ... not yet visible in /api/sessions list」 を毎 run 7 spec 分 log に流す (skills.spec.ts L-21 / L-21B / plugin-dispatch.spec.ts 全部で発生)。 test 結果は ✅ (deleteSession は throw せず skip) だが trace / 出力の S/N 比を下げているので false-positive とみなせる。 対処案: (a) `setupRoleSession` 側で chat 0 ターンの session id は cleanup list に積まない (general 側は selectRole で残らないので push しない)、 (b) `deleteSession` 側で `waitForSessionIdle` の timeout を per-call で短く (5s 程度) して試す、 (c) `/api/sessions` に出ない session の DELETE は 404 を許容して `waitForSessionIdle` 自体を skip。 (a) が最も筋が良い (cleanup する必要が無いので積まない)。 既存 spec (skills.spec.ts L-21 等) も同じ shape なので live-chat.ts の `setupRoleSession` を直せば全 spec で benefit。 本 PR scope 外、 別 follow-up
+- [ ] **L-JOURNEY-* 主要ユーザー journey が end-to-end で動くこと** — `L-HAPPY-TOUR` は plugin route の mount sanity (壊れていない) までで、 「機能が **実際に動く** (setup → 副作用 → 反映が観測可能)」 までは見ていない。 各 plugin / 機能 ごとに代表的な user journey を 1 本 ずつ net する。 必要に応じて LLM 経由 / UI 操作 / 両方を組合せる (どちらでも end-to-end で 「動いた」 と言えればよい)。 現状の cover と未 cover の対応表:
+
+  | 機能 | 既存 cover | journey TODO |
+  |---|---|---|
+  | encore | L-21B (defineEncore 1 ターン dispatch のみ、 on-disk artefact 確認まで) | **L-JOURNEY-ENCORE** setup → 期限到来 → 通知発火 → dashboard で表示 → 完了報告 の lifecycle |
+  | collections | happy-tour で `/collections` mount のみ / ✅ **L-JOURNEY-COLLECTION** (mc-clients skill で client add → /collections/mc-clients の row 反映 → UI delete、 journey-llm.spec.ts) | 新規スキーマ定義 (chat で「〜 collection 作って」) → list 表示 → edit (field 更新) の full lifecycle は別 PR。 ref field (mc-worklog → mc-clients) を絡めた cross-collection journey も将来 |
+  | sources (情報ソース) | なし (`/sources` mount のみ) | **L-JOURNEY-SOURCE** RSS feed URL 登録 → fetch → wiki / news への取込確認 |
+  | news | なし (`/news` mount のみ) | **L-JOURNEY-NEWS** source 経由 (or 直接 URL) → news fetch → /news で記事 visible |
+  | skill | ✅ L-22 / L-31 / L-32 / L-33 / L-33B (登録 / discovery / run / preset chain / catalog→star) | (主要 path は cover 済、 追加は様子見) |
+  | roles | L-06〜L-09 (built-in role の 1 ターン) / ✅ **L-JOURNEY-ROLE** (custom role を REST 作成 → selector 反映 → 実 LLM ターン → REST delete → GET /api/roles で消失、 journey-llm.spec.ts) | create-form の UI driving (pure-UI→REST、 LLM 不要) は mock `e2e/` 側で別途。 availablePlugins を絞った role で plugin gating が効くかの検証も将来 |
+  | todo | L-DISPATCH-TODO (jsonl trace) / L-JOURNEY-TODO (UI add) / ✅ **L-JOURNEY-TODO-LLM** (LLM add → /todos card 反映 → check → reload → LLM delete、 journey-llm.spec.ts) | — |
+  | calendar | L-DISPATCH-CAL (jsonl trace) / ✅ **L-JOURNEY-CAL** (LLM add → /calendar list 反映 → UI delete、 journey-llm.spec.ts) | edit (multi-day 化) は YAML editor の testid 不足で見送り、 別 PR |
+  | accounting | L-DISPATCH-ACCT (jsonl trace) / ✅ **L-JOURNEY-ACCT** (LLM createBook+openBook → switcher 反映 → LLM deleteBook → DB から消える、 journey-llm.spec.ts) | addEntries (借方/貸方) → getReport (BS/PL) → voidEntry の full lifecycle は opening-gate を踏むため別 PR。 delete の deleted-notice UI 観測は inline view collapse で不可 → DB 確認に切替済 |
+  | wiki | L-14 / L-15 / L-16 / L-WIKI-* (内部リンク / 非ASCII / lint 系) ✅ | (主要 path cover 済) |
+  | sandbox / docker | L-23 / L-26 / L-28 / L-30 ✅ | (主要 path cover 済) |
+
+  共通方針: 各 spec は 「**この機能を初めて使うユーザーが ✅ 動いたと感じる**」 最小経路を 1 本選び、 testid 追加 + chat / UI 操作の組合せで end-to-end を net する。 中〜大規模、 機能ごとに 1 PR を推奨 (1 PR で全部入れない)。 phase 分割は重要度順: **(1)** L-JOURNEY-SOURCE + L-JOURNEY-NEWS (情報取込 path 全体)、 **(2)** L-JOURNEY-ENCORE (再発通知の lifecycle)、 **(3)** L-JOURNEY-COLLECTION + L-JOURNEY-ROLE (拡張系)、 **(4)** L-JOURNEY-TODO / -CAL / -ACCT (これは L-LAUNCHER-OPS / L-DISPATCH-*-LIFECYCLE と内容が重なるので統合 PR で良い)
+
+  なお top-chrome の 🔒 lock / 🔔 notifications / 📅 today / ⚙️ settings は別軸の 「**L-TOPBAR-OPS**」 として独立に扱う (toolbar のうち plugin で無いもの、 4 spec で 1 PR)
+- [ ] **L-DISPATCH-* の深堀り follow-up 群** — `plugin-dispatch.spec.ts` (本 PR) は各 plugin が 1 ターン dispatch 経路に乗ることだけを net しており、 view 描画 / 主要 action の網羅は意図的に未着手 (L-21 / L-21B と同型の「canary」 として scope を絞った)。 ユーザーが運用中に気づいた抜けに沿って follow-up PR を切る:
+  - [ ] **L-DISPATCH-VIEW** view 描画 end-to-end: 各 plugin で add turn → 該当 route (`/todos` / `/calendar` / `/accounting`) または chat-inline view に navigate → marker text が visible、 cleanup turn 後 → marker hidden / `toHaveCount(0)`。 前提: todo / markdown / spreadsheet に top-level `data-testid` を新設 (`todo-plugin-view` / `present-document-view` / `present-spreadsheet-view`)、 ui-cheatsheet 更新。 artifact 系 4 plugin (md / xls / svg / html) は chat inline の tool-result View を assertion target にする (route が無い)。 7 spec × +2 navigate で中規模、 別 PR 推奨
+  - [ ] **L-DISPATCH-TODO-LIFECYCLE** todo の主要 action 網羅 (check / uncheck / update / clear_completed / add_label / remove_label / list_labels)。 3〜5 spec、 各 1 nonce-stamped todo に対し action を順次 dispatch して args.action + 結果データを assert
+  - [ ] **L-DISPATCH-CAL-UPDATE** calendar の update action: 既存 event の title / date を更新 → /calendar に navigate → 更新後 title が visible。 1 spec
+  - [ ] **L-DISPATCH-ACCT-LIFECYCLE** accounting の addEntries / voidEntry / getReport / getTimeSeries: 1 book に対し journal entry を add → getReport で集計値を assert → voidEntry で取消 → 再度 getReport で取消結果を assert。 3〜4 spec、 double-entry の append-only invariant を end-to-end で net
+  - 共通方針: 各 spec は本 PR で確立した `setupRoleSession` + `runDispatchCase` (or 拡張版) を再利用、 cleanup は同じ chat session の追加ターン経由 (本 PR と同 shape)、 jsonl trace assertion は turn-scoped baseline diff (iter-3 fix と同 pattern) で実装。 view 描画系は testid 追加 + ui-cheatsheet 更新を同 PR 内でセット
+  - 着手順は **VIEW → TODO-LIFECYCLE → ACCT-LIFECYCLE → CAL-UPDATE** を推奨: VIEW が最も汎用 (全 7 plugin に効く net 強化)、 TODO は使用頻度高、 ACCT は double-entry の不変条件 net で価値最大、 CAL-UPDATE は単発
 - [ ] **e2e-live suite 全体の self-contained 化検討** — 現状は 「ユーザーが手元で `yarn dev` を起動してから `yarn test:e2e:live` を叩く」 前提で、 spec は host の `~/mulmoclaude/` workspace を unique slug + cleanup で汚さないように使う (階層 1)。 L-FRESH-BOOT で導入した `spawnIsolatedDevServer` を **suite 単位で 1 回だけ呼ぶ** 形に格上げすれば、 ユーザーは `yarn dev` 起動すら不要になり、 全 spec が隔離 workspace 上で走り、 host は一切触られなくなる。 実装は Playwright の `webServer` config か `globalSetup` / `globalTeardown` で 1 回 spawn → suite 終了で 1 回 kill する形 (e2e/ がすでに似た shape: vite + express を auto-spawn)。 `MULMOCLAUDE_WORKSPACE` env を runner process に流して既存 helper の `workspaceRoot()` を隔離 ws に振れば、 既存 `placeFixtureInWorkspace` / `placeWikiPage` 等は touch せずに動く。 考慮点: (a) suite 先頭で server boot ~5-10s の固定コスト、 (b) 「開発者の real workspace 固有の state (既存 slug 衝突 等) が test に出てこなくなる」 → これは現状の階層 1 が拾えていたメリットなので失う、 (c) pre-release mode (`npx mulmoclaude@<tarball>`) と dev mode の 2 系統で webServer config を別に用意する必要、 (d) Docker on/off matrix を webServer 単位で切替 (現状の人間依頼方式は webServer config 2 つで自動化可能)。 **L-FRESH-BOOT 自体は per-test spawn のままにする必要**: 「毎回真っ新の空状態から起動して 1ターン目が成立する」 という assertion は suite 単位 1 回 spawn では弱まる (他 spec が先に走ると workspace に痕跡が残る) ため、 suite-level 隔離と per-test 隔離は両立して意味がある
 
 履歴: 完了済の TODO は [`plans/done/feat-e2e-live-history.md`](done/feat-e2e-live-history.md) を参照。

@@ -116,6 +116,9 @@ const zhMessages = {
     copiedMarkdown: "已复制",
   },
   rightSidebar: {
+    permalink: "选中消息的固定链接",
+    copyPermalink: "复制选中消息的固定链接",
+    copiedPermalink: "已复制!",
     toggleSystemPrompt: "切换系统提示词",
     systemPrompt: "系统提示词",
     availableTools: "可用工具",
@@ -315,6 +318,10 @@ const zhMessages = {
       monthly: "每月",
       biannual: "每半年",
       annual: "每年",
+    },
+    seedPrompts: {
+      setup: "我想在 Encore 中设置一个新的周期性事项。请引导我确定要追踪的内容（类型、周期、目标、字段），准备好后再编写 DSL 并调用 defineEncore。",
+      obligation: "我想讨论我的「{displayName}」事项（obligationId: {obligationId}）。请先查询它的当前状态，然后问我想做什么。",
     },
   },
   fileContentHeader: {
@@ -610,6 +617,7 @@ const zhMessages = {
     goToday: "跳到今天",
     next: "下一个",
     deleteItem: "删除项目",
+    deleteConfirm: "删除「{title}」？",
     closeEditor: "关闭编辑器",
     apiError: "⚠ 更新调度器失败: {error}",
     tabCalendar: "日历",
@@ -882,6 +890,7 @@ const zhMessages = {
   },
   todoExplorer: {
     heading: "待办",
+    deleteConfirm: "删除「{text}」？",
     doneRatio: "{done}/{total} 完成",
     addButton: "+ 添加",
     addColumnButton: "+ 列",
@@ -989,6 +998,11 @@ const zhMessages = {
     charactersCountNoMax: "{current} 字符",
     submit: "提交",
     progress: "已填写 {filled} / {total} 个必填字段",
+  },
+  pluginPresentCollection: {
+    fallbackTitle: "集合",
+    itemLabel: "项目：{id}",
+    listLabel: "全部记录",
   },
   pluginPresentHtml: {
     saveAsPdf: "另存为 PDF(打开打印对话框)",
@@ -1315,12 +1329,17 @@ const zhMessages = {
       "要通过 {allowedTools} 传递给 Claude 的额外工具名。每行一个。适用于在 {claudeMcp} 完成授权后,调用 Claude Code 内置的 MCP 服务器(如 Gmail / Google 日历)。",
   },
   collectionsView: {
+    addCollectionLabel: "集合",
+    addCollectionPrompt:
+      "帮我创建一个新的集合。请先阅读 `config/helps/collection-skills.md` 了解基于 schema 的集合约定。然后使用 `presentForm` 工具（不要使用 AskUserQuestion）询问我想跟踪哪种数据，并根据我的回答编写 schema.json 和 SKILL.md。",
     title: "集合",
     backToIndex: "返回集合列表",
     indexEmpty: "尚未安装任何集合。在「技能」页面对带有 schema 的技能加星即可在此显示。",
     editItem: "编辑",
     openItem: "打开 {id}",
     confirmDelete: "删除此项？此操作无法撤销。",
+    deleteCollection: "删除集合",
+    confirmDeleteCollection: "删除整个“{title}”集合及其所有记录？删除前会先归档一份可恢复的备份。",
     itemsEmpty: "暂无项目。点击 + 添加一个。",
     notFound: "未找到集合",
     loadFailed: "加载失败",
@@ -1338,9 +1357,12 @@ const zhMessages = {
     clearSearch: "清除搜索",
     openCollection: "打开 {title}",
     createTitle: "新增",
-    editTitle: "编辑记录",
     derivedLabel: "派生",
     embedMissingTitle: "缺少嵌入引用",
+    chat: "对话",
+    chatTitle: "开始对话",
+    chatPlaceholder: "描述你想对这个集合做什么…",
+    chatStart: "开始对话",
     source: {
       user: "用户",
       project: "项目",
