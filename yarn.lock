@@ -8521,7 +8521,7 @@ vite-plugin-dts@^5.0.0:
   dependencies:
     unplugin-dts "1.0.0"
 
-vite@^8.0.13:
+vite@8.0.13, vite@^8.0.13:
   version "8.0.13"
   resolved "https://npm.flatt.tech/vite/-/vite-8.0.13.tgz#d75fb40aeee761051b0eb4620993da625c7719ab"
   integrity sha512-MFtjBYgzmSxmgA4RAfjIyXWpGe1oALnjgUTzzV7QLx/TKxCzjtMH6Fd9/eVK+5Fg1qNoz5VAwsmMs/NofrmJvw==
