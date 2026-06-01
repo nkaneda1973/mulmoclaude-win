@@ -83,16 +83,10 @@ interface ListTicketsResponse {
   tickets?: TicketSummary[];
 }
 
+// `locale` is forwarded to the server on the seed-chat dispatches so it
+// can localize the prompt from `src/lang`; the prompt text itself is
+// owned server-side, not composed here. (#1545)
 const { t, locale } = useI18n();
-
-// Compose a locale-aware seed prompt for plugin-seeded chats. Only
-// non-English locales need translation; for `en` we return undefined
-// so the server keeps using its canonical English constant (the single
-// source of truth for the English seed). Mirrors useTranslatedQueries'
-// "skip en" policy. (#1545)
-function localizedSeed(compose: () => string): string | undefined {
-  return locale.value === "en" ? undefined : compose();
-}
 
 const loading = ref(true);
 const errorMessage = ref<string | null>(null);
@@ -188,16 +182,15 @@ interface StartObligationChatResult {
   message?: string;
 }
 
-async function startChatForObligation(obligationId: string, displayName: string): Promise<void> {
+async function startChatForObligation(obligationId: string): Promise<void> {
   if (chatStarting.value[obligationId]) return;
   chatStarting.value[obligationId] = true;
   try {
     const endpoints = pluginEndpoints<EncoreEndpoints>(META.apiNamespace);
     const { method, url } = endpoints.dispatch;
-    const seedPrompt = localizedSeed(() => t("encoreDashboard.seedPrompts.obligation", { displayName, obligationId }));
     const response = await apiCall<StartObligationChatResult>(url, {
       method,
-      body: { kind: "startObligationChat", obligationId, seedPrompt },
+      body: { kind: "startObligationChat", obligationId, locale: locale.value },
     });
     if (!response.ok) {
       errorMessage.value = response.error;
@@ -228,10 +221,9 @@ async function startSetupChat(): Promise<void> {
   try {
     const endpoints = pluginEndpoints<EncoreEndpoints>(META.apiNamespace);
     const { method, url } = endpoints.dispatch;
-    const seedPrompt = localizedSeed(() => t("encoreDashboard.seedPrompts.setup"));
     const response = await apiCall<StartObligationChatResult>(url, {
       method,
-      body: { kind: "startSetupChat", seedPrompt },
+      body: { kind: "startSetupChat", locale: locale.value },
     });
     if (!response.ok) {
       errorMessage.value = response.error;
@@ -430,7 +422,7 @@ function recordedValuesForTarget(state: CycleState, targetId: string): RecordedV
               :aria-label="t('encoreDashboard.chatButtonTitle')"
               :disabled="!!chatStarting[item.obligationId]"
               :data-testid="`encore-obligation-chat-${item.obligationId}`"
-              @click="startChatForObligation(item.obligationId, item.dsl.displayName)"
+              @click="startChatForObligation(item.obligationId)"
             >
               <span class="material-icons text-base">{{ chatStarting[item.obligationId] ? "hourglass_empty" : "chat_bubble_outline" }}</span>
             </button>

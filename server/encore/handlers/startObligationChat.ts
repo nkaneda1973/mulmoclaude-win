@@ -8,7 +8,7 @@
 //   - No reuse / idempotency. Each click yields a fresh chat. If
 //     the user wants to continue a previous conversation, they
 //     pick it from the sidebar instead.
-//   - Seed prompt is composed here from the DSL (id + displayName)
+//   - Seed prompt is localized from the DSL (id + displayName)
 //     rather than read from a ticket.
 
 import { z } from "zod";
@@ -19,29 +19,19 @@ import { PLUGIN_SESSION_ORIGIN_PREFIX } from "../../../src/types/session.js";
 import { ENCORE_SEED_ROLE_ID } from "../../../src/config/roles.js";
 import { ENCORE_PLUGIN_PKG } from "../notifier.js";
 import { log } from "../../system/logger/index.js";
-import { EncoreError, loadDsl, resolveSeedPrompt, type EncoreDispatchResult } from "./shared.js";
+import { EncoreError, loadDsl, localizedSeedPrompt, type EncoreDispatchResult } from "./shared.js";
 
 export const StartObligationChatArgs = z.object({
   kind: z.literal("startObligationChat"),
   obligationId: z.string().min(1),
-  // Locale-aware seed prompt composed by the dashboard via vue-i18n
-  // (`encoreDashboard.seedPrompts.obligation`, with displayName +
-  // obligationId interpolated). Sent only for non-English locales; for
-  // `en` (and any caller that omits it) we fall back to the English
-  // builder below so the `en` path stays server-authoritative (#1545).
-  seedPrompt: z.string().min(1).optional(),
+  // The dashboard sends only the user's UI locale; the seed prompt text
+  // is owned server-side and localized from `src/lang`
+  // (`encoreDashboard.seedPrompts.obligation`). The obligation's
+  // displayName is interpolated from the loaded DSL (server-trusted),
+  // not from the client. An unsupported / omitted locale falls back to
+  // English. (#1545)
+  locale: z.string().optional(),
 });
-
-// Canonical English seed. `src/lang/en.ts` carries a matching template
-// (`{displayName}` / `{obligationId}` placeholders) as the i18n source
-// of truth for the 7 translations; exported so a test can assert the
-// `en.ts` template interpolates to exactly this string (lockstep guard).
-export function buildObligationSeedPrompt(obligationId: string, displayName: string): string {
-  // Mention the obligationId explicitly so the LLM can call
-  // `manageEncore({ kind: "query", obligationId })` to read the
-  // current state on its first turn without guessing.
-  return `Let's talk about my "${displayName}" obligation (obligationId: ${obligationId}). Please query its current state first, then ask me what I'd like to do.`;
-}
 
 export async function handleStartObligationChat(args: z.infer<typeof StartObligationChatArgs>): Promise<EncoreDispatchResult> {
   const dsl = await loadDsl(args.obligationId);
@@ -49,9 +39,15 @@ export async function handleStartObligationChat(args: z.infer<typeof StartObliga
     throw new EncoreError(404, `obligation ${JSON.stringify(args.obligationId)} not found`);
   }
 
+  // Mention the obligationId in the prompt so the LLM can call
+  // `manageEncore({ kind: "query", obligationId })` to read the current
+  // state on its first turn without guessing.
   const chatSessionId = randomUUID();
   const result = await startChat({
-    message: resolveSeedPrompt(args.seedPrompt, buildObligationSeedPrompt(args.obligationId, dsl.displayName)),
+    message: localizedSeedPrompt(args.locale, "obligation", {
+      displayName: dsl.displayName,
+      obligationId: args.obligationId,
+    }),
     roleId: ENCORE_SEED_ROLE_ID,
     chatSessionId,
     origin: `${PLUGIN_SESSION_ORIGIN_PREFIX}${ENCORE_PLUGIN_PKG}`,

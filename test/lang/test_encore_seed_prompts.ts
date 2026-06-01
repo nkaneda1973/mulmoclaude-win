@@ -1,107 +1,66 @@
 // Guards the Encore plugin-seeded chat prompt i18n (#1545).
 //
 // The dashboard "+ Add" (startSetupChat) and per-obligation chat
-// (startObligationChat) buttons compose their seed prompt from
-// `encoreDashboard.seedPrompts` via vue-i18n and send it to the server
-// only for non-English locales (for `en` the server keeps using its
-// canonical constant). This test locks two invariants that vue-tsc
-// alone doesn't cover:
+// (startObligationChat) buttons send only the user's `locale`; the
+// server localizes the seed prompt from the shared `src/lang`
+// dictionaries via `localizedSeedPrompt`. This test locks invariants
+// vue-tsc alone doesn't cover:
 //
 //   - every locale carries both seed-prompt keys, and the obligation
-//     template keeps the `{displayName}` / `{obligationId}`
-//     placeholders verbatim — a dropped placeholder would surface a
-//     raw `{obligationId}` to the user (and to the LLM as the first
-//     turn)
-//   - the English source (`en.ts`) stays byte-identical to the
-//     server's canonical `SETUP_SEED_PROMPT` fallback, so the `en`
-//     path can never silently diverge from the 7 translations
+//     template keeps the `{displayName}` / `{obligationId}` placeholders
+//     verbatim (a dropped placeholder would surface a raw `{obligationId}`
+//     to the user / LLM)
+//   - localizedSeedPrompt selects the right locale, interpolates the
+//     dynamic pieces, and falls back to English for an unsupported or
+//     omitted locale
 //
-// No server side-effects: we only read the static message objects and
-// the exported constant — `startChat` is never invoked.
+// No server side-effects: only the static dictionaries and the pure
+// localizer are exercised — `startChat` is never invoked.
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import enMessages from "../../src/lang/en.js";
-import jaMessages from "../../src/lang/ja.js";
-import zhMessages from "../../src/lang/zh.js";
-import koMessages from "../../src/lang/ko.js";
-import esMessages from "../../src/lang/es.js";
-import ptBRMessages from "../../src/lang/pt-BR.js";
-import frMessages from "../../src/lang/fr.js";
-import deMessages from "../../src/lang/de.js";
-import { SETUP_SEED_PROMPT } from "../../server/encore/handlers/startSetupChat.js";
-import { buildObligationSeedPrompt } from "../../server/encore/handlers/startObligationChat.js";
-import { resolveSeedPrompt } from "../../server/encore/handlers/shared.js";
+import { messages, SUPPORTED_LOCALES } from "../../src/lang/index.js";
+import { localizedSeedPrompt } from "../../server/encore/handlers/shared.js";
 
-const LOCALES: [string, typeof enMessages][] = [
-  ["en", enMessages],
-  ["ja", jaMessages],
-  ["zh", zhMessages],
-  ["ko", koMessages],
-  ["es", esMessages],
-  ["pt-BR", ptBRMessages],
-  ["fr", frMessages],
-  ["de", deMessages],
-];
-
-describe("encore seed prompt i18n (#1545)", () => {
-  for (const [name, messages] of LOCALES) {
-    it(`${name}: seedPrompts.setup is a non-empty string`, () => {
-      const { setup } = messages.encoreDashboard.seedPrompts;
+describe("encore seed prompt i18n lockstep (#1545)", () => {
+  for (const locale of SUPPORTED_LOCALES) {
+    it(`${locale}: seedPrompts.setup is a non-empty string`, () => {
+      const { setup } = messages[locale].encoreDashboard.seedPrompts;
       assert.equal(typeof setup, "string");
       assert.ok(setup.trim().length > 0, "setup seed prompt must not be empty");
     });
 
-    it(`${name}: seedPrompts.obligation keeps both interpolation placeholders`, () => {
-      const { obligation } = messages.encoreDashboard.seedPrompts;
+    it(`${locale}: seedPrompts.obligation keeps both interpolation placeholders`, () => {
+      const { obligation } = messages[locale].encoreDashboard.seedPrompts;
       assert.ok(obligation.includes("{displayName}"), "must keep {displayName} placeholder");
       assert.ok(obligation.includes("{obligationId}"), "must keep {obligationId} placeholder");
     });
   }
-
-  it("en setup seed matches the server's canonical fallback", () => {
-    assert.equal(enMessages.encoreDashboard.seedPrompts.setup, SETUP_SEED_PROMPT);
-  });
-
-  // The obligation seed is a template, so we can't compare strings
-  // directly — interpolate the `en.ts` placeholders the same way the
-  // dashboard would (`{displayName}` / `{obligationId}`) and assert the
-  // result equals the server's canonical builder. This locks the `en`
-  // (and omitted-seedPrompt) fallback against the i18n source so the two
-  // can't silently diverge in wording or structure.
-  it("en obligation seed template matches the server's canonical fallback", () => {
-    const displayName = "Sample Obligation";
-    const obligationId = "sample-obligation-id";
-    const interpolated = enMessages.encoreDashboard.seedPrompts.obligation.replaceAll("{displayName}", displayName).replaceAll("{obligationId}", obligationId);
-    assert.equal(interpolated, buildObligationSeedPrompt(obligationId, displayName));
-  });
 });
 
-// resolveSeedPrompt guards the server fallback. `z.string().min(1)`
-// admits whitespace-only payloads ("   "), so without the trim a
-// malformed client could open the chat on an effectively empty first
-// turn. (CodeRabbit, PR #1568)
-describe("resolveSeedPrompt fallback (#1545)", () => {
-  const FALLBACK = "FALLBACK SEED";
-
-  it("returns the override when it carries real content", () => {
-    assert.equal(resolveSeedPrompt("localized seed", FALLBACK), "localized seed");
+describe("localizedSeedPrompt (#1545)", () => {
+  it("returns the requested locale's setup prompt verbatim", () => {
+    assert.equal(localizedSeedPrompt("fr", "setup"), messages.fr.encoreDashboard.seedPrompts.setup);
   });
 
-  it("falls back when the override is undefined", () => {
-    assert.equal(resolveSeedPrompt(undefined, FALLBACK), FALLBACK);
+  it("interpolates the obligation displayName + obligationId", () => {
+    const out = localizedSeedPrompt("ja", "obligation", { displayName: "歯医者", obligationId: "dentist-1" });
+    assert.ok(out.includes("歯医者"), "displayName must be interpolated");
+    assert.ok(out.includes("dentist-1"), "obligationId must be interpolated");
+    assert.ok(!out.includes("{displayName}") && !out.includes("{obligationId}"), "no raw placeholders should remain");
   });
 
-  it("falls back when the override is empty", () => {
-    assert.equal(resolveSeedPrompt("", FALLBACK), FALLBACK);
+  it("falls back to English when the locale is omitted", () => {
+    assert.equal(localizedSeedPrompt(undefined, "setup"), messages.en.encoreDashboard.seedPrompts.setup);
   });
 
-  it("falls back when the override is whitespace-only", () => {
-    assert.equal(resolveSeedPrompt("   \n\t ", FALLBACK), FALLBACK);
+  it("falls back to English for an unsupported locale", () => {
+    assert.equal(localizedSeedPrompt("xx", "setup"), messages.en.encoreDashboard.seedPrompts.setup);
   });
 
-  it("preserves an override that has surrounding whitespace but real content", () => {
-    assert.equal(resolveSeedPrompt("  hi  ", FALLBACK), "  hi  ");
+  it("leaves an unprovided placeholder intact rather than blanking it", () => {
+    const out = localizedSeedPrompt("en", "obligation", { obligationId: "x" });
+    assert.ok(out.includes("{displayName}"), "unprovided placeholder stays literal");
   });
 });

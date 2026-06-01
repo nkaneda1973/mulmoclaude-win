@@ -25,27 +25,29 @@ seed prompt 注入箇所は 3 つある:
 | 2 | obligation のチャットアイコン | `startObligationChat` | 動的（displayName 埋め込み）・クリック起点 | ✅ 実装 |
 | 3 | 通知ベル | `resolveNotification`（`reconcile.ts` の `buildSeedPrompt`） | 長い LLM 指示プロンプト・reconcile（スケジュール実行）時に生成し ticket に保存 | ⏭ 別 issue（後述） |
 
-`#1/#2` はクリック起点でブラウザ locale が既知なので、フロントで翻訳済み文字列を組み立てて送るだけで済む。
+`#1/#2` はクリック起点でブラウザ locale が既知。**訳文の所有はサーバ側**に置き、ブラウザは `locale` だけ送る（レビュー合意: 訳文がほぼ変わらないので、サーバが `src/lang` を直接読んで使う方が一貫する）。
 
 ## 実装（#1 / #2）
 
+### 共有レジストリ: `src/lang/index.ts`（新規）
+
+- `messages`(locale→辞書) / `SUPPORTED_LOCALES` / `Locale` / `isSupportedLocale` を **`vue-i18n` 非依存**で export。
+- これでサーバ（Node）が `vue-i18n`（ブラウザ runtime）を引っ張らずに辞書を読める。
+- `src/lib/vue-i18n.ts` もこのレジストリを import するよう書き換え、locale 一覧と messages マップの重複を解消。
+
+### サーバ: `server/encore/handlers/`
+
+- `shared.ts` に `localizedSeedPrompt(locale, key, params)` を追加。`src/lang/index.js` の `messages` を import し、`{displayName}` / `{obligationId}` をサーバ側で補間。未対応 / 省略 locale は `en` にフォールバック。
+- `startSetupChat.ts` / `startObligationChat.ts`: zod スキーマを `seedPrompt` → **`locale: z.string().optional()`** に変更し、`message: localizedSeedPrompt(args.locale, …)` で生成。obligation の `displayName` は**サーバが読み込んだ DSL から**補間（クライアント由来でなく信頼できる値）。
+
 ### フロント: `src/plugins/encore/EncoreDashboard.vue`
 
-- `useI18n()` から `locale` も取得。
-- `localizedSeed(compose)` ヘルパー: `locale === "en"` のときは `undefined` を返し、それ以外は `compose()` の翻訳文字列を返す（`useTranslatedQueries` と同じ「en はスキップ」ポリシー）。
-- `startSetupChat()`: body に `seedPrompt: localizedSeed(() => t("encoreDashboard.seedPrompts.setup"))` を追加。
-- `startChatForObligation(obligationId, displayName)`: 引数に `displayName` を追加し、`seedPrompt: localizedSeed(() => t("encoreDashboard.seedPrompts.obligation", { displayName, obligationId }))` を送る。テンプレートの呼び出しも `item.dsl.displayName` を渡すよう更新。
-
-### サーバ: `server/encore/handlers/{startSetupChat,startObligationChat}.ts`
-
-- それぞれの zod スキーマに `seedPrompt: z.string().min(1).optional()` を追加。
-- `startChat({ message })` に渡す値を `args.seedPrompt ?? <英語の正本>` に変更。
-- 英語の正本（`SETUP_SEED_PROMPT` 定数 / `buildSeedPrompt`）は**フォールバックとして残す**。`en` ロケールはフロントが `seedPrompt` を送らないため、`en` パスは引き続きサーバ側の定数が source of truth（クライアントのエコーバックに依存しない）。
+- 訳文の組み立て（`t()` での compose）を撤廃。
+- `startSetupChat()` / `startChatForObligation(obligationId)` の body に **`locale: locale.value` だけ**付与。`displayName` をフロントから渡す必要は無し。
 
 ### i18n: `src/lang/*.ts`（8 locale）
 
 - `encoreDashboard.seedPrompts: { setup, obligation }` を全 locale に追加。
-- `en.ts` の `setup` はサーバ `SETUP_SEED_PROMPT` とバイト一致（i18n の source of truth）。
 - `obligation` は `{displayName}` / `{obligationId}` プレースホルダを各 locale で verbatim 維持。
 - ブランド/ツール名（`Encore` / `DSL` / `defineEncore` / `obligationId`）は英語のまま。
 - displayName の囲みは ASCII エスケープ `\"` か CJK 角括弧「」を使用し、`de.ts` を壊す typographic quote（`„` / `“` = U+201E/U+201C）は使わない。
@@ -54,13 +56,15 @@ seed prompt 注入箇所は 3 つある:
 
 副作用ゼロ（`startChat` を呼ばない）で次を検証:
 - 全 locale に `seedPrompts.setup`（非空）/ `seedPrompts.obligation` が存在し、obligation は両プレースホルダを保持。
-- `en.ts` の `setup` がサーバ `SETUP_SEED_PROMPT` と一致（en パスの drift 防止）。
+- `localizedSeedPrompt` が locale 別に選択・補間し、未対応 / 省略時に `en` へフォールバックする。
 
 dispatch のハンドラ自体（`startChat` 経由）はセッションファイル書き込み + エージェント起動の副作用があり、`test_encore_dispatch.ts` も意図的にテストしていないため、ここでも呼ばない。
 
 ## トレードオフ / セキュリティ
 
-- クライアントが seed prompt 本文を送る形になるが、seed は**ユーザー自身の最初のチャット発話**であり信頼境界をまたがない（通常チャットでユーザーが任意の文を打つのと同じ）。サーバの英語定数はフォールバックとして残るので堅牢性も維持。
+- クライアントが送るのは **`locale` という短いタグだけ**で、プロンプト本文を送らない。未対応 / 不正な値はサーバが `en` にフォールバックするだけなので、クライアントがプロンプトへ任意文字列を注入する余地が無い。
+- obligation の `displayName` はサーバが読み込んだ DSL から補間するため、クライアント由来の値で表示が汚れることもない。
+- アプリの実効 locale は `vue-i18n`（フロント）状態であり、サーバは HTTP `Accept-Language`（OS 設定で、アプリ内 override を反映しない／dispatch ルートでハンドラに渡っていない）では正確に取れない。よって `locale` はフロントから明示送信する。
 
 ## #3（通知ベル）を別 issue にする理由
 
