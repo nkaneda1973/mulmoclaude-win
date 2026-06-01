@@ -479,7 +479,7 @@ function slotFromCycleId(cadence: EncoreDsl["cadence"], cycleId: string): CycleS
 
 // ── clear-all helpers ─────────────────────────────────────────────
 
-async function clearAllForObligation(obligationId: string, reason: string, log: typeof defaultLog): Promise<void> {
+export async function clearAllForObligation(obligationId: string, reason: string, log: typeof defaultLog): Promise<void> {
   const entries = await readDir(TICKETS_DIRNAME);
   let cleared = 0;
   for (const entry of entries) {

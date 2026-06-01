@@ -40,6 +40,7 @@ export type EncoreEndpoints = { readonly [K in keyof typeof META.apiRoutes]: Res
  *  (producer) and the Vue redirect (consumer) so the two can't drift —
  *  the open `EncoreDispatchResult` envelope on the dispatch route can't
  *  enforce per-kind fields on its own. */
+// eslint-disable-next-line @typescript-eslint/consistent-type-definitions -- must be a `type` alias, not an `interface`: only a type-literal gets the implicit index signature that keeps this assignable to the open `EncoreDispatchResult` ({ [key: string]: unknown }) envelope the handler return flows through in dispatch.ts.
 export type ResolveNotificationResult = {
   ok: boolean;
   message: string;
@@ -67,7 +68,7 @@ export const LLM_ENCORE_KINDS = ["markStepDone", "markTargetSkipped", "recordVal
  *  browser-only ones and the structural kinds the server keeps for
  *  backward compat. NOT the enum exposed to Claude — used by the
  *  dispatch.ts switch and by tests. */
-export const ALL_ENCORE_KINDS = [...LLM_ENCORE_KINDS, "resolveNotification", "setup", "amendDefinition", "defineEncore"] as const;
+export const ALL_ENCORE_KINDS = [...LLM_ENCORE_KINDS, "resolveNotification", "setup", "amendDefinition", "defineEncore", "deleteObligation"] as const;
 
 const toolDefinition: ToolDefinition = {
   type: "function",
