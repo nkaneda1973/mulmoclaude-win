@@ -19,7 +19,7 @@ import { PLUGIN_SESSION_ORIGIN_PREFIX } from "../../../src/types/session.js";
 import { ENCORE_SEED_ROLE_ID } from "../../../src/config/roles.js";
 import { ENCORE_PLUGIN_PKG } from "../notifier.js";
 import { log } from "../../system/logger/index.js";
-import { EncoreError, loadDsl, type EncoreDispatchResult } from "./shared.js";
+import { EncoreError, loadDsl, resolveSeedPrompt, type EncoreDispatchResult } from "./shared.js";
 
 export const StartObligationChatArgs = z.object({
   kind: z.literal("startObligationChat"),
@@ -51,7 +51,7 @@ export async function handleStartObligationChat(args: z.infer<typeof StartObliga
 
   const chatSessionId = randomUUID();
   const result = await startChat({
-    message: args.seedPrompt ?? buildObligationSeedPrompt(args.obligationId, dsl.displayName),
+    message: resolveSeedPrompt(args.seedPrompt, buildObligationSeedPrompt(args.obligationId, dsl.displayName)),
     roleId: ENCORE_SEED_ROLE_ID,
     chatSessionId,
     origin: `${PLUGIN_SESSION_ORIGIN_PREFIX}${ENCORE_PLUGIN_PKG}`,

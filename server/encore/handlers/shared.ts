@@ -53,6 +53,17 @@ export function formatZodError(err: z.ZodError): string {
   return `DSL validation failed at ${pathStr}: ${first.message}. Read config/helps/encore-dsl.md for the full grammar.`;
 }
 
+// ── seed prompt selection ─────────────────────────────────────────
+
+/** Pick the client-supplied (locale-localized) seed prompt only when it
+ *  carries real content. A blank / whitespace-only override — which
+ *  `z.string().min(1)` still admits, e.g. "   " — falls back to the
+ *  canonical English seed so a plugin-seeded chat never opens on an
+ *  empty first turn (#1545). */
+export function resolveSeedPrompt(override: string | undefined, fallback: string): string {
+  return override && override.trim().length > 0 ? override : fallback;
+}
+
 /** Accept `definition` as either an object literal OR a JSON-encoded
  *  string of one. The LLM commonly JSON.stringify's tool-call
  *  arguments (especially for nested objects), and rejecting that

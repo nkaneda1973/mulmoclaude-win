@@ -32,6 +32,7 @@ import frMessages from "../../src/lang/fr.js";
 import deMessages from "../../src/lang/de.js";
 import { SETUP_SEED_PROMPT } from "../../server/encore/handlers/startSetupChat.js";
 import { buildObligationSeedPrompt } from "../../server/encore/handlers/startObligationChat.js";
+import { resolveSeedPrompt } from "../../server/encore/handlers/shared.js";
 
 const LOCALES: [string, typeof enMessages][] = [
   ["en", enMessages],
@@ -74,5 +75,33 @@ describe("encore seed prompt i18n (#1545)", () => {
     const obligationId = "sample-obligation-id";
     const interpolated = enMessages.encoreDashboard.seedPrompts.obligation.replaceAll("{displayName}", displayName).replaceAll("{obligationId}", obligationId);
     assert.equal(interpolated, buildObligationSeedPrompt(obligationId, displayName));
+  });
+});
+
+// resolveSeedPrompt guards the server fallback. `z.string().min(1)`
+// admits whitespace-only payloads ("   "), so without the trim a
+// malformed client could open the chat on an effectively empty first
+// turn. (CodeRabbit, PR #1568)
+describe("resolveSeedPrompt fallback (#1545)", () => {
+  const FALLBACK = "FALLBACK SEED";
+
+  it("returns the override when it carries real content", () => {
+    assert.equal(resolveSeedPrompt("localized seed", FALLBACK), "localized seed");
+  });
+
+  it("falls back when the override is undefined", () => {
+    assert.equal(resolveSeedPrompt(undefined, FALLBACK), FALLBACK);
+  });
+
+  it("falls back when the override is empty", () => {
+    assert.equal(resolveSeedPrompt("", FALLBACK), FALLBACK);
+  });
+
+  it("falls back when the override is whitespace-only", () => {
+    assert.equal(resolveSeedPrompt("   \n\t ", FALLBACK), FALLBACK);
+  });
+
+  it("preserves an override that has surrounding whitespace but real content", () => {
+    assert.equal(resolveSeedPrompt("  hi  ", FALLBACK), "  hi  ");
   });
 });
