@@ -122,7 +122,26 @@ test.describe("fresh-user smoke (real LLM)", () => {
       // bypassed the env). Tests that catch this early avoid a
       // class of bugs where the user's real workspace gets
       // silently mutated across CI runs.
-      await assertHostUntouched(server.hostBaselines);
+      //
+      // This check is only SOUND when this spec runs in isolation.
+      // Under the default parallel suite (`E2E_LIVE_WORKERS` > 1) the
+      // sibling specs legitimately write to the SAME host workspace
+      // (`~/mulmoclaude/` sessions, artifacts, `.claude/skills/`,
+      // server logs) through the main dev server during this window,
+      // so the mtime snapshot cannot attribute that drift to THIS
+      // isolated server and false-fails. Enforce only with a single
+      // worker (or an explicit opt-in); otherwise record the skip as
+      // an annotation so a deliberate `--workers=1` run still catches
+      // a real leak.
+      const enforceHostUntouched = testInfo.config.workers === 1 || process.env.E2E_LIVE_FRESH_BOOT_STRICT === "1";
+      if (enforceHostUntouched) {
+        await assertHostUntouched(server.hostBaselines);
+      } else {
+        testInfo.annotations.push({
+          type: "host-untouched-skipped",
+          description: "parallel run — re-run with --workers=1 or E2E_LIVE_FRESH_BOOT_STRICT=1 to enforce the isolated-server host-leak check",
+        });
+      }
     }
   });
 });
