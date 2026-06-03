@@ -1079,6 +1079,45 @@ describe("discoverCollections — calendarField + calendarEndField validation", 
   });
 });
 
+describe("discoverCollections — kanbanField validation", () => {
+  // A collection with an enum field, cloned + mutated per case.
+  function kanbanSchema(extra: Record<string, unknown> = {}): Record<string, unknown> {
+    return {
+      title: "Tasks",
+      icon: "checklist",
+      dataPath: "data/tasks/items",
+      primaryKey: "id",
+      fields: {
+        id: { type: "string", label: "ID", primary: true, required: true },
+        name: { type: "string", label: "Name", required: true },
+        status: { type: "enum", label: "Status", values: ["Todo", "Done"] },
+      },
+      ...extra,
+    };
+  }
+
+  it("accepts a schema with no kanbanField (toggle auto-derives from the enum field)", async () => {
+    writeSkill("test-kanban-none", kanbanSchema());
+    assert.equal((await listCollections()).length, 1);
+  });
+
+  it("accepts a valid kanbanField and preserves it through parsing", async () => {
+    writeSkill("test-kanban-ok", kanbanSchema({ kanbanField: "status" }));
+    const collection = await loadCollection("test-kanban-ok", { workspaceRoot: workdir, userSkillsDir: emptyUserDir });
+    assert.equal(collection?.schema.kanbanField, "status");
+  });
+
+  it("rejects kanbanField naming a non-enum field", async () => {
+    writeSkill("test-kanban-non-enum", kanbanSchema({ kanbanField: "name" }));
+    assert.equal((await listCollections()).length, 0);
+  });
+
+  it("rejects kanbanField naming a missing field", async () => {
+    writeSkill("test-kanban-missing", kanbanSchema({ kanbanField: "nope" }));
+    assert.equal((await listCollections()).length, 0);
+  });
+});
+
 describe("loadCollection", () => {
   it("returns the named project-scope collection", async () => {
     writeSkill("test-load", {
