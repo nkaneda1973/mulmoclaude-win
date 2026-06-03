@@ -129,6 +129,18 @@ test.describe("collection calendar view", () => {
     await expect(page.getByTestId("collections-input-on")).toHaveValue(empty);
   });
 
+  test("only empty days are create targets (populated days are not)", async ({ page }) => {
+    await page.goto("/collections/events");
+    await page.getByTestId("collection-view-toggle-calendar").click();
+    // The 15th has a record → not a create button (clicking must not duplicate-create).
+    await expect(page.getByTestId(`collection-calendar-day-${MID}`)).not.toHaveAttribute("role", "button");
+    // An empty day is a keyboard-operable create button.
+    const empty = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-20`;
+    const emptyCell = page.getByTestId(`collection-calendar-day-${empty}`);
+    await expect(emptyCell).toHaveAttribute("role", "button");
+    await expect(emptyCell).toHaveAttribute("tabindex", "0");
+  });
+
   test("shows the toggle and a working calendar for an empty date-bearing collection", async ({ page }) => {
     await page.goto("/collections/events-empty");
     // Toggle is reachable even with zero records…

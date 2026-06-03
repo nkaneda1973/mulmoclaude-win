@@ -1344,6 +1344,7 @@ const jaMessages = {
     calendarNextMonth: "次の月",
     calendarToday: "今日",
     calendarNoDate: "日付なし",
+    calendarCreateOn: "{date} に作成",
     source: {
       user: "ユーザー",
       project: "プロジェクト",

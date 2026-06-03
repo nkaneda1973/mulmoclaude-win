@@ -802,7 +802,14 @@ const calendarAnchorField = computed<string>(() => {
   if (hint && dateFields.value.includes(hint)) return hint;
   return dateFields.value[0] ?? "";
 });
-const calendarEndField = computed<string | undefined>(() => collection.value?.schema.calendarEndField);
+// The end field pairs with `schema.calendarField`. If the user switches the
+// in-view anchor to a different date field, the span no longer applies —
+// drop it so chips don't render from the new start to the original end.
+const calendarEndField = computed<string | undefined>(() => {
+  const schema = collection.value?.schema;
+  if (!schema?.calendarEndField) return undefined;
+  return calendarAnchorField.value === schema.calendarField ? schema.calendarEndField : undefined;
+});
 
 function setView(next: CollectionViewMode): void {
   view.value = next;

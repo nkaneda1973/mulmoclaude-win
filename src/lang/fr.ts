@@ -1356,6 +1356,7 @@ const frMessages = {
     calendarNextMonth: "Mois suivant",
     calendarToday: "Aujourd'hui",
     calendarNoDate: "Sans date",
+    calendarCreateOn: "Créer le {date}",
     source: {
       user: "Utilisateur",
       project: "Projet",

@@ -1347,6 +1347,7 @@ const enMessages = {
     calendarNextMonth: "Next month",
     calendarToday: "Today",
     calendarNoDate: "No date",
+    calendarCreateOn: "Create on {date}",
     source: {
       user: "User",
       project: "Project",

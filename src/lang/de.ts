@@ -1366,6 +1366,7 @@ const deMessages = {
     calendarNextMonth: "Nächster Monat",
     calendarToday: "Heute",
     calendarNoDate: "Kein Datum",
+    calendarCreateOn: "Am {date} erstellen",
     source: {
       user: "Benutzer",
       project: "Projekt",

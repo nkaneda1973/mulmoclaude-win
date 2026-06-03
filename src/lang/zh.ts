@@ -1337,6 +1337,7 @@ const zhMessages = {
     calendarNextMonth: "下个月",
     calendarToday: "今天",
     calendarNoDate: "无日期",
+    calendarCreateOn: "在 {date} 创建",
     source: {
       user: "用户",
       project: "项目",

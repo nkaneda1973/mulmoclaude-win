@@ -1350,6 +1350,7 @@ const ptBRMessages = {
     calendarNextMonth: "Próximo mês",
     calendarToday: "Hoje",
     calendarNoDate: "Sem data",
+    calendarCreateOn: "Criar em {date}",
     source: {
       user: "Usuário",
       project: "Projeto",

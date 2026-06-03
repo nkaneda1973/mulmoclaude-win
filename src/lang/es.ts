@@ -1361,6 +1361,7 @@ const esMessages = {
     calendarNextMonth: "Mes siguiente",
     calendarToday: "Hoy",
     calendarNoDate: "Sin fecha",
+    calendarCreateOn: "Crear el {date}",
     source: {
       user: "Usuario",
       project: "Proyecto",

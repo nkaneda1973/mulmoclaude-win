@@ -36,15 +36,26 @@
       <div v-for="(label, idx) in weekdayLabels" :key="idx" class="px-1 py-1 text-center">{{ label }}</div>
     </div>
 
-    <!-- Day grid -->
+    <!-- Day grid. A day with no records is itself the create affordance —
+         rendered with `role="button"` + keyboard handlers (no chips inside,
+         so no nested-interactive conflict). Populated days are plain
+         containers; their chips are the interactive elements. -->
     <div class="grid grid-cols-7 gap-1">
       <div
-        v-for="cell in grid"
+        v-for="{ cell, entries, creatable } in cells"
         :key="cell.key"
         class="min-h-[5.5rem] rounded-lg border p-1 flex flex-col gap-1 overflow-hidden transition-colors"
-        :class="[cell.inMonth ? 'bg-white border-slate-200' : 'bg-slate-50/50 border-slate-100', canCreate ? 'cursor-pointer hover:border-indigo-300' : '']"
+        :class="[
+          cell.inMonth ? 'bg-white border-slate-200' : 'bg-slate-50/50 border-slate-100',
+          creatable ? 'cursor-pointer hover:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/30' : '',
+        ]"
+        :role="creatable ? 'button' : undefined"
+        :tabindex="creatable ? 0 : undefined"
+        :aria-label="creatable ? t('collectionsView.calendarCreateOn', { date: cell.key }) : undefined"
         :data-testid="`collection-calendar-day-${cell.key}`"
-        @click="onDayClick(cell.key)"
+        @click="creatable && emit('createOn', cell.key)"
+        @keydown.enter.prevent="creatable && emit('createOn', cell.key)"
+        @keydown.space.prevent="creatable && emit('createOn', cell.key)"
       >
         <div class="flex items-center justify-end">
           <span
@@ -54,7 +65,7 @@
           >
         </div>
         <button
-          v-for="entry in recordsOnDay(cell.ymd)"
+          v-for="entry in entries"
           :key="entry.id"
           type="button"
           class="text-left text-[11px] leading-tight font-semibold truncate rounded px-1.5 py-0.5 border transition-colors"
@@ -147,6 +158,17 @@ function recordsOnDay(day: Ymd): CalendarEntry[] {
   return bucketed.value.spans.filter((span) => spanCoversDay(span, day)).map((span) => ({ id: itemId(span.item), label: itemLabel(span.item) }));
 }
 
+/** Grid cells paired with their records, computed once per render. A cell
+ *  is `creatable` only when it has NO records — clicking an empty day is
+ *  the create affordance; clicking a populated day must NOT create (it
+ *  would silently duplicate-create on a date that already has events). */
+const cells = computed(() =>
+  grid.value.map((cell) => {
+    const entries = recordsOnDay(cell.ymd);
+    return { cell, entries, creatable: props.canCreate && entries.length === 0 };
+  }),
+);
+
 const undatedEntries = computed<CalendarEntry[]>(() => bucketed.value.noDate.map((item) => ({ id: itemId(item), label: itemLabel(item) })));
 
 const monthLabel = computed<string>(() => {
@@ -184,11 +206,5 @@ function stepMonth(delta: number): void {
 function goToday(): void {
   viewYear.value = now.getFullYear();
   viewMonth.value = now.getMonth() + 1;
-}
-
-function onDayClick(isoDate: string): void {
-  // Chips stop propagation, so a click that reaches here is on the cell
-  // background (or its day number) — the empty-cell create affordance.
-  if (props.canCreate) emit("createOn", isoDate);
 }
 </script>
