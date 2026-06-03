@@ -173,7 +173,9 @@ const undatedEntries = computed<CalendarEntry[]>(() => bucketed.value.noDate.map
 
 const monthLabel = computed<string>(() => {
   try {
-    return new Intl.DateTimeFormat(locale.value, { month: "long", year: "numeric" }).format(new Date(Date.UTC(viewYear.value, viewMonth.value - 1, 1)));
+    return new Intl.DateTimeFormat(locale.value, { month: "long", year: "numeric", timeZone: "UTC" }).format(
+      new Date(Date.UTC(viewYear.value, viewMonth.value - 1, 1)),
+    );
   } catch {
     return `${viewYear.value}-${String(viewMonth.value).padStart(2, "0")}`;
   }
@@ -182,7 +184,7 @@ const monthLabel = computed<string>(() => {
 /** Localized short weekday names, Sunday-first (matches the grid). */
 const weekdayLabels = computed<string[]>(() => {
   try {
-    const formatter = new Intl.DateTimeFormat(locale.value, { weekday: "short" });
+    const formatter = new Intl.DateTimeFormat(locale.value, { weekday: "short", timeZone: "UTC" });
     // 2024-01-07 is a Sunday — anchor the week there.
     return Array.from({ length: 7 }, (_, idx) => formatter.format(new Date(Date.UTC(2024, 0, 7 + idx))));
   } catch {
