@@ -526,92 +526,19 @@ Notes:
 - Like the calendar, the board is purely a **rendering** of the records: it adds
   no storage. `completionField` / `completionDoneValues` (bells) are independent
   but pair naturally with the Done column.
-- For the full, copy-pasteable todo schema (status enum + done toggle + priority
-  + bells + calendar), see **"Worked example: a Todo list"** below.
+- **Building a todo / task list?** Read `config/helps/todo-collection.md` — the
+  complete, copy-pasteable recipe (status enum + `done` toggle + priority bells +
+  calendar) plus the legacy-`todo-plugin` migration steps.
 
 ### Worked example: a Todo list
 
-This is the canonical recipe — a single schema that gives you a kanban board, a
-table with an inline done checkbox, a due-date calendar, and completion bells,
-with the `status` enum as the **single source of truth** (no separate stored
-`done` boolean).
-
-`data/skills/todos/schema.json`:
-
-```json
-{
-  "title": "Todos",
-  "icon": "check_circle",
-  "dataPath": "data/todos/items",
-  "primaryKey": "id",
-  "fields": {
-    "id":       { "type": "string", "label": "ID", "primary": true, "required": true },
-    "done":     { "type": "toggle", "label": "Done", "field": "status", "onValue": "Done", "offValue": "Todo" },
-    "title":    { "type": "string", "label": "Title", "required": true },
-    "status":   { "type": "enum",   "label": "Status", "values": ["Backlog", "Todo", "In Progress", "Done"], "required": true },
-    "priority": { "type": "enum",   "label": "Priority", "values": ["low", "medium", "high", "urgent"] },
-    "dueDate":  { "type": "date",   "label": "Due" },
-    "note":     { "type": "markdown", "label": "Note" }
-  },
-  "displayField": "title",
-  "kanbanField": "status",
-  "calendarField": "dueDate",
-  "completionField": "status",
-  "completionDoneValues": ["Done"],
-  "notifyWhen": { "field": "priority", "in": ["high", "urgent"] }
-}
-```
-
-`data/skills/todos/SKILL.md` — front-matter `name: todos` + a one-line
-`description`, then the record-shape bullets (id is the filename; `status` is the
-column; leave `done` OUT of the JSON — it's a projection of `status`) and the
-CRUD conventions.
-
-A record (`data/todos/items/t-0042.json`) — note there is **no `done` key**:
-
-```json
-{ "id": "t-0042", "title": "Buy milk", "status": "Todo", "priority": "high", "dueDate": "2026-06-10" }
-```
-
-What you get from this one schema, with no host code:
-
-- **Table** — a `done` checkbox per row (checking it sets `status: "Done"`), plus
-  inline `status` / `priority` dropdowns.
-- **Kanban** — columns Backlog / Todo / In Progress / Done; drag a card to move
-  it (writes `status`); the per-card `done` checkbox does the same.
-- **Calendar** — todos placed on their `dueDate`.
-- **Completion bell** — fires on create, clears when `status` reaches `Done`.
-
-**Reminder timing (optional).** To make the bell fire on the due date instead of
-on create, add `"triggerField": "dueDate"` (and `"triggerLeadDays": 2` to fire it
-N days early). `triggerField` must name a real `date` field and reuses the
-completion pair above.
-
-**Priority-gated notifications (`notifyWhen`).** By default the completion bell
-fires for *every* open record. Add `notifyWhen` to fire it only for records
-matching a predicate — here, only `high`/`urgent` priority todos raise a bell
-(`low`/`medium` stay silent), reproducing the legacy Todo's priority behaviour.
-The bell still clears on done / delete, and also clears when the predicate stops
-matching (e.g. priority dropped to `low`). `notifyWhen` reuses the `when` shape
-and requires `completionField` (it narrows that bell rather than adding a second
-one). It does NOT vary the badge *color* by value — the bell uses the completion
-bell's standard severity; per-value severity (red vs amber) isn't modelled.
-
-**Migrating the legacy `todo-plugin`.** Old records live at
-`data/plugins/%40mulmoclaude%2Ftodo-plugin/todos.json` (an array) with columns in
-the sibling `columns.json`. Map them onto the schema above:
-
-- Use the legacy `columns.json` ids as the `status` enum `values` (keep the
-  user's own columns — e.g. `["todo", "mulmoclaude", "mag2", "done"]`), and set
-  `completionDoneValues` to the column whose `isDone` is true.
-- Fold the legacy `completed` boolean into `status` (a completed item → the
-  done column). Then **add the `done` toggle** projecting `status`
-  (`onValue` = the done column, `offValue` = your default open column, e.g.
-  `"todo"`). This is the row/card "done" checkbox — **without it the migrated
-  list has no checkbox**, which is the #1 migration mistake.
-- Preserve each item's `id` verbatim (one `<id>.json` per record), convert the
-  legacy millisecond `createdAt` to a `YYYY-MM-DD` `date`, and carry `priority`,
-  `dueDate`, `note` straight across.
+The full todo recipe — complete `schema.json`, `SKILL.md`, a sample record, and
+the legacy-`todo-plugin` migration steps — has its own file:
+**`config/helps/todo-collection.md`**. Read it whenever you create or migrate a
+todo / task list; it's the canonical template, so copy it rather than assembling
+one from the fragments above. The one rule to remember: the `status` enum is the
+single source of truth and the "done" checkbox is a `toggle` field projecting it
+— **omit the toggle and the list has no checkbox.**
 
 ## Records — one JSON object per file
 
