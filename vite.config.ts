@@ -180,10 +180,20 @@ export default defineConfig({
         changeOrigin: true,
         xfwd: true
       },
-      '/ws': {
-        target: 'ws://localhost:3001',
-        ws: true
-      }
+      // Pub/sub WebSocket proxy. Omitted under e2e (`dev:client:e2e` sets
+      // VITE_E2E=1): there is no backend there, so proxying only floods the
+      // WebServer log with `ws proxy error: ECONNREFUSED` on every socket.io
+      // reconnect. Streaming e2e tests intercept the socket at the browser
+      // layer (`page.routeWebSocket`), which bypasses this proxy entirely, so
+      // dropping it leaves them working while silencing the noise.
+      ...(process.env.VITE_E2E === '1'
+        ? {}
+        : {
+            '/ws': {
+              target: 'ws://localhost:3001',
+              ws: true
+            }
+          })
     }
   }
 })
