@@ -101,7 +101,11 @@ const groupSpec = computed(() => props.schema.fields[props.groupField]);
 const columns = computed<KanbanColumn[]>(() => {
   const values = groupSpec.value?.values ?? [];
   const declared = values.map((value) => ({ value, label: value }));
-  if (groupSpec.value?.required) return declared;
+  // Skip the trailing Uncategorized column when the group field is
+  // `required` (no valid "no value" state), or when the enum already
+  // declares an empty-string value (it would collide with the
+  // Uncategorized sentinel's `value`/`:key`).
+  if (groupSpec.value?.required || values.includes(UNCATEGORIZED)) return declared;
   return [...declared, { value: UNCATEGORIZED, label: t("collectionsView.kanbanUncategorized") }];
 });
 

@@ -221,6 +221,25 @@
            collections. The board groups records into columns by the chosen
            enum field; dragging a card between columns writes that field. -->
       <div v-else-if="kanbanActive" class="h-full flex flex-col">
+        <!-- Inline-edit failure banner: a card drop (group-field write) was
+             rolled back. The detail panel's `saveError` isn't shown during a
+             drag, so inline edits surface their own — same as the table. -->
+        <div
+          v-if="inlineError"
+          class="m-3 mb-0 rounded-xl border border-red-200 bg-red-50/50 p-4 text-sm text-red-800 shadow-sm flex items-center gap-3"
+          data-testid="collections-inline-error"
+        >
+          <span class="material-icons text-red-600">error</span>
+          <span class="flex-1">{{ t("collectionsView.inlineSaveFailed", { error: inlineError }) }}</span>
+          <button
+            type="button"
+            class="h-8 w-8 flex items-center justify-center rounded text-red-600 hover:bg-red-100"
+            :aria-label="t('common.close')"
+            @click="inlineError = null"
+          >
+            <span class="material-icons text-base">close</span>
+          </button>
+        </div>
         <div class="flex-1 min-h-0 px-3 py-2">
           <CollectionKanbanView
             :schema="collection.schema"
@@ -1374,8 +1393,11 @@ watch(
 
 // Embedded mode: report view/anchor changes so the chat card persists them
 // in `viewState` (alongside `selected`). No-op in standalone route mode.
-watch([view, calendarAnchorField, kanbanGroupField], () => {
-  if (embedded.value) emit("viewStateChange", { view: view.value, anchorField: calendarAnchorField.value, groupField: kanbanGroupField.value });
+watch([activeView, calendarAnchorField, kanbanGroupField], () => {
+  // Persist the EFFECTIVE view (activeView), not the raw `view` ref — a
+  // stale "calendar"/"kanban" that has fallen back to "table" (its enabling
+  // field gone) must not be saved as an impossible mode.
+  if (embedded.value) emit("viewStateChange", { view: activeView.value, anchorField: calendarAnchorField.value, groupField: kanbanGroupField.value });
 });
 
 // React to the active selection changing while already on this

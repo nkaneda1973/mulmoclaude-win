@@ -275,6 +275,11 @@ const CollectionSchemaZ = z
     // Multi-day span end: a second `date` field the calendar record spans
     // to. Requires `calendarField`; validated to name a real `date` field.
     calendarEndField: z.string().trim().min(1).optional(),
+    // Kanban board group: names an `enum` field whose value buckets each
+    // record into a column. Validated to name a real `enum` field by a
+    // refine below. Optional — the toggle auto-derives from any `enum`
+    // field when this is unset.
+    kanbanField: z.string().trim().min(1).optional(),
   })
   // The singleton value becomes a record id (and thus a `<id>.json`
   // filename), so it must satisfy the SAME `safeSlugName` rule the
@@ -394,6 +399,13 @@ const CollectionSchemaZ = z
   .refine((schema) => schema.calendarEndField === undefined || schema.fields[schema.calendarEndField]?.type === "date", {
     message: "schema `calendarEndField` must name a top-level `date` field declared in `fields`",
     path: ["calendarEndField"],
+  })
+  // `kanbanField` must name a real `enum` field — the board groups records
+  // into one column per declared enum value; any other type has no closed
+  // set of columns to group by.
+  .refine((schema) => schema.kanbanField === undefined || schema.fields[schema.kanbanField]?.type === "enum", {
+    message: "schema `kanbanField` must name a top-level `enum` field declared in `fields`",
+    path: ["kanbanField"],
   });
 
 interface LoadedCollection {
