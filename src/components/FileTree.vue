@@ -256,6 +256,8 @@ function onInputBlur(): void {
 }
 
 function onNewFileSubmit(): void {
+  // eslint-disable-next-line no-console -- temporary diagnostic for #1598
+  console.log("[new-file] submit", { folder: props.node.path, raw: newFileSlug.value, policy: createPolicy.value });
   if (!createPolicy.value) return;
   const result = normaliseNewFileSlug(newFileSlug.value, createPolicy.value);
   if (!result.ok) {
@@ -270,6 +272,8 @@ function onNewFileSubmit(): void {
   // failure leaves the user where they were typing. The parent
   // hands back ok / error via the `resolve` callback.
   suppressBlur = true;
+  // eslint-disable-next-line no-console -- temporary diagnostic for #1598
+  console.log("[new-file] emit createFile", { folder: props.node.path, filename: result.slug });
   emit("createFile", {
     folder: props.node.path,
     filename: result.slug,
