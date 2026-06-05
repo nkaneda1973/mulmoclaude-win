@@ -16,21 +16,27 @@ export const CONTAINER_WORKSPACE_PATH = "/home/node/mulmoclaude";
 
 const BASE_ALLOWED_TOOLS = ["Bash", "Read", "Write", "Edit", "Glob", "Grep", "WebFetch", "WebSearch"];
 
-// Pre-allowlist every tool published by the user's claude.ai account-
-// level connectors (#1617 follow-up). The user enables / disables a
-// connector once via `claude` interactive `/mcp`; this list just
-// suppresses the per-tool runtime "Claude requested permission to
-// use ..." prompts inside MulmoClaude so the agent can call them
-// without UI interruption. Cross-server globs (`mcp__claude_ai_*`)
-// are NOT a documented `--allowedTools` form — we use the per-server
-// shorthand `mcp__<server>` instead, which the CLI guarantees to
-// expand to every tool that server publishes.
+// Pre-allow every tool published by Anthropic's claude.ai account-
+// level connectors so the agent can call them without firing a
+// per-tool "Claude requested permission to use ..." prompt mid-turn
+// inside MulmoClaude. The user still controls connector enable /
+// disable via `claude` interactive `/mcp`; this list is purely a
+// permission-prompt suppressor.
 //
-// Anthropic's current connector set as of CLI 2.1.x: Gmail / Google
-// Calendar / Google Drive / Slack (Canva is in `claudeAiMcpEverConnected`
-// as an old enable but isn't surfaced in `claude mcp list` for this
-// account, so it's deliberately omitted). When Anthropic adds a new
-// connector, append it here.
+// Format: per-server shorthand `mcp__<server>`. The CLI expands it
+// to every tool that server publishes. We avoid `~/.claude.json`
+// reads (Docker-fragile, invasive) and avoid the
+// `mcp__claude_ai_*` cross-server glob (not a documented
+// --allowedTools shape — undefined behaviour even if CLI accepts the
+// syntax).
+//
+// Maintenance: when the user enables a new Anthropic connector that
+// MulmoClaude should pre-allow (GitHub / Notion / Linear / Atlassian
+// / Sentry / Cloudflare / etc. — Anthropic keeps adding), append a
+// `mcp__claude_ai_<DisplayName>` entry here. The server-id mapping
+// is `display name with [\s.] → _` (e.g. `claude.ai Google Drive` →
+// `mcp__claude_ai_Google_Drive`). Confirm the live spelling via
+// `claude mcp list` before adding.
 const CLAUDE_AI_CONNECTOR_SERVERS = ["mcp__claude_ai_Gmail", "mcp__claude_ai_Google_Calendar", "mcp__claude_ai_Google_Drive", "mcp__claude_ai_Slack"];
 
 /** Tool names the agent is allowed to call this session. Drives
