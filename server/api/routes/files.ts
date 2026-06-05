@@ -942,6 +942,15 @@ router.post(API_ROUTES.files.create, async (req: Request<object, unknown, WriteC
       sendError(res, 409, "File already exists");
       return;
     }
+    // EISDIR: the target path already exists as a directory. That's
+    // a client-visible conflict (you can't replace a dir with a
+    // file via this endpoint), not a server error. Maps to the same
+    // 409 lane so the inline UI shows the localised "exists" copy.
+    if (code === "EISDIR") {
+      log.warn("files", "POST create: target is a directory", { pathPreview: previewSnippet(relPath) });
+      sendError(res, 409, "Target is a directory");
+      return;
+    }
     log.error("files", "POST create: write threw", { pathPreview: previewSnippet(relPath), error: errorMessage(err) });
     serverError(res, "Failed to create file");
     return;

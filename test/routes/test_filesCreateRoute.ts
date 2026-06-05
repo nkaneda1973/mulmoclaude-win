@@ -159,6 +159,16 @@ describe("POST /api/files/create — conflict", () => {
     const onDisk = await readFile(path.join(workspaceDir, "data/wiki/pages/dup.md"), "utf8");
     assert.equal(onDisk, "existing");
   });
+
+  it("refuses with 409 (not 500) when the target is an existing directory", async () => {
+    // `wx` write to a directory throws EISDIR — that's a client-visible
+    // conflict, not a server error. Codex review on b08b37ba flagged
+    // the original 500 fallthrough.
+    mkdirSync(path.join(workspaceDir, "conversations", "summaries", "stuck.md"), { recursive: true });
+    const { state, res } = mockRes();
+    await createHandler(req({ path: "conversations/summaries/stuck.md", content: "" }), res);
+    assert.equal(state.status, 409);
+  });
 });
 
 describe("POST /api/files/create — security", () => {
