@@ -49,7 +49,7 @@ yarn dev
 | „Schreibe einen Projektvorschlag"                         | Umfangreiches Markdown-Dokument im Canvas             |
 | „Stelle den Umsatz des letzten Quartals als Diagramm dar" | Interaktive ECharts-Visualisierung                    |
 | „Erstelle einen Reiseplan für Kyoto"                      | Illustrierter Reiseführer mit Bildern                 |
-| „Richte eine Todo-Liste ein"                              | Schema-gesteuerte Collection mit Kanban-Board         |
+| „Richte eine Todo-Liste ein“                              | Schema-gesteuerte Collection mit Kanban-Board         |
 | „Nimm diesen Artikel auf: URL"                            | Wiki-Seite mit `[[links]]` für das Langzeitgedächtnis |
 | „Plane eine tägliche Nachrichtenübersicht"                | Wiederkehrende Aufgabe, die automatisch läuft         |
 | „Erzeuge ein Bild eines Sonnenuntergangs"                 | KI-generiertes Bild (Gemini)                          |
