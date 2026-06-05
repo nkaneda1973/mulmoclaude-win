@@ -1,8 +1,29 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { ref } from "vue";
-import { parseSlashQuery, filterSkillsByPrefix, useSlashCommandMenu } from "../../src/composables/useSlashCommandMenu.ts";
+import { parseSlashQuery, filterSkillsByPrefix, useSlashCommandMenu, handleSlashMenuKeydown } from "../../src/composables/useSlashCommandMenu.ts";
 import type { SkillSummary } from "../../src/composables/useSkillsList.ts";
+
+interface FakeKeyEvent {
+  key: string;
+  shiftKey: boolean;
+  isComposing: boolean;
+  preventDefault: () => void;
+  defaultPrevented: boolean;
+}
+
+function fakeKeydown(opts: { key: string; shiftKey?: boolean; isComposing?: boolean }): FakeKeyEvent {
+  const evt: FakeKeyEvent = {
+    key: opts.key,
+    shiftKey: opts.shiftKey ?? false,
+    isComposing: opts.isComposing ?? false,
+    defaultPrevented: false,
+    preventDefault() {
+      evt.defaultPrevented = true;
+    },
+  };
+  return evt;
+}
 
 const SKILLS: SkillSummary[] = [
   { name: "archive", description: "Archive things", source: "user" },
@@ -91,5 +112,65 @@ describe("useSlashCommandMenu", () => {
 
     value.value = "/ar"; // typing un-dismisses
     assert.equal(menu.isOpen.value, true);
+  });
+});
+
+describe("handleSlashMenuKeydown", () => {
+  const neverIme = () => false;
+
+  function harness() {
+    const value = ref("/a");
+    const menu = useSlashCommandMenu(value, () => SKILLS); // [archive, android]
+    const selected: SkillSummary[] = [];
+    return { value, menu, selected, onSelect: (skill: SkillSummary) => selected.push(skill) };
+  }
+
+  it("ArrowDown/ArrowUp navigate and consume the event", () => {
+    const { menu } = harness();
+    const down = fakeKeydown({ key: "ArrowDown" });
+    assert.equal(handleSlashMenuKeydown(menu, down as unknown as KeyboardEvent, { isImeConfirmation: neverIme, onSelect: () => {} }), true);
+    assert.equal(down.defaultPrevented, true);
+    assert.equal(menu.highlightedSkill.value?.name, "android");
+  });
+
+  it("Enter selects the highlighted skill and consumes the event", () => {
+    const { menu, selected, onSelect } = harness();
+    const enter = fakeKeydown({ key: "Enter" });
+    assert.equal(handleSlashMenuKeydown(menu, enter as unknown as KeyboardEvent, { isImeConfirmation: neverIme, onSelect }), true);
+    assert.equal(enter.defaultPrevented, true);
+    assert.deepEqual(
+      selected.map((skill) => skill.name),
+      ["archive"],
+    );
+  });
+
+  it("Escape dismisses the menu", () => {
+    const { menu } = harness();
+    const esc = fakeKeydown({ key: "Escape" });
+    assert.equal(handleSlashMenuKeydown(menu, esc as unknown as KeyboardEvent, { isImeConfirmation: neverIme, onSelect: () => {} }), true);
+    assert.equal(menu.isOpen.value, false);
+  });
+
+  it("Shift+Enter is not treated as a selection", () => {
+    const { menu, selected, onSelect } = harness();
+    const shiftEnter = fakeKeydown({ key: "Enter", shiftKey: true });
+    assert.equal(handleSlashMenuKeydown(menu, shiftEnter as unknown as KeyboardEvent, { isImeConfirmation: neverIme, onSelect }), false);
+    assert.equal(selected.length, 0);
+  });
+
+  it("does NOT select on an IME-confirming Enter (Safari race regression)", () => {
+    const { menu, selected, onSelect } = harness();
+    // Safari: compositionend already fired, so event.isComposing is false, but
+    // isImeConfirmation still flags it. The menu must let it fall through.
+    const confirm = fakeKeydown({ key: "Enter", isComposing: false });
+    assert.equal(handleSlashMenuKeydown(menu, confirm as unknown as KeyboardEvent, { isImeConfirmation: () => true, onSelect }), false);
+    assert.equal(confirm.defaultPrevented, false);
+    assert.equal(selected.length, 0);
+  });
+
+  it("ignores keys while composing", () => {
+    const { menu } = harness();
+    const composing = fakeKeydown({ key: "ArrowDown", isComposing: true });
+    assert.equal(handleSlashMenuKeydown(menu, composing as unknown as KeyboardEvent, { isImeConfirmation: neverIme, onSelect: () => {} }), false);
   });
 });

@@ -64,8 +64,7 @@ test.describe("slash command menu", () => {
     // Populated with a trailing space (ready for args), and NOT sent.
     await expect(chatInput(page)).toHaveValue("/archive ");
     await expect(page.getByTestId("slash-command-menu")).toHaveCount(0);
-    await page.waitForTimeout(100);
-    expect(agentCalls).toHaveLength(0);
+    await expect.poll(() => agentCalls.length, { timeout: 500 }).toBe(0);
   });
 
   test("ArrowDown moves the highlight before Enter selects", async ({ page }) => {
@@ -77,7 +76,7 @@ test.describe("slash command menu", () => {
     await input.press("Enter");
 
     await expect(input).toHaveValue("/android ");
-    expect(agentCalls).toHaveLength(0);
+    await expect.poll(() => agentCalls.length, { timeout: 500 }).toBe(0);
   });
 
   test("Escape dismisses the menu and leaves the text untouched", async ({ page }) => {
@@ -97,6 +96,6 @@ test.describe("slash command menu", () => {
     await page.getByTestId("slash-command-item-android").click();
 
     await expect(chatInput(page)).toHaveValue("/android ");
-    expect(agentCalls).toHaveLength(0);
+    await expect.poll(() => agentCalls.length, { timeout: 500 }).toBe(0);
   });
 });

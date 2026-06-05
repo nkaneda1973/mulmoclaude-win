@@ -107,7 +107,7 @@ import SlashCommandMenu from "./SlashCommandMenu.vue";
 import SuggestionsPanel from "./SuggestionsPanel.vue";
 import { useImeAwareEnter } from "../composables/useImeAwareEnter";
 import { useSkillsList, type SkillSummary } from "../composables/useSkillsList";
-import { useSlashCommandMenu } from "../composables/useSlashCommandMenu";
+import { useSlashCommandMenu, handleSlashMenuKeydown } from "../composables/useSlashCommandMenu";
 import type { PastedFile } from "../types/pastedFile";
 
 export type { PastedFile };
@@ -241,37 +241,10 @@ watch(slashMenuOpen, (open) => {
 });
 
 function onKeydown(event: KeyboardEvent): void {
-  if (slashMenuOpen.value && handleSlashKeydown(event)) return;
-  imeEnter.onKeydown(event);
-}
-
-function handleSlashKeydown(event: KeyboardEvent): boolean {
-  if (event.isComposing) return false; // let IME own the keys mid-composition
-  switch (event.key) {
-    case "ArrowDown":
-      event.preventDefault();
-      slashMenu.moveHighlight(1);
-      return true;
-    case "ArrowUp":
-      event.preventDefault();
-      slashMenu.moveHighlight(-1);
-      return true;
-    case "Enter":
-    case "Tab": {
-      if (event.shiftKey) return false; // Shift+Enter = newline, Shift+Tab = focus out
-      const skill = slashMenu.highlightedSkill.value;
-      if (!skill) return false;
-      event.preventDefault();
-      selectSlashSkill(skill);
-      return true;
-    }
-    case "Escape":
-      event.preventDefault();
-      slashMenu.dismiss();
-      return true;
-    default:
-      return false;
+  if (slashMenuOpen.value && handleSlashMenuKeydown(slashMenu, event, { isImeConfirmation: imeEnter.isImeConfirmation, onSelect: selectSlashSkill })) {
+    return;
   }
+  imeEnter.onKeydown(event);
 }
 
 // Selection populates `/<name> ` (trailing space dismisses the menu via the
