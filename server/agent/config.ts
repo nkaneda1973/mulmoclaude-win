@@ -278,16 +278,20 @@ export function buildCliArgs(params: CliArgsParams): string[] {
 
   if (mcpConfigPath) {
     args.push("--mcp-config", mcpConfigPath);
-    // Without `--strict-mcp-config`, Claude Code 2.1.x merges in
-    // claude.ai account-level integrations (Canva / Gmail / Drive
-    // / Calendar) AND our local `--mcp-config` — and observed in
-    // practice (#1043 C-2 follow-up debug session) the merge silently
-    // drops the local mulmoclaude server entirely, so its tools
-    // never reach the agent's registry. With `--strict`, the local
-    // file is the only source — exactly what the parent server
-    // intends, since mulmoclaude itself is the broker for all the
-    // GUI plugin tools.
-    args.push("--strict-mcp-config");
+    // We DELIBERATELY do NOT pass `--strict-mcp-config`. The flag is
+    // additive by default ("Load MCP servers from JSON files"); the
+    // strict variant restricts the session to only our file and
+    // hides any claude.ai connectors (Gmail / Calendar / Drive /
+    // Slack) the user has wired up via `claude` interactive `/mcp`.
+    //
+    // We previously DID pass `--strict` as a workaround for a
+    // #1043 C-2 finding that the merge silently dropped the local
+    // mulmoclaude broker. Re-verified on CLI 2.1.163 (#1617): both
+    // layers now coexist in the session's `init.mcp_servers` array
+    // and the local broker's full 12-tool surface remains callable.
+    // Removing the workaround unlocks the user's already-authorised
+    // claude.ai connectors inside MulmoClaude for free, no per-
+    // connector mcp.json hand-rolling required.
   }
 
   if (effortLevel) {
