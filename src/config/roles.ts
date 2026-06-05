@@ -208,6 +208,7 @@ export const ROLES: Role[] = [
       TOOL_NAMES.generateImage,
       TOOL_NAMES.presentHtml,
       TOOL_NAMES.presentChart,
+      TOOL_NAMES.presentCollection,
       TOOL_NAMES.manageSkills,
     ],
     queries: [
@@ -334,6 +335,7 @@ export const ROLES: Role[] = [
       TOOL_NAMES.presentChart,
       TOOL_NAMES.presentHtml,
       TOOL_NAMES.presentMulmoScript,
+      TOOL_NAMES.presentCollection,
       TOOL_NAMES.readXPost,
       TOOL_NAMES.searchX,
     ],
