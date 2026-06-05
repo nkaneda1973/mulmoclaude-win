@@ -9,6 +9,7 @@
     <div v-else-if="!markdownContent" class="min-h-full p-8 flex items-center justify-center">
       <div class="text-gray-500">{{ t("pluginMarkdown.noContent") }}</div>
     </div>
+    <MarpView v-else-if="marpMode" :markdown="markdownContent" :pdf-filename="marpPdfFilename" />
     <template v-else>
       <div class="flex items-center justify-end gap-2 px-3 py-2 border-b border-gray-100 shrink-0">
         <button
@@ -93,6 +94,8 @@ import { useClipboardCopy } from "../../composables/useClipboardCopy";
 import { buildPdfFilename } from "../../utils/files/filename";
 import { useAppApi } from "../../composables/useAppApi";
 import { useFileChange } from "../../composables/useFileChange";
+import { isMarpDocument } from "../../utils/markdown/marpDetect";
+import MarpView from "./MarpView.vue";
 
 const { t } = useI18n();
 
@@ -193,6 +196,19 @@ watch(fileVersion, (current, previous) => {
 // would render as a stray `<hr>` plus key:value plain text in
 // every file the LLM saved with frontmatter (#895 PR A).
 const mdDoc = useMarkdownDoc(markdownContent);
+
+const marpMode = computed(() => isMarpDocument(mdDoc.value.meta));
+
+const marpPdfFilename = computed(() => {
+  const prefix = props.selectedResult.data?.filenamePrefix;
+  const rawName = prefix || props.selectedResult.title || "";
+  const { uuid } = props.selectedResult;
+  return buildPdfFilename({
+    name: rawName,
+    fallback: "slides",
+    timestampMs: uuid ? appApi.getResultTimestamp(uuid) : undefined,
+  });
+});
 
 const renderedHtml = computed(() => {
   if (!markdownContent.value) return "";

@@ -2,6 +2,7 @@ import { realpathSync } from "fs";
 import path from "path";
 import { Router, Request, Response } from "express";
 import { marked } from "marked";
+import { Marp } from "@marp-team/marp-core";
 import puppeteer from "puppeteer";
 import { errorMessage } from "../../utils/errors.js";
 import { badRequest, serverError } from "../../utils/httpError.js";
@@ -244,6 +245,36 @@ async function renderPdf(fullHtml: string, format: "Letter" | "A4" = "Letter"): 
   }
 }
 
+// Marp slides render at a fixed pixel canvas (default 1280×720). We
+// feed puppeteer a page sized to that canvas with zero margin so each
+// `<section>` becomes exactly one PDF page at the slide's native
+// proportions. Skips the markdown CSS wrapper — Marp's own theme CSS
+// is the only style sheet the slides need.
+async function renderMarpPdf(markdown: string): Promise<Buffer> {
+  const marp = new Marp({ html: false });
+  const { html, css } = marp.render(markdown);
+  const fullHtml = `<!doctype html>
+<html><head><meta charset="utf-8"><style>
+html,body { margin:0; padding:0; background:white; }
+${css}
+</style></head><body>${html}</body></html>`;
+  const browser = await puppeteer.launch({ headless: true });
+  try {
+    const page = await browser.newPage();
+    await page.setViewport({ width: 1280, height: 720 });
+    await page.setContent(fullHtml, { waitUntil: "load" });
+    const pdfBuffer = await page.pdf({
+      width: "1280px",
+      height: "720px",
+      margin: { top: "0", bottom: "0", left: "0", right: "0" },
+      printBackground: true,
+    });
+    return Buffer.from(pdfBuffer);
+  } finally {
+    await browser.close();
+  }
+}
+
 function sendPdf(res: Response, buffer: Buffer, filename: string): void {
   const safeFilename = filename.endsWith(".pdf") ? filename : `${filename}.pdf`;
   res.setHeader("Content-Type", "application/pdf");
@@ -268,6 +299,11 @@ interface PdfMarkdownBody {
    *  document that *literally* starts with `---\n…\n---\n` is
    *  preserved verbatim. */
   stripFrontmatter?: boolean;
+  /** When true, render via Marp (`@marp-team/marp-core`) instead of
+   *  the default `marked` pipeline — one PDF page per `---`-separated
+   *  slide, 16:9, Marp's theme CSS. `baseDir` / `stripFrontmatter` /
+   *  `format` are ignored in this mode (Marp owns layout end-to-end). */
+  marp?: boolean;
 }
 
 router.post(API_ROUTES.pdf.markdown, async (req: Request<object, unknown, PdfMarkdownBody>, res: Response) => {
@@ -290,6 +326,7 @@ router.post(API_ROUTES.pdf.markdown, async (req: Request<object, unknown, PdfMar
   const format: "Letter" | "A4" = body.format === "A4" ? "A4" : "Letter";
   const baseDir = typeof body.baseDir === "string" ? body.baseDir : undefined;
   const stripFrontmatter = body.stripFrontmatter === true;
+  const marpMode = body.marp === true;
 
   if (!markdown) {
     badRequest(res, "markdown is required");
@@ -297,6 +334,12 @@ router.post(API_ROUTES.pdf.markdown, async (req: Request<object, unknown, PdfMar
   }
 
   try {
+    if (marpMode) {
+      log.info("pdf", "marp", { filename, length: markdown.length });
+      const buffer = await renderMarpPdf(markdown);
+      sendPdf(res, buffer, filename);
+      return;
+    }
     log.info("pdf", "markdown", { filename, length: markdown.length, baseDir, stripFrontmatter });
     const source = stripFrontmatter ? parseFrontmatter(markdown).body : markdown;
     const html = inlineImages(await marked.parse(source), { sourceDir: baseDir });

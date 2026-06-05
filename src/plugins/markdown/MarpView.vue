@@ -1,0 +1,163 @@
+<template>
+  <div ref="containerEl" class="marp-container">
+    <div class="flex items-center justify-end gap-2 px-3 py-2 border-b border-gray-100 shrink-0">
+      <span class="text-xs text-gray-500 mr-auto pl-2">{{ t("pluginMarkdown.marpSlidesMode", { count: slideCount }) }}</span>
+      <button
+        class="h-8 px-2.5 flex items-center gap-1 rounded bg-green-600 hover:bg-green-700 text-white text-sm disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+        :disabled="pdfDownloading"
+        @click="onExportPdf"
+      >
+        <span class="material-icons text-base">{{ pdfDownloading ? "hourglass_empty" : "download" }}</span>
+        {{ t("pluginMarkdown.marpExportPdf") }}
+      </button>
+      <span v-if="pdfError" class="text-xs text-red-500" :title="pdfError">{{ t("pluginMarkdown.pdfFailedShort") }}</span>
+    </div>
+    <div v-if="renderError" class="load-error-banner" role="alert">
+      {{ t("pluginMarkdown.marpRenderFailed", { error: renderError }) }}
+    </div>
+    <div class="marp-frame-wrapper">
+      <iframe
+        v-if="srcDoc"
+        :srcdoc="srcDoc"
+        :style="{ height: frameHeight + 'px' }"
+        sandbox=""
+        class="marp-frame"
+        :title="t('pluginMarkdown.marpSlidesMode', { count: slideCount })"
+      ></iframe>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
+import { usePdfDownload } from "../../composables/usePdfDownload";
+import { errorMessage } from "../../utils/errors";
+
+const { t } = useI18n();
+
+const props = defineProps<{
+  markdown: string;
+  pdfFilename: string;
+}>();
+
+const SLIDE_ASPECT = 9 / 16;
+const SLIDE_GAP_PX = 16;
+const FRAME_PADDING_PX = 32;
+const FALLBACK_WIDTH_PX = 800;
+
+const containerEl = ref<HTMLElement | null>(null);
+const containerWidth = ref(FALLBACK_WIDTH_PX);
+const srcDoc = ref<string>("");
+const slideCount = ref(0);
+const renderError = ref<string | null>(null);
+
+const { pdfDownloading, pdfError, downloadPdf } = usePdfDownload();
+
+const frameHeight = computed(() => {
+  if (slideCount.value === 0) return FRAME_PADDING_PX;
+  const slideHeight = containerWidth.value * SLIDE_ASPECT;
+  return Math.ceil(slideCount.value * slideHeight + Math.max(0, slideCount.value - 1) * SLIDE_GAP_PX + FRAME_PADDING_PX);
+});
+
+function buildSrcDoc(html: string, css: string): string {
+  return `<!doctype html>
+<html><head><meta charset="utf-8"><style>
+html,body { margin:0; padding:16px; background:transparent; }
+section { box-shadow: 0 2px 8px rgba(0,0,0,0.12); border-radius: 6px; margin: 0 auto ${SLIDE_GAP_PX}px; max-width: 100%; }
+svg { width: 100%; height: auto; display: block; margin: 0 auto ${SLIDE_GAP_PX}px; box-shadow: 0 2px 8px rgba(0,0,0,0.12); border-radius: 6px; background: white; }
+${css}
+</style></head><body>${html}</body></html>`;
+}
+
+function countSlides(html: string): number {
+  const svgMatches = html.match(/<svg[\s>]/g);
+  if (svgMatches) return svgMatches.length;
+  const sectionMatches = html.match(/<section[\s>]/g);
+  return sectionMatches ? sectionMatches.length : 0;
+}
+
+async function renderMarp(markdown: string): Promise<void> {
+  renderError.value = null;
+  if (!markdown) {
+    srcDoc.value = "";
+    slideCount.value = 0;
+    return;
+  }
+  try {
+    const { Marp } = await import("@marp-team/marp-core");
+    const marp = new Marp({ inlineSVG: true, html: false });
+    const { html, css } = marp.render(markdown);
+    slideCount.value = countSlides(html);
+    srcDoc.value = buildSrcDoc(html, css);
+  } catch (err) {
+    renderError.value = errorMessage(err);
+    srcDoc.value = "";
+    slideCount.value = 0;
+  }
+}
+
+watch(
+  () => props.markdown,
+  (source) => {
+    void renderMarp(source);
+  },
+  { immediate: true },
+);
+
+let resizeObserver: ResizeObserver | null = null;
+
+onMounted(() => {
+  if (!containerEl.value) return;
+  containerWidth.value = containerEl.value.clientWidth || FALLBACK_WIDTH_PX;
+  resizeObserver = new ResizeObserver((entries) => {
+    const [entry] = entries;
+    if (entry) containerWidth.value = entry.contentRect.width || FALLBACK_WIDTH_PX;
+  });
+  resizeObserver.observe(containerEl.value);
+});
+
+onBeforeUnmount(() => {
+  resizeObserver?.disconnect();
+  resizeObserver = null;
+});
+
+async function onExportPdf(): Promise<void> {
+  if (!props.markdown) return;
+  await downloadPdf(props.markdown, props.pdfFilename, { marp: true });
+}
+</script>
+
+<style scoped>
+.marp-container {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: #f8fafc;
+}
+
+.marp-frame-wrapper {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.marp-frame {
+  width: 100%;
+  border: none;
+  background: transparent;
+  display: block;
+}
+
+.load-error-banner {
+  margin: 0.75rem 1rem;
+  padding: 0.5rem 0.75rem;
+  background: #fdecea;
+  color: #b71c1c;
+  border: 1px solid #f5c2c7;
+  border-radius: 4px;
+  font-size: 0.875rem;
+}
+</style>

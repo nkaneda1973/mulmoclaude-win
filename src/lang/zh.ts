@@ -1204,6 +1204,9 @@ const zhMessages = {
     copyLabel: "复制",
     copiedLabel: "已复制!",
     taskCountMismatch: "Markdown 源与渲染输出的任务数不一致，为避免文件损坏，已拒绝切换。",
+    marpSlidesMode: "Marp 幻灯片 · {count}",
+    marpExportPdf: "导出 PDF",
+    marpRenderFailed: "⚠ Marp 幻灯片渲染失败: {error}",
   },
   pluginTextResponse: {
     pdf: "PDF",

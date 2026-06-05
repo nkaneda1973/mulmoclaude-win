@@ -1213,6 +1213,9 @@ const enMessages = {
     copyLabel: "Copy",
     copiedLabel: "Copied!",
     taskCountMismatch: "Markdown source and rendered output disagree on the number of tasks. Refusing to toggle to avoid corruption.",
+    marpSlidesMode: "Marp slides · {count}",
+    marpExportPdf: "Export PDF",
+    marpRenderFailed: "⚠ Failed to render Marp slides: {error}",
   },
   pluginTextResponse: {
     pdf: "PDF",

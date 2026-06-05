@@ -1231,6 +1231,9 @@ const deMessages = {
     copiedLabel: "Kopiert!",
     taskCountMismatch:
       "Die Anzahl der Aufgaben in der Markdown-Quelle und im gerenderten Ergebnis stimmt nicht überein. Das Umschalten wurde abgelehnt, um eine Beschädigung der Datei zu vermeiden.",
+    marpSlidesMode: "Marp-Folien · {count}",
+    marpExportPdf: "Als PDF exportieren",
+    marpRenderFailed: "⚠ Rendern der Marp-Folien fehlgeschlagen: {error}",
   },
   pluginTextResponse: {
     pdf: "PDF",
