@@ -81,6 +81,7 @@ const koMessages = {
     cancel: "취소",
     showMore: "더 보기 ({count})",
     showLess: "접기",
+    openTarget: "열기",
   },
   pluginDiagnostics: {
     title: "플러그인 구성 문제",

@@ -81,6 +81,7 @@ const jaMessages = {
     cancel: "キャンセル",
     showMore: "もっと見る ({count})",
     showLess: "閉じる",
+    openTarget: "開く",
   },
   pluginDiagnostics: {
     title: "プラグイン設定の問題",

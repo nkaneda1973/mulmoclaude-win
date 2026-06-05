@@ -96,6 +96,7 @@ const enMessages = {
     cancel: "Cancel",
     showMore: "Show more ({count})",
     showLess: "Show less",
+    openTarget: "Open",
   },
   pluginDiagnostics: {
     title: "Plugin configuration issue",

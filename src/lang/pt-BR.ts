@@ -74,6 +74,7 @@ const ptBRMessages = {
     cancel: "Cancelar",
     showMore: "Mostrar mais ({count})",
     showLess: "Mostrar menos",
+    openTarget: "Abrir",
   },
   pluginDiagnostics: {
     title: "Problema de configuração do plugin",

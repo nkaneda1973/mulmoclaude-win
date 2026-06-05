@@ -74,6 +74,7 @@ const deMessages = {
     cancel: "Abbrechen",
     showMore: "Mehr anzeigen ({count})",
     showLess: "Weniger anzeigen",
+    openTarget: "Öffnen",
   },
   pluginDiagnostics: {
     title: "Plugin-Konfigurationsproblem",

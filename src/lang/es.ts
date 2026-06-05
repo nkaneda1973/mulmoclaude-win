@@ -79,6 +79,7 @@ const esMessages = {
     cancel: "Cancelar",
     showMore: "Mostrar más ({count})",
     showLess: "Mostrar menos",
+    openTarget: "Abrir",
   },
   pluginDiagnostics: {
     title: "Problema de configuración del plugin",
