@@ -6,9 +6,10 @@
 // readable than a generic dot. History rows fall back to a faded
 // dot so the row reads as past-tense.
 //
-// Body is displayed only as a native hover tooltip (`:title=`) — the
-// row stays compact and the relative-time meta line is what the user
-// scans for "when was this?".
+// Active rows show body as a native hover tooltip (`:title=`).
+// History rows expand body inline on click — a chevron indicates
+// expandability, and a navigate icon appears when `navigateTarget`
+// is present.
 //
 // The dev-mode `NotifierDebugPopup` that ran in parallel during PR 3
 // is gone — the production bell now serves both audiences.
