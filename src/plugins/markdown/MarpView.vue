@@ -68,13 +68,24 @@ const frameHeight = computed(() => {
 // the slide could attempt — `connect-src 'none'` denies fetch /
 // XHR / WebSocket / EventSource, and `frame-ancestors 'none'`
 // prevents the iframe from being reframed by hostile content.
-// `img-src *` (with `referrer: no-referrer` set below) lets the
-// markdown's workspace-rooted image refs load — `<img>` is read-
-// only, so loosening the allowlist here doesn't open a script /
-// fetch / XHR vector but does fix the "preview shows broken
-// images" failure mode that surfaced for relative refs. Style
-// allows inline `<style>` blocks (Marp's theme CSS arrives inline).
-const SRCDOC_CSP = "default-src 'none'; img-src * data:; style-src 'unsafe-inline' 'self'; font-src 'self' data:; connect-src 'none'; frame-ancestors 'none';";
+//
+// `img-src` is pinned at runtime to the **parent app's origin** (plus
+// `data:`). We can't use `'self'` here: `sandbox=""` srcdoc iframes
+// have an opaque origin, and `'self'` resolves against that opaque
+// origin (= matches nothing), which would block every workspace
+// image including the legitimate `/artifacts/images/...` paths the
+// rewriter produces. Pinning to `window.location.origin` lets the
+// rewritten same-host URLs load while still denying every other host
+// — a malicious deck can't craft `<img src="http://10.0.0.1/...">`
+// SSRF probes or fetch external trackers. Style allows inline
+// `<style>` blocks (Marp ships theme CSS inline). The `referrer`
+// meta below keeps even the same-origin image fetches from leaking
+// a referrer URL to the workspace file server.
+function buildCsp(): string {
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const imgSrc = origin ? `${origin} data:` : "data:";
+  return `default-src 'none'; img-src ${imgSrc}; style-src 'unsafe-inline' 'self'; font-src 'self' data:; connect-src 'none'; frame-ancestors 'none';`;
+}
 
 function buildSrcDoc(html: string, css: string): string {
   // Marp's default theme sets `svg[data-marpit-svg] { width:100vw;
@@ -84,7 +95,7 @@ function buildSrcDoc(html: string, css: string): string {
   // viewBox (1280×720) to keep the 16:9 aspect via `height: auto`.
   return `<!doctype html>
 <html><head><meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="${SRCDOC_CSP}">
+<meta http-equiv="Content-Security-Policy" content="${buildCsp()}">
 <meta name="referrer" content="no-referrer">
 <style>
 html,body { margin:0; padding:16px; background:transparent; }
@@ -135,10 +146,16 @@ async function renderMarp(markdown: string): Promise<void> {
   }
 }
 
+// Re-render whenever either the markdown OR the baseDir changes —
+// `rewriteMarkdownImageRefs` resolves `../images/foo.png` against
+// `baseDir`, so switching between two decks with the same body
+// text but different file paths would otherwise reuse stale URLs
+// (codex review). Pass `markdown` through verbatim; `renderMarp`
+// already reads `props.baseDir` directly.
 watch(
-  () => props.markdown,
-  (source) => {
-    void renderMarp(source);
+  () => [props.markdown, props.baseDir],
+  ([source]) => {
+    void renderMarp(source as string);
   },
   { immediate: true },
 );
