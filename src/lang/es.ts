@@ -1227,6 +1227,9 @@ const esMessages = {
     copyLabel: "Copiar",
     copiedLabel: "¡Copiado!",
     taskCountMismatch: "El número de tareas no coincide entre la fuente Markdown y la salida renderizada. Se rechazó el cambio para evitar dañar el archivo.",
+    marpSlidesMode: "Diapositivas Marp · {count}",
+    marpExportPdf: "Exportar PDF",
+    marpRenderFailed: "⚠ Error al renderizar las diapositivas Marp: {error}",
   },
   pluginTextResponse: {
     pdf: "PDF",

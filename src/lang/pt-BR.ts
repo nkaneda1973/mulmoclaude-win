@@ -1215,6 +1215,9 @@ const ptBRMessages = {
     copyLabel: "Copiar",
     copiedLabel: "Copiado!",
     taskCountMismatch: "O número de tarefas diverge entre a fonte Markdown e a saída renderizada. A alternância foi recusada para evitar corromper o arquivo.",
+    marpSlidesMode: "Slides Marp · {count}",
+    marpExportPdf: "Exportar PDF",
+    marpRenderFailed: "⚠ Falha ao renderizar os slides Marp: {error}",
   },
   pluginTextResponse: {
     pdf: "PDF",

@@ -1220,6 +1220,9 @@ const frMessages = {
     copyLabel: "Copier",
     copiedLabel: "Copié !",
     taskCountMismatch: "Le nombre de tâches diffère entre la source Markdown et le rendu. La modification a été refusée pour éviter de corrompre le fichier.",
+    marpSlidesMode: "Diapositives Marp · {count}",
+    marpExportPdf: "Exporter en PDF",
+    marpRenderFailed: "⚠ Échec du rendu des diapositives Marp : {error}",
   },
   pluginTextResponse: {
     pdf: "PDF",
