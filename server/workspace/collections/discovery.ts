@@ -279,6 +279,7 @@ const IngestSchemaZ = z
     itemsAt: z.string().trim().min(1).optional(),
     map: z.record(z.string().trim().min(1), z.string().trim().min(1)),
     idFrom: z.string().trim().min(1).optional(),
+    maxItems: z.number().int().min(0).optional(),
   })
   .refine((spec) => spec.kind !== "http-json" || (typeof spec.itemsAt === "string" && spec.itemsAt.trim().length > 0), {
     message: "ingest.kind 'http-json' requires `itemsAt` — the path to the items array in the response (e.g. 'hourly[]')",

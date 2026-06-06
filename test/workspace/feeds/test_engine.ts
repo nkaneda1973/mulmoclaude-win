@@ -81,3 +81,46 @@ describe("refreshOne — keyed upsert", () => {
     assert.match(result.errors[0], /no retriever/);
   });
 });
+
+function makeCappedFeed(root: string, maxItems: number): LoadedCollection {
+  return {
+    slug: "capped",
+    source: "feed",
+    schema: {
+      title: "Capped",
+      icon: "rss_feed",
+      dataPath: "data/capped",
+      primaryKey: "id",
+      fields: { id: { type: "string", label: "ID", primary: true }, when: { type: "date", label: "When" } },
+      ingest: { ...fakeIngest("test-fake"), maxItems },
+    },
+    dataDir: path.join(root, "data", "capped"),
+    skillDir: path.join(root, "feeds", "capped"),
+  };
+}
+
+describe("refreshOne — maxItems cap", () => {
+  it("keeps only the newest N records by the schema's date field", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "feeds-cap-"));
+    const feed = makeCappedFeed(root, 2);
+    nextItems = [
+      { id: "a", when: "2026-01-01T00:00:00.000Z" },
+      { id: "b", when: "2026-03-01T00:00:00.000Z" },
+      { id: "c", when: "2026-02-01T00:00:00.000Z" },
+    ];
+    const result = await refreshOne(root, feed);
+    assert.equal(result.written, 3);
+    assert.equal(result.removed, 1, "oldest record pruned");
+
+    const ids = (await listItems(feed.dataDir, { workspaceRoot: root })).map((item) => String(item.id)).sort();
+    assert.deepEqual(ids, ["b", "c"], "kept the two newest (Mar, Feb); Jan pruned");
+  });
+
+  it("does not prune when under the cap", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "feeds-cap-"));
+    const feed = makeCappedFeed(root, 100);
+    nextItems = [{ id: "a", when: "2026-01-01T00:00:00.000Z" }];
+    const result = await refreshOne(root, feed);
+    assert.equal(result.removed, 0);
+  });
+});

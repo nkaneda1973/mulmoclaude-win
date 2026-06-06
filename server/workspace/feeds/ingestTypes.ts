@@ -29,6 +29,10 @@ export function isFeedSchedule(value: unknown): value is FeedSchedule {
   return typeof value === "string" && FEED_SCHEDULE_SET.has(value);
 }
 
+/** Default cap on stored records per feed when `ingest.maxItems` is
+ *  omitted. Keeps high-volume feeds (news / podcasts) bounded. */
+export const DEFAULT_FEED_MAX_ITEMS = 100;
+
 /** Declarative field map: target collection field name → source path
  *  into the raw item (dot/bracket path, e.g. `"title"` or
  *  `"data.name"`). */
@@ -53,4 +57,10 @@ export interface IngestSpec {
    *  mapped record's primaryKey is empty (e.g. `"feedId"`). Falls back
    *  to a content hash of the record. */
   idFrom?: string;
+  /** Cap on stored records. After each fetch the feed keeps only the
+   *  newest `maxItems` (ordered by the schema's first `date` field) and
+   *  deletes the rest. Defaults to {@link DEFAULT_FEED_MAX_ITEMS} when
+   *  omitted; `0` disables the cap (keep everything). Pruning is skipped
+   *  when the schema has no `date` field to order by. */
+  maxItems?: number;
 }

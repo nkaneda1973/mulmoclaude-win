@@ -69,13 +69,13 @@ describe("projectRecord", () => {
     assert.equal(record.author, "Jane Doe");
   });
 
-  it("parses a value mapped into a `date`-typed field to ISO (generic, by field type)", () => {
+  it("coerces a value mapped into a `date`-typed field to YYYY-MM-DD (generic, by field type)", () => {
     const dateSchema = {
       primaryKey: "id",
       fields: { id: { type: "string", primary: true }, when: { type: "date" } },
     } as unknown as CollectionSchema;
     const ingest = rssIngest({ map: { id: "guid", when: "pubDate" } });
     const record = projectRecord({ guid: "g1", pubDate: "Wed, 03 Jun 2026 12:00:00 GMT" }, ingest, dateSchema);
-    assert.equal(record.when, "2026-06-03T12:00:00.000Z");
+    assert.equal(record.when, "2026-06-03");
   });
 });

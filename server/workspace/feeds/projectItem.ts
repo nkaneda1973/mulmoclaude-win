@@ -36,13 +36,14 @@ function unwrapTextNode(value: unknown): unknown {
 
 /** Normalize a mapped value generically — driven by the SCHEMA's declared
  *  field type, never by the source field name. Today: unwrap XML text
- *  nodes, and parse anything mapped into a `date` field to an ISO string
- *  (so a feed's RFC-822 / RFC-3339 timestamp renders as a real date). */
+ *  nodes, and coerce anything mapped into a `date` field to a `YYYY-MM-DD`
+ *  civil date (the collection `date` type + calendar are day-granularity
+ *  and parse strictly — a full RFC-3339 timestamp would be rejected). */
 function normalizeValue(value: unknown, fieldType: string | undefined): unknown {
   const unwrapped = unwrapTextNode(value);
   if (fieldType === "date" && typeof unwrapped === "string") {
     const millis = Date.parse(unwrapped);
-    if (Number.isFinite(millis)) return new Date(millis).toISOString();
+    if (Number.isFinite(millis)) return new Date(millis).toISOString().slice(0, 10);
   }
   return unwrapped;
 }
