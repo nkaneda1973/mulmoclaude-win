@@ -500,6 +500,19 @@ interface LoadedCollection {
   skillDir: string;
 }
 
+// Normalize an agent-authored feed schema (no register tool to do it):
+// default `icon`, and **force** `dataPath` to the feed-owned namespace
+// `data/feeds/<slug>`. Forcing dataPath (rather than trusting the file) is
+// a safety boundary — a feed can only ever read/write/delete records under
+// its own folder, never another app's data (e.g. `data/wiki`). Non-object
+// input passes through so the Zod error stays clear.
+function applyFeedSchemaDefaults(parsed: unknown, slug: string): unknown {
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return parsed;
+  const obj = parsed as Record<string, unknown>;
+  const icon = typeof obj.icon === "string" && obj.icon.trim().length > 0 ? obj.icon : "dynamic_feed";
+  return { ...obj, icon, dataPath: `data/feeds/${slug}` };
+}
+
 async function loadOneCollection(skillsRoot: string, slug: string, source: CollectionSource, workspaceRoot: string): Promise<LoadedCollection | null> {
   const safeName = safeSlugName(slug);
   if (safeName === null) return null;
@@ -525,7 +538,10 @@ async function loadOneCollection(skillsRoot: string, slug: string, source: Colle
     return null;
   }
 
-  const parsed = CollectionSchemaZ.safeParse(parsedJson);
+  // Feeds are authored by the agent as plain files (no register tool), so
+  // fill the boilerplate icon / dataPath if omitted before validation.
+  const candidate = source === "feed" ? applyFeedSchemaDefaults(parsedJson, safeName) : parsedJson;
+  const parsed = CollectionSchemaZ.safeParse(candidate);
   if (!parsed.success) {
     log.warn("collections", "schema.json failed validation, skipping", { slug: safeName, issues: parsed.error.issues });
     return null;
@@ -546,6 +562,14 @@ async function loadOneCollection(skillsRoot: string, slug: string, source: Colle
   }
   if (primaryField.primary !== true) {
     log.warn("collections", "schema.json primaryKey field is not flagged primary: true, skipping", { slug: safeName, primaryKey: schema.primaryKey });
+    return null;
+  }
+
+  // A feed-registry schema MUST declare an `ingest` block — without it the
+  // host can never fetch it, so it'd be a dead, non-refreshable card in
+  // /feeds. Skip it (the old register tool rejected this case explicitly).
+  if (source === "feed" && !schema.ingest) {
+    log.warn("collections", "feed schema.json has no `ingest` block, skipping", { slug: safeName });
     return null;
   }
 

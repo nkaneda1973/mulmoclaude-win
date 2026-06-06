@@ -1269,7 +1269,7 @@ const zhMessages = {
     addFeedTitle: "添加订阅源",
     addFeedHint: "粘贴订阅源或 API 的 URL，我会抓取并自动推断标题和字段。",
     addFeedPrompt:
-      "从以下 URL 添加一个数据源订阅：{url}\n\n请先用可用的 web/fetch 工具自己抓取该 URL 并检查响应，推断出合适的标题和字段集合。不要向我提问——完全根据数据来判断。然后调用 `manageFeed` 工具并设置 action='register' 来编写 schema（以名称为键的 fields、主键和 `ingest` 块）并注册：XML 订阅源用 kind 'rss' 或 'atom'，返回对象数组的 JSON API 用 'http-json'（带正确的 itemsAt）。最后告诉我订阅源标题和抓取到的记录数。",
+      "从以下 URL 添加一个数据源订阅：{url}\n\n请先阅读 `config/helps/feeds.md` 并严格按其说明操作。自己抓取该 URL 并检查响应，推断合适的标题和字段，然后按帮助说明编写 `feeds/<slug>/schema.json`。不要向我提问——完全根据数据判断。打开订阅源会自动加载条目。完成后告诉我已注册（无需提示点击 Refresh）。",
     title: "集合",
     backToIndex: "返回集合列表",
     indexEmpty: "尚未安装任何集合。在「技能」页面对带有 schema 的技能加星即可在此显示。",
@@ -1277,7 +1277,7 @@ const zhMessages = {
     openItem: "打开 {id}",
     confirmDelete: "删除此项？此操作无法撤销。",
     deleteFeed: "删除订阅源",
-    confirmDeleteFeed: "删除订阅源「{title}」？将停止刷新，但已抓取的记录会保留。",
+    confirmDeleteFeed: "删除订阅源「{title}」及其所有已抓取的记录？此操作无法撤销。",
     deleteCollection: "删除集合",
     confirmDeleteCollection: "删除整个“{title}”集合及其所有记录？删除前会先归档一份可恢复的备份。",
     itemsEmpty: "暂无项目。点击 + 添加一个。",

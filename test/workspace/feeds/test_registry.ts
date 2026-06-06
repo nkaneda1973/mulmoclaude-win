@@ -1,68 +1,107 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync } from "node:fs";
-import { readFile } from "node:fs/promises";
+import { mkdtempSync, mkdirSync, writeFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { writeFeed } from "../../../server/workspace/feeds/registry.js";
-import { feedDir } from "../../../server/workspace/feeds/paths.js";
+import { listFeeds, removeFeed } from "../../../server/workspace/feeds/registry.js";
 
-// A minimal valid feed schema that OMITS icon + dataPath (the host fills
-// them). `fields` is the canonical object-keyed map.
-function minimalSchema(): Record<string, unknown> {
-  return {
-    title: "Example",
-    primaryKey: "id",
-    fields: { id: { type: "string", label: "ID", primary: true }, title: { type: "string", label: "Title" } },
-    ingest: { kind: "rss", url: "https://example.com/feed", schedule: "hourly", idFrom: "feedId", map: { id: "feedId", title: "title" } },
-  };
+// Feeds are now agent-authored files (no register tool): a
+// feeds/<slug>/schema.json under the workspace. listFeeds() discovers
+// them (filtered to source "feed"), with icon/dataPath defaulted.
+function writeFeedSchema(root: string, slug: string, schema: Record<string, unknown>): void {
+  const dir = path.join(root, "feeds", slug);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(path.join(dir, "schema.json"), `${JSON.stringify(schema, null, 2)}\n`);
 }
 
-describe("writeFeed", () => {
-  it("defaults icon + dataPath when omitted, and persists the schema", async () => {
-    const root = mkdtempSync(path.join(tmpdir(), "feeds-registry-"));
-    const result = await writeFeed(root, "example", minimalSchema());
-    assert.equal(result.kind, "ok");
-
-    const raw = await readFile(path.join(feedDir("example", root), "schema.json"), "utf-8");
-    const written = JSON.parse(raw) as { icon: string; dataPath: string };
-    assert.equal(written.icon, "dynamic_feed", "icon defaulted");
-    assert.equal(written.dataPath, "data/feeds/example", "dataPath defaulted under data/feeds/<slug>");
+describe("listFeeds — discovery of agent-authored feed files", () => {
+  it("discovers a feed and defaults icon + dataPath when omitted", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "feeds-discovery-"));
+    writeFeedSchema(root, "news", {
+      title: "News",
+      primaryKey: "id",
+      fields: { id: { type: "string", label: "ID", primary: true }, title: { type: "string", label: "Title" } },
+      ingest: { kind: "rss", url: "https://example.com/feed.xml", schedule: "hourly", idFrom: "guid", map: { id: "guid", title: "title" } },
+    });
+    const feed = (await listFeeds(root)).find((entry) => entry.slug === "news");
+    assert.ok(feed, "feed discovered");
+    assert.equal(feed.source, "feed");
+    assert.equal(feed.schema.icon, "dynamic_feed", "icon defaulted");
+    assert.equal(feed.schema.dataPath, "data/feeds/news", "dataPath defaulted");
   });
 
-  it("keeps explicit icon / dataPath when provided", async () => {
-    const root = mkdtempSync(path.join(tmpdir(), "feeds-registry-"));
-    const schema = { ...minimalSchema(), icon: "newspaper", dataPath: "data/custom" };
-    await writeFeed(root, "example", schema);
-    const written = JSON.parse(await readFile(path.join(feedDir("example", root), "schema.json"), "utf-8")) as { icon: string; dataPath: string };
-    assert.equal(written.icon, "newspaper");
-    assert.equal(written.dataPath, "data/custom");
+  it("keeps an explicit icon but FORCES dataPath to the feed namespace", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "feeds-discovery-"));
+    writeFeedSchema(root, "wx", {
+      title: "Weather",
+      icon: "cloud",
+      dataPath: "data/wiki", // hostile / wrong — must be overridden, not trusted
+      primaryKey: "id",
+      fields: { id: { type: "string", label: "ID", primary: true } },
+      ingest: { kind: "http-json", url: "https://example.com/x.json", schedule: "hourly", map: { id: "id" } },
+    });
+    const feed = (await listFeeds(root)).find((entry) => entry.slug === "wx");
+    assert.ok(feed);
+    assert.equal(feed.schema.icon, "cloud", "explicit icon kept");
+    assert.equal(feed.schema.dataPath, "data/feeds/wx", "dataPath forced into the feed namespace");
   });
 
-  it("rejects an array-shaped `fields` (the common LLM mistake) with a message", async () => {
-    const root = mkdtempSync(path.join(tmpdir(), "feeds-registry-"));
-    const bad = { ...minimalSchema(), fields: [{ id: "id", label: "ID", type: "string" }] };
-    const result = await writeFeed(root, "bad", bad);
-    assert.equal(result.kind, "error");
-    if (result.kind === "error") assert.match(result.message, /schema validation failed/);
+  it("excludes a feed-dir schema that has no `ingest` block", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "feeds-discovery-"));
+    writeFeedSchema(root, "noingest", {
+      title: "No Ingest",
+      primaryKey: "id",
+      fields: { id: { type: "string", label: "ID", primary: true } },
+      // no ingest → not a real feed; must not be listed
+    });
+    assert.ok(!(await listFeeds(root)).some((entry) => entry.slug === "noingest"));
   });
 
-  it("accepts an http-json feed with no itemsAt (top-level array response)", async () => {
-    const root = mkdtempSync(path.join(tmpdir(), "feeds-registry-"));
-    const schema = {
-      ...minimalSchema(),
-      ingest: { kind: "http-json", url: "https://example.com/items.json", schedule: "hourly", idFrom: "id", map: { id: "id", title: "name" } },
-    };
-    const result = await writeFeed(root, "json-feed", schema);
-    assert.equal(result.kind, "ok");
+  it("removeFeed deletes both the feed registry dir and its records", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "feeds-discovery-"));
+    writeFeedSchema(root, "gone", {
+      title: "Gone",
+      primaryKey: "id",
+      fields: { id: { type: "string", label: "ID", primary: true } },
+      ingest: { kind: "rss", url: "https://example.com/feed.xml", schedule: "hourly", map: { id: "guid" } },
+    });
+    const recordsDir = path.join(root, "data", "feeds", "gone"); // default dataPath
+    mkdirSync(recordsDir, { recursive: true });
+    writeFileSync(path.join(recordsDir, "a.json"), JSON.stringify({ id: "a" }));
+
+    const removed = await removeFeed(root, "gone");
+    assert.equal(removed, true);
+    assert.ok(!existsSync(path.join(root, "feeds", "gone")), "feed registry dir removed");
+    assert.ok(!existsSync(recordsDir), "records dir removed");
   });
 
-  it("rejects a schema with no ingest block", async () => {
-    const root = mkdtempSync(path.join(tmpdir(), "feeds-registry-"));
-    const noIngest = minimalSchema();
-    delete noIngest.ingest;
-    const result = await writeFeed(root, "no-ingest", noIngest);
-    assert.equal(result.kind, "error");
-    if (result.kind === "error") assert.match(result.message, /ingest/);
+  it("removeFeed only touches data/feeds/<slug>, never another app's data", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "feeds-discovery-"));
+    // A feed that (maliciously) points dataPath at data/wiki — discovery
+    // forces it back to data/feeds/<slug>, and removeFeed derives from slug.
+    writeFeedSchema(root, "evil", {
+      title: "Evil",
+      dataPath: "data/wiki",
+      primaryKey: "id",
+      fields: { id: { type: "string", label: "ID", primary: true } },
+      ingest: { kind: "rss", url: "https://example.com/feed.xml", schedule: "hourly", map: { id: "guid" } },
+    });
+    const wiki = path.join(root, "data", "wiki");
+    mkdirSync(wiki, { recursive: true });
+    writeFileSync(path.join(wiki, "page.md"), "important");
+
+    await removeFeed(root, "evil");
+    assert.ok(existsSync(path.join(wiki, "page.md")), "unrelated data/wiki must be untouched");
+  });
+
+  it("skips a schema whose primaryKey field is not flagged primary", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "feeds-discovery-"));
+    writeFeedSchema(root, "broken", {
+      title: "Broken",
+      primaryKey: "id",
+      fields: { id: { type: "string", label: "ID" } }, // missing primary: true
+      ingest: { kind: "rss", url: "https://example.com/feed.xml", schedule: "hourly", map: { id: "guid" } },
+    });
+    assert.ok(!(await listFeeds(root)).some((entry) => entry.slug === "broken"));
   });
 });

@@ -1276,7 +1276,7 @@ const jaMessages = {
     addFeedTitle: "フィードを追加",
     addFeedHint: "フィードまたは API の URL を貼り付けてください。取得してタイトルとフィールドを自動で判断します。",
     addFeedPrompt:
-      "次の URL からデータソースフィードを追加してください: {url}\n\nまず利用可能な web/fetch ツールでその URL を自分で取得し、レスポンスを調べてふさわしいタイトルとフィールド一式を推測してください。私には質問せず、データからすべて判断してください。次に `manageFeed` ツールを action='register' で呼び、スキーマ（名前をキーにした fields、主キー、`ingest` ブロック）を作成して登録してください。XML フィードなら kind は 'rss' または 'atom'、オブジェクトの配列を返す JSON API なら 'http-json'（適切な itemsAt 付き）を使います。最後に、フィードのタイトルと取得したレコード件数を教えてください。",
+      "次の URL からデータソースフィードを追加してください: {url}\n\nまず `config/helps/feeds.md` を読み、その指示に正確に従ってください。その URL を自分で取得してレスポンスを調べ、ふさわしいタイトルとフィールドを推測し、ヘルプの説明どおりに `feeds/<slug>/schema.json` を作成してください。私には質問せず、データからすべて判断してください。フィードを開くとアイテムは自動で読み込まれます。完了したら登録できたことを伝えてください（Refresh を押すよう案内する必要はありません）。",
     title: "コレクション",
     backToIndex: "コレクション一覧に戻る",
     indexEmpty: "インストール済みのコレクションがありません。スキーマを含むスキルを Skills ページからスター付けすると、ここに表示されます。",
@@ -1284,7 +1284,7 @@ const jaMessages = {
     openItem: "{id} を開く",
     confirmDelete: "この項目を削除しますか？元に戻せません。",
     deleteFeed: "フィードを削除",
-    confirmDeleteFeed: "フィード「{title}」を削除しますか？更新は停止しますが、すでに取得したレコードは保持されます。",
+    confirmDeleteFeed: "フィード「{title}」と取得済みのすべてのレコードを削除しますか？この操作は取り消せません。",
     deleteCollection: "コレクションを削除",
     confirmDeleteCollection: "コレクション「{title}」とそのすべてのレコードを削除しますか？削除前に復元可能なバックアップが保存されます。",
     itemsEmpty: "まだ項目がありません。+ を押して追加してください。",

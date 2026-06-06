@@ -1297,7 +1297,7 @@ const deMessages = {
     addFeedTitle: "Feed hinzufügen",
     addFeedHint: "Füge die URL eines Feeds oder einer API ein; ich rufe sie ab und ermittle Titel und Felder für dich.",
     addFeedPrompt:
-      "Füge einen neuen Datenquellen-Feed von dieser URL hinzu: {url}\n\nRufe diese URL selbst mit den verfügbaren web/fetch-Tools ab und untersuche die Antwort, um einen sinnvollen Titel und die Feldmenge abzuleiten. Stelle mir KEINE Fragen - leite alles aus den Daten ab. Rufe dann das Tool `manageFeed` mit action='register' auf, um das Schema (nach Namen indizierte Felder, einen Primärschlüssel und einen `ingest`-Block) zu erstellen und zu registrieren: verwende kind 'rss' oder 'atom' für einen XML-Feed oder 'http-json' (mit dem richtigen itemsAt) für eine JSON-API, die ein Array von Objekten zurückgibt. Sag mir zum Schluss den Feed-Titel und wie viele Datensätze abgerufen wurden.",
+      "Füge einen neuen Datenquellen-Feed von dieser URL hinzu: {url}\n\nLies zuerst `config/helps/feeds.md` und befolge es genau. Rufe diese URL selbst ab, untersuche die Antwort, um einen sinnvollen Titel und die Felder abzuleiten, und erstelle dann `feeds/<slug>/schema.json` wie in der Hilfe beschrieben. Stelle mir KEINE Fragen - leite alles aus den Daten ab. Beim Öffnen des Feeds werden seine Einträge automatisch geladen; sag mir Bescheid, wenn er registriert ist (Refresh muss nicht erwähnt werden).",
     title: "Sammlungen",
     backToIndex: "Zurück zu Sammlungen",
     indexEmpty: "Keine Sammlungen installiert. Markiere auf der Skills-Seite eine Skill mit Schema, um sie hier zu sehen.",
@@ -1305,7 +1305,7 @@ const deMessages = {
     openItem: "{id} öffnen",
     confirmDelete: "Diesen Eintrag löschen? Das kann nicht rückgängig gemacht werden.",
     deleteFeed: "Feed löschen",
-    confirmDeleteFeed: "Den Feed {title} entfernen? Er aktualisiert sich nicht mehr; die bereits abgerufenen Datensätze bleiben erhalten.",
+    confirmDeleteFeed: "Den Feed {title} und alle abgerufenen Datensätze löschen? Dies kann nicht rückgängig gemacht werden.",
     deleteCollection: "Sammlung löschen",
     confirmDeleteCollection: "Die gesamte Sammlung „{title}“ einschließlich aller Datensätze löschen? Zuvor wird eine wiederherstellbare Sicherung archiviert.",
     itemsEmpty: "Noch keine Einträge. Klicke auf +, um einen hinzuzufügen.",
