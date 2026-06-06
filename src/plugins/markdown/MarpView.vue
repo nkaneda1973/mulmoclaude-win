@@ -39,6 +39,7 @@ const { t } = useI18n();
 const props = defineProps<{
   markdown: string;
   pdfFilename: string;
+  baseDir?: string;
 }>();
 
 const SLIDE_ASPECT = 9 / 16;
@@ -61,12 +62,24 @@ const frameHeight = computed(() => {
 });
 
 function buildSrcDoc(html: string, css: string): string {
+  // Marp's default theme sets `svg[data-marpit-svg] { width:100vw;
+  // height:100vh }` so each slide tries to fill the entire viewport —
+  // right for the presenter app, wrong for a stacked-deck iframe view.
+  // Override AFTER Marp's CSS so our rule wins, and rely on the SVG's
+  // viewBox (1280×720) to keep the 16:9 aspect via `height: auto`.
   return `<!doctype html>
 <html><head><meta charset="utf-8"><style>
 html,body { margin:0; padding:16px; background:transparent; }
-section { box-shadow: 0 2px 8px rgba(0,0,0,0.12); border-radius: 6px; margin: 0 auto ${SLIDE_GAP_PX}px; max-width: 100%; }
-svg { width: 100%; height: auto; display: block; margin: 0 auto ${SLIDE_GAP_PX}px; box-shadow: 0 2px 8px rgba(0,0,0,0.12); border-radius: 6px; background: white; }
 ${css}
+div.marpit > svg[data-marpit-svg] {
+  width: 100% !important;
+  height: auto !important;
+  display: block !important;
+  margin: 0 auto ${SLIDE_GAP_PX}px !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+  border-radius: 6px;
+  background: white;
+}
 </style></head><body>${html}</body></html>`;
 }
 
@@ -124,7 +137,7 @@ onBeforeUnmount(() => {
 
 async function onExportPdf(): Promise<void> {
   if (!props.markdown) return;
-  await downloadPdf(props.markdown, props.pdfFilename, { marp: true });
+  await downloadPdf(props.markdown, props.pdfFilename, { marp: true, baseDir: props.baseDir });
 }
 </script>
 

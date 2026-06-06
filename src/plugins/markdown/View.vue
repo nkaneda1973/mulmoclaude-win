@@ -9,7 +9,7 @@
     <div v-else-if="!markdownContent" class="min-h-full p-8 flex items-center justify-center">
       <div class="text-gray-500">{{ t("pluginMarkdown.noContent") }}</div>
     </div>
-    <MarpView v-else-if="marpMode" :markdown="markdownContent" :pdf-filename="marpPdfFilename" />
+    <MarpView v-else-if="marpMode" :markdown="markdownContent" :pdf-filename="marpPdfFilename" :base-dir="marpBaseDir" />
     <template v-else>
       <div class="flex items-center justify-end gap-2 px-3 py-2 border-b border-gray-100 shrink-0">
         <button
@@ -198,6 +198,13 @@ watch(fileVersion, (current, previous) => {
 const mdDoc = useMarkdownDoc(markdownContent);
 
 const marpMode = computed(() => isMarpDocument(mdDoc.value.meta));
+
+const marpBaseDir = computed(() => {
+  const raw = props.selectedResult.data?.markdown;
+  if (typeof raw !== "string" || !isFilePath(raw)) return undefined;
+  const idx = raw.lastIndexOf("/");
+  return idx > 0 ? raw.slice(0, idx) : undefined;
+});
 
 const marpPdfFilename = computed(() => {
   const prefix = props.selectedResult.data?.filenamePrefix;

@@ -249,15 +249,18 @@ async function renderPdf(fullHtml: string, format: "Letter" | "A4" = "Letter"): 
 // feed puppeteer a page sized to that canvas with zero margin so each
 // `<section>` becomes exactly one PDF page at the slide's native
 // proportions. Skips the markdown CSS wrapper — Marp's own theme CSS
-// is the only style sheet the slides need.
-async function renderMarpPdf(markdown: string): Promise<Buffer> {
+// is the only style sheet the slides need. Images are inlined as
+// base64 data URIs (same path as the markdown route) because puppeteer
+// can't reach workspace-relative paths over the wire.
+async function renderMarpPdf(markdown: string, baseDir?: string): Promise<Buffer> {
   const marp = new Marp({ html: false });
   const { html, css } = marp.render(markdown);
+  const inlinedHtml = inlineImages(html, { sourceDir: baseDir });
   const fullHtml = `<!doctype html>
 <html><head><meta charset="utf-8"><style>
 html,body { margin:0; padding:0; background:white; }
 ${css}
-</style></head><body>${html}</body></html>`;
+</style></head><body>${inlinedHtml}</body></html>`;
   const browser = await puppeteer.launch({ headless: true });
   try {
     const page = await browser.newPage();
@@ -301,8 +304,10 @@ interface PdfMarkdownBody {
   stripFrontmatter?: boolean;
   /** When true, render via Marp (`@marp-team/marp-core`) instead of
    *  the default `marked` pipeline — one PDF page per `---`-separated
-   *  slide, 16:9, Marp's theme CSS. `baseDir` / `stripFrontmatter` /
-   *  `format` are ignored in this mode (Marp owns layout end-to-end). */
+   *  slide, 16:9, Marp's theme CSS. `baseDir` is still honoured for
+   *  resolving workspace-relative `<img src>` references; `format`
+   *  and `stripFrontmatter` are ignored (Marp owns paging + already
+   *  consumes its own frontmatter directives). */
   marp?: boolean;
 }
 
@@ -335,8 +340,8 @@ router.post(API_ROUTES.pdf.markdown, async (req: Request<object, unknown, PdfMar
 
   try {
     if (marpMode) {
-      log.info("pdf", "marp", { filename, length: markdown.length });
-      const buffer = await renderMarpPdf(markdown);
+      log.info("pdf", "marp", { filename, length: markdown.length, baseDir });
+      const buffer = await renderMarpPdf(markdown, baseDir);
       sendPdf(res, buffer, filename);
       return;
     }
