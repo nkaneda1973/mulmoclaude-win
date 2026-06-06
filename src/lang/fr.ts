@@ -1294,7 +1294,7 @@ const frMessages = {
     openItem: "Ouvrir {id}",
     confirmDelete: "Supprimer cet élément ? Cette action est irréversible.",
     deleteFeed: "Supprimer le flux",
-    confirmDeleteFeed: "Supprimer le flux « {title} » ? Il cesse de se mettre à jour ; les enregistrements déjà récupérés sont conservés.",
+    confirmDeleteFeed: "Supprimer le flux « {title} » et tous ses enregistrements récupérés ? Cette action est irréversible.",
     deleteCollection: "Supprimer la collection",
     confirmDeleteCollection:
       "Supprimer toute la collection « {title} », y compris tous ses enregistrements ? Une sauvegarde restaurable est archivée au préalable.",

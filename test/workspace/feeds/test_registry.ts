@@ -1,9 +1,9 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { listFeeds } from "../../../server/workspace/feeds/registry.js";
+import { listFeeds, removeFeed } from "../../../server/workspace/feeds/registry.js";
 
 // Feeds are now agent-authored files (no register tool): a
 // feeds/<slug>/schema.json under the workspace. listFeeds() discovers
@@ -44,6 +44,24 @@ describe("listFeeds — discovery of agent-authored feed files", () => {
     assert.ok(feed);
     assert.equal(feed.schema.icon, "cloud");
     assert.equal(feed.schema.dataPath, "data/custom");
+  });
+
+  it("removeFeed deletes both the feed registry dir and its records", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "feeds-discovery-"));
+    writeFeedSchema(root, "gone", {
+      title: "Gone",
+      primaryKey: "id",
+      fields: { id: { type: "string", label: "ID", primary: true } },
+      ingest: { kind: "rss", url: "https://example.com/feed.xml", schedule: "hourly", map: { id: "guid" } },
+    });
+    const recordsDir = path.join(root, "data", "feeds", "gone"); // default dataPath
+    mkdirSync(recordsDir, { recursive: true });
+    writeFileSync(path.join(recordsDir, "a.json"), JSON.stringify({ id: "a" }));
+
+    const removed = await removeFeed(root, "gone");
+    assert.equal(removed, true);
+    assert.ok(!existsSync(path.join(root, "feeds", "gone")), "feed registry dir removed");
+    assert.ok(!existsSync(recordsDir), "records dir removed");
   });
 
   it("skips a schema whose primaryKey field is not flagged primary", async () => {

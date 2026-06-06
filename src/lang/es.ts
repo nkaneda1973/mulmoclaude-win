@@ -1301,7 +1301,7 @@ const esMessages = {
     openItem: "Abrir {id}",
     confirmDelete: "¿Eliminar este elemento? Esta acción no se puede deshacer.",
     deleteFeed: "Eliminar feed",
-    confirmDeleteFeed: '¿Eliminar el feed "{title}"? Dejará de actualizarse; los registros ya obtenidos se conservan.',
+    confirmDeleteFeed: '¿Eliminar el feed "{title}" y todos sus registros descargados? Esta acción no se puede deshacer.',
     deleteCollection: "Eliminar colección",
     confirmDeleteCollection: '¿Eliminar toda la colección "{title}", incluidos todos sus registros? Antes se archiva una copia de seguridad restaurable.',
     itemsEmpty: "Aún no hay elementos. Pulsa + para añadir uno.",

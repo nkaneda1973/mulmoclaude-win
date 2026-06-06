@@ -1305,7 +1305,7 @@ const deMessages = {
     openItem: "{id} öffnen",
     confirmDelete: "Diesen Eintrag löschen? Das kann nicht rückgängig gemacht werden.",
     deleteFeed: "Feed löschen",
-    confirmDeleteFeed: "Den Feed {title} entfernen? Er aktualisiert sich nicht mehr; die bereits abgerufenen Datensätze bleiben erhalten.",
+    confirmDeleteFeed: "Den Feed {title} und alle abgerufenen Datensätze löschen? Dies kann nicht rückgängig gemacht werden.",
     deleteCollection: "Sammlung löschen",
     confirmDeleteCollection: "Die gesamte Sammlung „{title}“ einschließlich aller Datensätze löschen? Zuvor wird eine wiederherstellbare Sicherung archiviert.",
     itemsEmpty: "Noch keine Einträge. Klicke auf +, um einen hinzuzufügen.",

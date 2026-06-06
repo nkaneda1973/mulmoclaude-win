@@ -1284,7 +1284,7 @@ const jaMessages = {
     openItem: "{id} を開く",
     confirmDelete: "この項目を削除しますか？元に戻せません。",
     deleteFeed: "フィードを削除",
-    confirmDeleteFeed: "フィード「{title}」を削除しますか？更新は停止しますが、すでに取得したレコードは保持されます。",
+    confirmDeleteFeed: "フィード「{title}」と取得済みのすべてのレコードを削除しますか？この操作は取り消せません。",
     deleteCollection: "コレクションを削除",
     confirmDeleteCollection: "コレクション「{title}」とそのすべてのレコードを削除しますか？削除前に復元可能なバックアップが保存されます。",
     itemsEmpty: "まだ項目がありません。+ を押して追加してください。",

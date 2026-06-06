@@ -29,9 +29,9 @@ fields, and write one `schema.json`.**
 3. Tell the user it's registered and will fetch on the next refresh (or they can
    click **Refresh feed** on `/feeds/<slug>` now).
 
-To **remove** a feed, delete its `feeds/<slug>/` directory (its already-fetched
-records under `data/feeds/<slug>/` are left in place). The `/feeds` page lists
-all registered feeds.
+To **remove** a feed completely, delete BOTH its `feeds/<slug>/` directory
+(schema + state) and its records under `data/feeds/<slug>/`. The `/feeds` page
+lists all registered feeds, and its delete button does the same.
 
 ## Schema shape (STRICT — follow exactly)
 

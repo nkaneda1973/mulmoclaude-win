@@ -1287,7 +1287,7 @@ const enMessages = {
     openItem: "Open {id}",
     confirmDelete: "Delete this item? This cannot be undone.",
     deleteFeed: "Delete feed",
-    confirmDeleteFeed: 'Remove the "{title}" feed? It stops refreshing; the records it already fetched are kept.',
+    confirmDeleteFeed: 'Delete the "{title}" feed and all its fetched records? This cannot be undone.',
     deleteCollection: "Delete collection",
     confirmDeleteCollection: 'Delete the entire "{title}" collection, including all its records? A restorable backup is archived first.',
     itemsEmpty: "No items yet. Click + to add one.",

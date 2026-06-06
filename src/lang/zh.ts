@@ -1277,7 +1277,7 @@ const zhMessages = {
     openItem: "打开 {id}",
     confirmDelete: "删除此项？此操作无法撤销。",
     deleteFeed: "删除订阅源",
-    confirmDeleteFeed: "删除订阅源「{title}」？将停止刷新，但已抓取的记录会保留。",
+    confirmDeleteFeed: "删除订阅源「{title}」及其所有已抓取的记录？此操作无法撤销。",
     deleteCollection: "删除集合",
     confirmDeleteCollection: "删除整个“{title}”集合及其所有记录？删除前会先归档一份可恢复的备份。",
     itemsEmpty: "暂无项目。点击 + 添加一个。",
