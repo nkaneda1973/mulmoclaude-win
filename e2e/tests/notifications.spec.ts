@@ -86,11 +86,6 @@ const SCENARIOS: readonly Scenario[] = [
     expectedUrl: "/automations/finance-daily-briefing",
   },
   {
-    description: "sources target with slug",
-    entry: buildEntry("notif-src-1", "Interesting article", "/sources/federal-reserve"),
-    expectedUrl: "/sources/federal-reserve",
-  },
-  {
     description: "calendar index (no identifier)",
     entry: buildEntry("notif-cal-1", "Event reminder", "/calendar"),
     expectedUrl: "/calendar",

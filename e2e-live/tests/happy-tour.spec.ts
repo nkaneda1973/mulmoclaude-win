@@ -89,11 +89,10 @@ const LAUNCHER_ROUTE_SWEEP: readonly RouteSweepEntry[] = [
   { stepTitle: "8. /wiki が mount", path: "/wiki", rootTestId: "wiki-lint-chat-button" },
   { stepTitle: "9. /files が mount", path: "/files", rootTestId: "files-view-root" },
   { stepTitle: "10. /skills が mount + catalog セクション visible", path: "/skills", rootTestId: "skill-section-catalog" },
-  { stepTitle: "11. /sources が mount", path: "/sources", rootTestId: "sources-view-root" },
-  { stepTitle: "12. /automations が mount", path: "/automations", rootTestId: "scheduler-view-root", errorBannerTestId: "scheduler-api-error" },
-  { stepTitle: "13. /news が mount", path: "/news", rootTestId: "news-view" },
-  { stepTitle: "14. /roles が mount", path: "/roles", rootTestId: "roles-view-root" },
-  { stepTitle: "15. /collections が mount", path: "/collections", rootTestId: "collections-view-root" },
+  { stepTitle: "11. /automations が mount", path: "/automations", rootTestId: "scheduler-view-root", errorBannerTestId: "scheduler-api-error" },
+  { stepTitle: "12. /roles が mount", path: "/roles", rootTestId: "roles-view-root" },
+  { stepTitle: "13. /collections が mount", path: "/collections", rootTestId: "collections-view-root" },
+  { stepTitle: "14. /feeds が mount", path: "/feeds", rootTestId: "feeds-view-root" },
 ];
 
 test.describe("happy-tour (capability sweep)", () => {

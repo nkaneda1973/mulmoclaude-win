@@ -281,6 +281,10 @@ export interface SyncActivePresetSkillsResult {
   /** Slugs that haven't been starred yet (no active dir present).
    *  Listed for diagnostics; the function never auto-stars. */
   notActive: string[];
+  /** Active `mc-*` slugs pruned because the launcher no longer ships a
+   *  source preset for them (a retired preset). Bounded to `mc-*` —
+   *  user-authored skills are never removed. */
+  removed: string[];
   /** Per-slug failure messages (permission errors, etc.). */
   skipped: string[];
   /** Common timestamp suffix used for every backup file produced by
@@ -465,13 +469,65 @@ function processActiveSlug(slug: string, opts: SyncActivePresetSkillsOptions, re
   }
 }
 
+/** Prune active `mc-*` slugs whose launcher source preset no longer
+ *  exists (a retired preset). Without this, an upgraded workspace that
+ *  had starred a since-removed preset (e.g. `mc-manage-sources`) keeps
+ *  the active copy forever — Claude would still discover a skill whose
+ *  backend was deleted. Bounded to `mc-*` real directories that stay
+ *  inside `activeDir` (never a symlink escape, never a user skill). */
+function removeRetiredActivePresets(opts: SyncActivePresetSkillsOptions, result: SyncActivePresetSkillsResult, sourceSlugs: ReadonlySet<string>): void {
+  let activeEntries: string[];
+  try {
+    activeEntries = readdirSync(opts.activeDir);
+  } catch {
+    return; // no active dir yet → nothing to prune
+  }
+  // Realpath targets of active symlinks — never prune a directory that
+  // is serving as a symlink target (e.g. a git-managed checkout the
+  // user symlinks an active slug to).
+  const symlinkTargets = new Set<string>();
+  for (const slug of activeEntries) {
+    const p = path.join(opts.activeDir, slug);
+    try {
+      if (lstatSync(p).isSymbolicLink()) symlinkTargets.add(realpathSync(p));
+    } catch {
+      /* unreadable — ignore */
+    }
+  }
+  for (const slug of activeEntries) {
+    if (!isPresetSlug(slug) || sourceSlugs.has(slug)) continue;
+    const destSlugDir = path.join(opts.activeDir, slug);
+    let info;
+    try {
+      info = lstatSync(destSlugDir);
+    } catch {
+      continue;
+    }
+    if (info.isSymbolicLink() || !info.isDirectory()) continue;
+    if (!isRealpathInside(destSlugDir, opts.activeDir)) continue;
+    try {
+      if (symlinkTargets.has(realpathSync(destSlugDir))) continue; // serving as a symlink target
+    } catch {
+      continue;
+    }
+    try {
+      rmSync(destSlugDir, { recursive: true, force: true });
+      result.removed.push(slug);
+      opts.onInfo?.("removed retired active preset skill", { slug });
+    } catch (err) {
+      result.skipped.push(`${slug}: prune failed: ${errorMessage(err)}`);
+      opts.onWarn?.("active preset prune failed", { slug, reason: errorMessage(err) });
+    }
+  }
+}
+
 /** Refresh every already-starred `mc-*` preset's active copy in
  *  `<workspaceRoot>/.claude/skills/<slug>/` to match the source.
  *  Per-file diff with `.bak.<timestamp>` backup on overwrite. Slugs
  *  that aren't starred yet are listed in `notActive` but never
  *  auto-created. */
 export function syncActivePresetSkills(opts: SyncActivePresetSkillsOptions): SyncActivePresetSkillsResult {
-  const result: SyncActivePresetSkillsResult = { updated: [], unchanged: [], notActive: [], skipped: [], backupSuffix: null };
+  const result: SyncActivePresetSkillsResult = { updated: [], unchanged: [], notActive: [], removed: [], skipped: [], backupSuffix: null };
   if (!existsSync(opts.sourceDir)) return result;
   let sourceInfo;
   try {
@@ -492,16 +548,21 @@ export function syncActivePresetSkills(opts: SyncActivePresetSkillsOptions): Syn
   // backups with a matching suffix — easier to grep / restore.
   const backupExt = `.bak.${Date.now()}`;
   result.backupSuffix = backupExt;
+  const sourceSlugs = new Set<string>();
   for (const slug of sourceEntries) {
     if (slug.startsWith(".")) continue;
     if (!isPresetSlug(slug)) continue;
+    sourceSlugs.add(slug);
     processActiveSlug(slug, opts, result, backupExt);
   }
-  if (result.updated.length > 0) {
+  // Prune active copies of presets the launcher no longer ships.
+  removeRetiredActivePresets(opts, result, sourceSlugs);
+  if (result.updated.length > 0 || result.removed.length > 0) {
     opts.onInfo?.("active preset skills synced", {
       updated: result.updated.length,
       unchanged: result.unchanged.length,
       notActive: result.notActive.length,
+      removed: result.removed.length,
       skipped: result.skipped.length,
       backupSuffix: backupExt,
     });
