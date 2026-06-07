@@ -353,24 +353,33 @@ export async function removeBrokenSymlinkSkill(slug: string): Promise<void> {
 const SKILL_ROW_PRESENCE_TIMEOUT_MS = 30 * ONE_SECOND_MS;
 
 /**
+ * Open a Settings-modal management tab and wait for its surface to
+ * mount. Loads `/chat` first so the top-chrome gear button is present:
+ * the old standalone `/skills` / `/roles` routes used to load the app
+ * shell implicitly, and callers may invoke this before touching the UI
+ * at all (e.g. right after seeding a skill on disk).
+ */
+async function openSettingsTab(page: Page, tabId: "skills" | "roles", rootTestId: string, rootLabel: string): Promise<void> {
+  await page.goto("/chat");
+  await page.getByTestId("settings-btn").click();
+  await expect(page.getByTestId("settings-modal"), "settings modal must open").toBeVisible({ timeout: ONE_MINUTE_MS });
+  await page.getByTestId(`settings-tab-${tabId}`).click();
+  await expect(page.getByTestId(rootTestId), rootLabel).toBeVisible({ timeout: ONE_MINUTE_MS });
+}
+
+/**
  * Open the Skills management surface. Skills moved out of the standalone
  * `/skills` route into the Settings modal (Management group), so the
  * live-mode path is now: gear button → Skills tab. Resolves once the
  * always-rendered catalog accordion is visible inside the modal.
  */
 export async function openSkillsPanel(page: Page): Promise<void> {
-  await page.getByTestId("settings-btn").click();
-  await expect(page.getByTestId("settings-modal"), "settings modal must open").toBeVisible({ timeout: ONE_MINUTE_MS });
-  await page.getByTestId("settings-tab-skills").click();
-  await expect(page.getByTestId("skill-section-catalog"), "skills catalog section must mount inside the modal").toBeVisible({ timeout: ONE_MINUTE_MS });
+  await openSettingsTab(page, "skills", "skill-section-catalog", "skills catalog section must mount inside the modal");
 }
 
 /** Open the Roles management surface (Settings modal → Roles tab). */
 export async function openRolesPanel(page: Page): Promise<void> {
-  await page.getByTestId("settings-btn").click();
-  await expect(page.getByTestId("settings-modal"), "settings modal must open").toBeVisible({ timeout: ONE_MINUTE_MS });
-  await page.getByTestId("settings-tab-roles").click();
-  await expect(page.getByTestId("roles-view-root"), "roles view must mount inside the modal").toBeVisible({ timeout: ONE_MINUTE_MS });
+  await openSettingsTab(page, "roles", "roles-view-root", "roles view must mount inside the modal");
 }
 
 /** Close the Settings modal via its header ✕. No-op if already closed. */
