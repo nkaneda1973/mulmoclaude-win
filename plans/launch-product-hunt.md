@@ -1,6 +1,6 @@
 # MulmoClaude — Product Hunt Launch Strategy
 
-> **Canonical launch plan.** This file is the single source of truth for the Product Hunt launch. Its spine is the **file-system memory in two forms** — a linked **wiki** (Karpathy's LLM knowledge base, shipped) and **DSL-authored collections** that turn structured data into apps — operated by the platform surface from `README.md` / `MANIFEST.md` (Claude as a *universal controller*; *chat summons GUIs*). The earlier split drafts (`launch-ph-listing.md`, `launch-product-hunt-ja.md`) are retired to `plans/obsolete/`. The HN launch already ran with little traction (`plans/done/launch-hn.md`); **PH now stands alone** — do not assume an HN warm-up precedes it.
+> **Canonical launch plan.** This file is the single source of truth for the Product Hunt launch. **On PH surfaces, lead with the phenomenon — *ask Claude for an app and it appears* — and explain the philosophy second.** The philosophy is the **file-system memory in two forms**: a linked **wiki** (what Claude knows) and **DSL-authored collections** (what Claude can do — the apps you summon). Order matters: *phenomenon → theory*, never the reverse. The earlier split drafts (`launch-ph-listing.md`, `launch-product-hunt-ja.md`) are retired to `plans/obsolete/`. The HN launch already ran with little traction (`plans/done/launch-hn.md`); **PH now stands alone** — do not assume an HN warm-up precedes it.
 
 **Owner:** Satoshi (strategy + maker post), Engineering (demo assets + activation path), Community (day-of ops)
 **Target launch:** **Tuesday, June 23, 2026 — 12:01 AM PT kickoff** (today is 2026-06-06; this gives ~2.5 weeks of asset build. Slip to June 30 if the activation path (§10.5) isn't ready — do not launch without it.)
@@ -8,25 +8,30 @@
 
 ---
 
-## 0. The spine — file-system memory in two forms (read this first)
+## 0. Positioning — phenomenon first, philosophy second (read this first)
 
-**The key to MulmoClaude is not the UI, the chat, or even the agent. It's the memory that accumulates on the file system — `~/mulmoclaude/`.** Everything else is how you write to it, read from it, and act on it. The agent has a home, and the home is the database. Hold this as the spine; every surface traces back to it, and no surface may contradict the README.
+**On every 3-second surface — headline, hero-video cold open, tweet #1 — lead with what it DOES, not what it IS:**
 
-**That memory exists in two forms — and the second is what puts us a step or two past the state of the art.**
+> **Ask Claude for an app, and it appears.** Type *"build me an invoicing app with line items and a PDF button"* and a real, working app materializes — fields, a live computed total, an action button — with **no code and no plugin to install.**
 
-**Form 1 — the Wiki (unstructured memory).** Pages of prose linked by `[[links]]`, grown automatically from every chat. This is *what Claude knows*. It is exactly Karpathy's *LLM knowledge base* idea — shipped, maintained by the agent itself, in plain Markdown.
+That is the hook. A PH viewer must feel "wait — you build apps just by *asking*?" before anything else. Never open with abstractions ("file-system memory," "DSL," "harness," "runtime") — they answer a question the viewer hasn't asked yet. Show the phenomenon; the theory comes right after.
 
-**Form 2 — Collections (structured memory).** The same folder also holds *structured* records under a schema. The leap: **the schema is a small DSL, so writing that DSL turns the memory into an application.** Fields, references, computed values, action buttons, scheduled triggers — declare them and the data starts to *compute, relate, and act*. A reading list, an invoicing app, a CRM, a portfolio tracker — each is a schema, not code. This is *what Claude can do*: memory that doesn't just inform, it runs.
+**Then — and only then — explain *why* it's more than a no-code toy. This is the product's philosophy: use it in the body, the maker comment, HN, and the blog, not in the headline.**
 
-**Why this is Karpathy +1 and +2.** Karpathy gave the LLM a wiki (Form 1) — linked prose it builds and reads. **Step one: we add structured memory beside the prose.** **Step two — the deep one: that structure is authored by a DSL, which makes it a harness.** A deliberately-limited, legible, *validatable* surface the **user** declares and Claude operates inside. Designing the environment an agent works in (the harness) used to be an engineer's job; with Collections the end user does it by writing a tiny schema, and **Claude is the runtime.** Applications stop being code engineers write and become *data users author*. This is the freshest, most defensible thing we ship — and the most significant in LLM-engineering terms.
+The real substance of MulmoClaude is the **memory that accumulates on the file system — `~/mulmoclaude/`** — and it exists in **two forms**:
 
-**How you operate the memory (the platform surface — matches `README.md` / `MANIFEST.md`).** Wrapped around the two-form memory is the application platform: **Claude is a universal controller** that composes across both forms (and every plugin) in a single turn, and **chat summons the right GUI** to view or edit either — markdown, wiki page, chart, form, spreadsheet, 3D scene, narrated video. The agent↔GUI contract is an open protocol (`gui-chat-protocol`) extending MCP for the visual layer. **The platform is the *means*; the two-form memory is the *point*.**
+- **Form 1 — the Wiki: what Claude *knows*.** Cross-linked Markdown pages that grow automatically from every chat (unstructured memory).
+- **Form 2 — Collections: what Claude *can do*.** Structured records under a schema — and **the schema is a small DSL, so writing it turns the memory into an app.** The invoicing app you just summoned *is* this form. Memory that doesn't just inform, it runs.
 
-**It's all yours.** Both forms are plain files — Markdown for the wiki, JSON + schema for collections — in one local folder. git-friendly, inspectable, no cloud, no lock-in.
+The deeper idea, for readers who lean in: the structured form is a **harness the user authors and Claude executes** — designing the environment an agent works inside used to be an engineer's job; now the end user does it by writing a tiny schema, and applications become *data users author*, not code engineers write. **For HN and the blog, frame this as Karpathy +1/+2** (Karpathy gave the LLM a wiki; we add a second, *structured* memory, and make that structure a DSL/harness). **On PH, skip the Karpathy framing** — most viewers don't know him and it costs ~30s to land, and PH gives you 3.
 
-**2026 reality check:** rich output (Artifacts), mobile AI (OpenClaw), sandboxing, code generation are **commoditized** — never lead with them. The live frontier is exactly the spine: **a file-system memory in two forms, the structured one authored by a DSL the user writes — Karpathy's wiki plus an app layer no one else has.**
+**The platform surface that operates the memory (matches `README.md` / `MANIFEST.md`):** Claude is a **universal controller** that composes across both forms (and every plugin) in one turn, and **chat summons the right GUI** to view or edit either (markdown, wiki page, chart, form, spreadsheet, 3D scene, narrated video) via an open protocol (`gui-chat-protocol`) extending MCP. **The platform is the *means*; the two-form memory is the *point*; the ask→app moment is the *proof you show first*.**
 
-**Target early adopter (one audience):** Claude power users who have hit the limits of a single chat and a terminal. Honest tension: the "ask → app appears" hook reads non-engineer, but our channels (PH Dev Tools, r/ClaudeAI) are engineers. **Resolution:** to engineers, frame Form 2 as *"you stop writing a plugin per feature — you write a small schema (a DSL) and Claude runs it."* The harness framing is the engineer-legible version of the same magic. Phase-2 audiences (productivity, knowledge workers, JP, enterprise) arrive later, pulled by the dev-native gravity.
+**It's all yours.** Plain files — Markdown wiki, JSON + schema collections — in one local folder. git-friendly, no cloud, no lock-in.
+
+**2026 reality check:** rich output (Artifacts), mobile AI (OpenClaw), sandboxing, code generation are **commoditized** — never lead with them.
+
+**Target early adopter (one audience):** Claude power users who have hit the limits of a single chat and a terminal. Honest tension: "ask → app appears" reads non-engineer, but our channels (PH Dev Tools, r/ClaudeAI) are engineers. **Resolution:** to engineers, frame Form 2 as *"you stop writing a plugin per feature — you write a small schema (a DSL) and Claude runs it."* The harness framing is the engineer-legible version of the same magic. Phase-2 audiences (productivity, knowledge workers, JP, enterprise) arrive later, pulled by the dev-native gravity.
 
 ---
 
@@ -34,15 +39,15 @@
 
 ### Product Hunt listing fields
 
-- **Name / headline (≤60):** `MulmoClaude — a local AI memory that grows into apps` *(51 chars — the two-form-memory spine: it remembers, and the structured half becomes software)*
-- **Tagline (≤60):** `A linked wiki + apps you build by asking. All local.` *(51 chars)*
+- **Name / headline (≤60):** `MulmoClaude — Build AI-powered apps by asking Claude` *(52 chars — leads with the phenomenon: app generation, the newest thing we ship)*
+- **Tagline (≤60):** `Your wiki remembers. Your data becomes apps.` *(44 chars — surprise first, then the memory payoff)*
 
 ### Supporting taglines (A/B for social + hero imagery)
 
-1. *Karpathy gave the LLM a wiki. MulmoClaude adds a second memory — structured data that becomes apps when you write a schema.*
-2. *Two memories in one folder: a linked wiki (what Claude knows) and DSL-authored collections (what Claude can do).*
-3. *Need an app? Don't install a plugin — write a tiny schema, or just ask. The data becomes the app; Claude is the runtime.*
-4. *A schema is a harness. The user writes it, Claude runs it. That's how memory turns into software.*
+1. *"Build me an invoicing app." A working app appears — fields, totals, a PDF button. No code, no plugin.*
+2. *Need a tool it doesn't have? Don't install a plugin — just ask. Claude builds the app and runs it.*
+3. *Your wiki remembers everything. Your data becomes apps. All local, all yours.*
+4. *Two forms of memory in one folder: a linked wiki (what Claude knows) and apps you grow by schema (what Claude can do).* **(philosophy line — body/HN/blog, not the headline.)**
 5. *`~/mulmoclaude/` — your wiki and your apps, all plain Markdown/JSON, all yours.* **(geek-targeted: HN, X-dev, terminal-native.)**
 
 ### Category
@@ -53,9 +58,9 @@ Primary **Developer Tools** · Secondary **Artificial Intelligence** · Tertiary
 
 ## 2. The one-sentence pitch
 
-**MulmoClaude's core is a file-system memory that grows in two forms — a linked wiki of everything Claude learns, and schema-driven collections where writing a small DSL turns that memory into working apps — all operated by Claude as a universal controller that summons the right GUI, as plain files in one local folder you own.**
+**Ask MulmoClaude for an app — "build me an invoicing system" — and a working, schema-driven app appears with no code. Under it: a file-system memory in two forms — a linked wiki of everything Claude learns, and the collections those apps run on — operated by Claude as a universal controller that summons the right GUI, all as plain files in one local folder you own.**
 
-Clauses in the order a viewer asks them: *What's the memory? → How does it become apps? → Who operates it? → Whose is it?*
+Clauses in the order a viewer asks them: *What does it do? → Why is that possible? → Who operates it? → Whose is it?*
 
 ### The anti-wrapper line (use whenever "is it just a ChatGPT clone?" appears)
 
@@ -70,7 +75,7 @@ Repeat verbatim in the maker post, any HN relaunch, and tweet #1.
 | Hunt instinct | MulmoClaude's answer |
 | --- | --- |
 | "Another AI chat wrapper?" | No — it runs the Claude Code CLI directly (not the API), and the pitch is **a platform Claude composes across, that you extend by asking.** |
-| "What's the new idea?" | **Two forms of memory in one folder.** Karpathy's linked wiki (what Claude knows) *plus* DSL-authored collections (what Claude can do) — write a small schema and the data becomes an app, with Claude as the runtime. Zero host code. |
+| "What's the new idea?" | **You build apps by asking.** "Build me an invoicing system" → a working, schema-driven app appears with no code, Claude as the runtime. (The deeper why: it's the *structured* of two forms of file-system memory — the other is a self-growing wiki.) |
 | "Isn't that Airtable / Notion / Retool?" | Those are no-code too — but an *engineer* designs the environment and there's no agent runtime. Here the **user** declares a schema (a DSL) and **Claude operates inside it.** |
 | "Isn't that just MCP?" | MCP is transport (agent↔tool). `gui-chat-protocol` adds the layers MCP doesn't: **GUI surfaces, agent↔UI state, and cross-plugin composition.** It sits *on top of* MCP. |
 | "What's the moat?" | **Memory that compounds, in two forms.** The wiki links keep growing (Karpathy's KB idea, shipped) and so does your set of DSL-authored apps — all local plain text, painful to leave. |
@@ -80,29 +85,26 @@ Repeat verbatim in the maker post, any HN relaunch, and tweet #1.
 
 ## 4. Key messages (4, rank-ordered)
 
-A PH viewer remembers **one** idea in ~10 seconds. Lead with the spine: the two-form memory.
+A PH viewer remembers **one** idea in ~10 seconds. Lead with the phenomenon (build apps by asking); reveal the two-form-memory philosophy right after.
 
-**1. Memory in two forms — a linked wiki, and apps you grow by schema.** — *Karpathy gave the LLM a wiki. This adds a second memory that becomes software.*
-MulmoClaude's heart is the memory that accumulates in `~/mulmoclaude/`, and it grows in two directions:
-- **The wiki (what Claude knows).** A cross-linked Markdown knowledge base that grows automatically from every chat — Karpathy's LLM-KB idea, shipped. Ask a question three days later and Claude wires it to what it learned, with nothing saved by hand.
-- **Collections (what Claude can do).** The same folder holds structured records under a schema — and **the schema is a tiny DSL, so writing it turns the memory into an app.** "Build me an invoicing app with line items and a PDF button" → fields, a computed total, a "Generate PDF" action appear, with **zero host code**. Update one stock quote and every portfolio holding revalues via a reference (`value = shares × ticker.price`). You asked for it; you didn't code it.
-
-This is the headline and the moat at once: the wiki remembers, the collection remembers *and runs*, and the structured half is a **harness the user authors and Claude executes** — the genuine step past the state of the art.
-- *vs ChatGPT Memory:* a bullet list, not a cross-linked knowledge base — and it can't become an app.
-- *vs Mem.ai / Obsidian:* zero manual effort; the wiki grows as a byproduct of conversation.
+**1. Build apps by asking.** — *Every app ships the features its engineers chose. This one grows new ones when you ask.*
+Need a tool the platform doesn't have — invoicing, a CRM, a reading log, a portfolio tracker? Don't install a plugin, don't write code. **Ask.** "Build me an invoicing app with line items and a PDF button" → fields, a computed total, a "Generate PDF" action appear, with **zero host code**. Update one stock quote and every portfolio holding revalues via a reference (`value = shares × ticker.price`). You asked for it; you didn't code it. This is the newest, most novel thing we ship — lead every PH surface with it.
+- *Why it's more than a no-code toy (the philosophy, second):* the app *is* the **structured form of a two-form memory** — the other form is the self-growing wiki (#2). Both are plain files in `~/mulmoclaude/`; the wiki remembers, the collection remembers *and runs*. The schema you asked for is a **harness the user authors and Claude executes** — the genuine step past the state of the art.
 - *vs Airtable / Notion / Retool:* no-code too, but an engineer designs the environment and no agent runs inside. Here the user declares a schema (a DSL) and Claude operates within it.
 - *vs plugin marketplaces (incl. our own retired Worklog/Client/Invoice plugins):* no install, no marketplace, no per-feature prompt bloat. One generic engine; infinite user-authored apps.
 - *Engineer framing:* you stop writing a plugin per feature; you write a small schema and Claude runs it.
 
-**2. Claude operates both forms — universal controller; chat summons the GUI.** — *One chat reads the wiki and runs the apps, and the reply isn't a string — it's the right surface.*
+**2. The agent that remembers — and works while you sleep.** — *Every AI agent has amnesia. This one doesn't, and it keeps working when you're gone.*
+A personal **wiki** grows from every chat automatically, cross-linked, in plain Markdown — the *unstructured* half of memory (the structured half is the apps in #1). Ask a question three days later and Claude wires it to what it learned, nothing saved by hand. And it runs on a schedule: register a source → morning briefing; declare a recurring obligation as a collection → it reminds you ahead of each due date and rolls to the next cycle, no code.
+- *vs ChatGPT Memory:* a bullet list, not a cross-linked knowledge base.
+- *vs Mem.ai / Obsidian:* zero manual effort; the wiki grows as a byproduct of conversation.
+- *vs Devin / Codex / Claude Code today:* one-shot executors that stop when you close them; this runs on a schedule with catch-up after missed runs.
+- *Together with #1, this is the spine:* two forms of memory — what Claude knows (wiki) and what it can do (collections) — and autonomous runs keep writing to both while you're not looking.
+
+**3. Claude operates everything — universal controller; chat summons the GUI.** — *One chat reads the wiki and runs the apps, and the reply isn't a string — it's the right surface.*
 Claude composes across the whole plugin registry in a single turn: *"summarize Q1 expenses as a chart"* reads accounting, writes a chart — no app-switching, no copy-paste. And the agent picks the *format* for the content: markdown for prose, a chart/form/wiki/spreadsheet/3D-scene surface for rich output, MulmoScript for narrated video. It can also ask *you* for structured input via a form when free text isn't right.
 - *vs Claude Desktop / one-agent-plus-tools:* this is a registry of GUI-bearing apps Claude composes across — a different layer of the stack.
 - *The open protocol:* `gui-chat-protocol` is a versioned npm package extending MCP; built-in plugins, third-party npm plugins, and any future host implement the same contract.
-
-**3. The agent that works while you sleep.** — *Other agents wait for you. This one has a schedule, and the apps wire into it.*
-Register a source → a morning briefing is waiting; schedule a report → find it done; declare a recurring obligation as a collection → it reminds you ahead of each due date and rolls itself to the next cycle, no code. Behaviors are declarative too — a reading-list collection lights up the notification bell for every unread link from three keys in its schema.
-- *vs Devin / Codex / Claude Code today:* one-shot executors that stop when you close them; this runs on a schedule with catch-up after missed runs.
-- *Why it compounds with #1:* autonomous runs keep writing into both forms of memory — the wiki and the collections — while you're not looking.
 
 **4. Your machine, your data, your apps.** — *It all lives in `~/mulmoclaude/`. Plain Markdown/JSON. Git-friendly. No cloud. No lock-in.*
 Web articles, chats, local files, generated images/videos, search results, scheduled outputs — **and the apps themselves** (every collection is a `schema.json` + plain-JSON records) — land in one folder as plain text. `git push` is the backup; open any file in any editor; read it in 10 years with no migration.
@@ -126,9 +128,9 @@ Multi-modal output (Artifacts commoditized it; still a Collections proof point �
 
 ### Description (≤260 chars)
 
-> A local file-system memory for Claude, in two forms: a linked wiki of everything it learns, and schema-driven collections where a tiny DSL turns data into working apps. Claude operates both as a universal controller. Open source, MIT · `npx mulmoclaude`.
+> Ask Claude for an app — "build me an invoicing system" — and a working, schema-driven app appears with no code. Underneath: a file-system memory in two forms (a self-growing wiki + the collections your apps run on), operated by Claude as a universal controller. MIT · `npx mulmoclaude`.
 
-*(252 chars. Leads with the two-form-memory spine + the DSL→app leap + who operates it + install.)*
+*(257 chars. Leads with the phenomenon (ask→app) + the two-form-memory why + who operates it + install.)*
 
 ### Topics
 
