@@ -40,7 +40,9 @@ The deeper idea, for readers who lean in: the structured form is a **harness the
 ### Product Hunt listing fields
 
 - **Name / headline (≤60) — primary:** `MulmoClaude — Build apps by asking. They remember.` *(50 chars)*
-- **Tagline (≤60):** `Your wiki remembers. Your data becomes apps.` *(44 chars — surprise first, then the memory payoff)*
+- **Tagline (≤60) — primary:** `An AI-native database where your data becomes apps.` *(50 chars)*
+
+*Pairing logic:* the **headline** hooks with the consumer phenomenon (build apps by asking — the crowded-but-legible part); the **tagline** reframes the category (an AI-native database — the uncontested part). *remember* vs *compound*: "remember" lands in 3 seconds, so it leads the headline; "compound" is the deeper moat, carried by the tagline and the body. Headline → tagline mirrors phenomenon → theory.
 
 **Why "they remember" is in the headline (the differentiation, not optional).** "Build apps by asking" alone is a crowded 2026 category — Lovable, Bolt, Replit, V0 all say it. A viewer who sees only app-generation thinks *"another AI app builder"* and scrolls. Our moat isn't generating an app; it's that **the app becomes part of a memory system** — a loop no competitor closes:
 
@@ -56,6 +58,26 @@ So the headline must carry both halves: the *phenomenon* (build by asking) **and
 | B | `Ask Claude for an app. It remembers.` | More conversational; "Claude" up front |
 | C | `Apps that grow from memory.` | Moat-first; intriguing but softer on the phenomenon |
 | D | `Build AI-powered apps by asking Claude` | Pure app-gen (prior primary) — the crowded-category control |
+
+**Tagline A/B (carry the *compound* / database dimension the headline can't):**
+
+| | Tagline | Bet |
+|---|---|---|
+| **A (primary)** | `An AI-native database where your data becomes apps.` | Reframes the category — uncontested |
+| B | `Ask for an app. Keep it forever.` | Ownership + permanence; warm, consumer |
+| C | `Your data becomes apps — and they compound.` | Names the network effect directly |
+| D | `Your wiki remembers. Your data becomes apps.` | Prior tagline — concrete but more abstract on the moat |
+
+### The bigger positioning bet — "AI-native database," not "AI app builder"
+
+The single sharpest reframe available to us. **"AI app builder" is a knife fight** (Lovable, Bolt, V0, Replit, Cursor). **"Memory that turns into apps" has almost no one in it.** The core sentence is already in this plan: *the app is structured memory.* That one line moves us out of the app-gen category and into a category we'd largely define:
+
+> A normal app reads from a database. Here **the app *is* the database** — you describe a schema, it becomes both your data store *and* its UI, and the agent reads/writes it as memory. Ask → app → structured memory → the agent uses it → your capability compounds. That loop is the product.
+
+**How to deploy it (don't over-rotate):**
+- **PH / consumer surfaces:** keep the *phenomenon* hook ("build apps by asking") to earn the click, and use the **consumer phrasing** of the database idea — *"your data becomes apps," "memory that turns into apps"* — never the literal word "database," which reads as dev-infra/boring to a PH skimmer.
+- **HN / investor / technical surfaces:** lead with **"AI-native database"** outright — there it's a feature, not a yawn, and it's the most defensible framing we have.
+- **Don't claim a category we can't back:** we're not a Postgres replacement. The claim is narrow and true — *a local, schema-defined store whose records render as apps and serve as the agent's structured memory.*
 
 ### Supporting taglines (A/B for social + hero imagery)
 
