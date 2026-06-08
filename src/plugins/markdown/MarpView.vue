@@ -19,7 +19,7 @@
       <iframe
         v-if="srcDoc"
         :srcdoc="srcDoc"
-        :style="{ height: frameHeight + 'px' }"
+        :style="{ height: frameHeight + 'px', width: renderedSlideWidth + 'px' }"
         sandbox=""
         class="marp-frame"
         :title="t('pluginMarkdown.marpSlidesMode', { count: slideCount })"
@@ -48,9 +48,19 @@ const DEFAULT_SLIDE_ASPECT = 9 / 16;
 const SLIDE_GAP_PX = 16;
 const FRAME_PADDING_PX = 32;
 const FALLBACK_WIDTH_PX = 800;
+const FALLBACK_VIEWPORT_HEIGHT_PX = 720;
+// Tall decks (portrait `size: 9:16`, square, custom WxH where H > W)
+// would otherwise render at the full container width and produce a
+// per-slide canvas taller than the visible viewport — scrolling
+// through one slide takes multiple pageDowns and the deck feels
+// claustrophobic. Cap each slide's displayed height at this fraction
+// of the available viewport so the slide stays visible end-to-end
+// and the deck reads like a stack of phone-screen mockups.
+const SLIDE_MAX_HEIGHT_VIEWPORT_FRACTION = 0.85;
 
 const containerEl = ref<HTMLElement | null>(null);
 const containerWidth = ref(FALLBACK_WIDTH_PX);
+const viewportHeight = ref(FALLBACK_VIEWPORT_HEIGHT_PX);
 const srcDoc = ref<string>("");
 const slideCount = ref(0);
 const slideAspect = ref(DEFAULT_SLIDE_ASPECT);
@@ -58,10 +68,24 @@ const renderError = ref<string | null>(null);
 
 const { pdfDownloading, pdfError, downloadPdf } = usePdfDownload();
 
+// Per-slide rendered width: width-fit by default, but capped so a
+// tall slide doesn't push past the viewport. For landscape decks the
+// height constraint is slack (cap > naturalHeight) and width wins.
+// For portrait / square decks the cap drives the layout — width
+// drops to whatever keeps the slide inside the height budget.
+const renderedSlideWidth = computed(() => {
+  const widthFit = containerWidth.value;
+  if (slideAspect.value <= 0) return widthFit;
+  const heightCap = viewportHeight.value * SLIDE_MAX_HEIGHT_VIEWPORT_FRACTION;
+  const widthAtHeightCap = heightCap / slideAspect.value;
+  return Math.min(widthFit, Math.max(0, widthAtHeightCap));
+});
+
+const renderedSlideHeight = computed(() => renderedSlideWidth.value * slideAspect.value);
+
 const frameHeight = computed(() => {
   if (slideCount.value === 0) return FRAME_PADDING_PX;
-  const slideHeight = containerWidth.value * slideAspect.value;
-  return Math.ceil(slideCount.value * slideHeight + Math.max(0, slideCount.value - 1) * SLIDE_GAP_PX + FRAME_PADDING_PX);
+  return Math.ceil(slideCount.value * renderedSlideHeight.value + Math.max(0, slideCount.value - 1) * SLIDE_GAP_PX + FRAME_PADDING_PX);
 });
 
 // Extract aspect ratio (= height / width) from the first SVG's
@@ -204,19 +228,27 @@ watch(
 
 let resizeObserver: ResizeObserver | null = null;
 
+function syncViewportHeight(): void {
+  if (typeof window === "undefined") return;
+  viewportHeight.value = window.innerHeight || FALLBACK_VIEWPORT_HEIGHT_PX;
+}
+
 onMounted(() => {
   if (!containerEl.value) return;
   containerWidth.value = containerEl.value.clientWidth || FALLBACK_WIDTH_PX;
+  syncViewportHeight();
   resizeObserver = new ResizeObserver((entries) => {
     const [entry] = entries;
     if (entry) containerWidth.value = entry.contentRect.width || FALLBACK_WIDTH_PX;
   });
   resizeObserver.observe(containerEl.value);
+  window.addEventListener("resize", syncViewportHeight);
 });
 
 onBeforeUnmount(() => {
   resizeObserver?.disconnect();
   resizeObserver = null;
+  if (typeof window !== "undefined") window.removeEventListener("resize", syncViewportHeight);
 });
 
 async function onExportPdf(): Promise<void> {
@@ -248,10 +280,16 @@ async function onExportPdf(): Promise<void> {
 }
 
 .marp-frame {
-  width: 100%;
+  /* Width is set inline per render — for landscape decks it equals
+     the wrapper width (full-bleed); for portrait / tall decks it
+     shrinks so each slide fits the viewport's height budget. Centred
+     horizontally so a narrow portrait iframe sits in the middle of
+     the wrapper instead of pinned to the left edge. */
   border: none;
   background: transparent;
   display: block;
+  margin: 0 auto;
+  max-width: 100%;
 }
 
 .load-error-banner {
