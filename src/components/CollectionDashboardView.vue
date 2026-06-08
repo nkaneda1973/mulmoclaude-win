@@ -9,7 +9,7 @@
         :key="card.value"
         type="button"
         class="flex flex-col items-center justify-center rounded-xl border px-4 py-4 text-center transition-colors"
-        :class="enumColorClasses(card.colorIndex).card"
+        :class="colorOf(card.value).card"
         :data-testid="`collection-dashboard-stat-${card.value || 'uncategorized'}`"
         @click="emit('select', null)"
       >
@@ -56,9 +56,9 @@
             :data-testid="`collection-dashboard-row-${itemId(row.item)}`"
             @click="emit('select', itemId(row.item))"
           >
-            <span class="w-2.5 h-2.5 rounded-full shrink-0" :class="enumColorClasses(row.colorIndex).dot" />
+            <span class="w-2.5 h-2.5 rounded-full shrink-0" :class="colorOf(row.badge).dot" />
             <span class="flex-1 min-w-0 text-sm font-medium text-slate-800 truncate">{{ label(row.item) }}</span>
-            <span v-if="row.badge" class="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold" :class="enumColorClasses(row.colorIndex).badge">
+            <span v-if="row.badge" class="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold" :class="colorOf(row.badge).badge">
               {{ row.badge }}
             </span>
             <span class="material-icons text-base text-slate-300 shrink-0">chevron_right</span>
@@ -73,7 +73,7 @@
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { fieldVisible } from "../utils/collections/actionVisible";
-import { enumColorClasses, enumValueIndex } from "../utils/collections/enumColors";
+import { resolveEnumColor } from "../utils/collections/enumColors";
 import { itemIdOf, itemLabelOf, labelFieldFor } from "../utils/collections/itemLabel";
 import type { CollectionItem, CollectionSchema } from "./collectionTypes";
 
@@ -118,10 +118,11 @@ function valueOf(item: CollectionItem): string {
   return (groupSpec.value?.values ?? []).includes(value) ? value : "";
 }
 
-/** A grouping-field value's index in the enum's declared `values` — drives
- *  its palette colour. The empty/unknown value reads -1 (neutral grey). */
-function colorIndexOfValue(value: string): number {
-  return enumValueIndex(groupSpec.value?.values, value);
+/** Palette/alert classes for a grouping-field value — the standard palette,
+ *  or notification red/neutral when the grouping field is the notifyWhen
+ *  target. Exposed to the template for cards, dots, and badges. */
+function colorOf(value: string) {
+  return resolveEnumColor(props.schema, props.groupField, value);
 }
 
 // Records placed on the dashboard, dropping any whose grouping field is hidden
@@ -132,7 +133,6 @@ interface StatCard {
   value: string;
   label: string;
   count: number;
-  colorIndex: number;
 }
 
 const cards = computed<StatCard[]>(() => {
@@ -148,9 +148,9 @@ const cards = computed<StatCard[]>(() => {
     if (declared.has(value)) counts.set(value, (counts.get(value) ?? 0) + 1);
     else uncategorized += 1;
   }
-  const result: StatCard[] = values.map((value, index) => ({ value, label: value, count: counts.get(value) ?? 0, colorIndex: index }));
+  const result: StatCard[] = values.map((value) => ({ value, label: value, count: counts.get(value) ?? 0 }));
   if (uncategorized > 0 && !values.includes("")) {
-    result.push({ value: "", label: t("collectionsView.kanbanUncategorized"), count: uncategorized, colorIndex: -1 });
+    result.push({ value: "", label: t("collectionsView.kanbanUncategorized"), count: uncategorized });
   }
   return result;
 });
@@ -174,14 +174,8 @@ const alertLabel = computed<string>(() => notify.value?.in.join(" / ") ?? "");
 
 interface DashboardRow {
   item: CollectionItem;
-  colorIndex: number;
   badge: string;
 }
 
-const rows = computed<DashboardRow[]>(() =>
-  visibleItems.value.map((item) => {
-    const value = valueOf(item);
-    return { item, colorIndex: colorIndexOfValue(value), badge: value };
-  }),
-);
+const rows = computed<DashboardRow[]>(() => visibleItems.value.map((item) => ({ item, badge: valueOf(item) })));
 </script>

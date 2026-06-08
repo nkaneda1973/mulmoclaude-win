@@ -97,7 +97,7 @@
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { bucketRecords, buildMonthGrid, ymdKey, daySlice, MINUTES_PER_DAY, type Ymd, type RecordSpan, type DaySlice } from "../utils/collections/calendarGrid";
-import { enumColorClasses, enumValueIndex } from "../utils/collections/enumColors";
+import { resolveEnumColor, type EnumColorClasses } from "../utils/collections/enumColors";
 import { labelFieldFor, itemIdOf, itemLabelOf } from "../utils/collections/itemLabel";
 import type { CollectionItem, CollectionSchema } from "./collectionTypes";
 
@@ -142,20 +142,15 @@ const labelField = computed<string | null>(() => labelFieldFor(props.schema));
 interface CalendarEntry {
   id: string;
   label: string;
-  /** Index of the record's `colorField` value in that enum's `values`, or -1
-   *  (no colour field, or empty/unknown value) → default styling. */
-  colorIndex: number;
+  /** Resolved chip colour from the record's `colorField` value, or null when
+   *  no colour field is set → default styling. */
+  color: EnumColorClasses | null;
 }
 
-/** The `colorField`'s declared enum values, when it names a real enum. */
-const colorValues = computed<readonly string[] | undefined>(() => {
-  const field = props.colorField ? props.schema.fields[props.colorField] : undefined;
-  return field?.type === "enum" ? field.values : undefined;
-});
-
-/** A record's chip colour index from its `colorField` value. */
-function colorIndexOf(item: CollectionItem): number {
-  return props.colorField ? enumValueIndex(colorValues.value, item[props.colorField]) : -1;
+/** A record's chip colour from its `colorField` value (palette, or
+ *  notification red/amber/grey on a notification enum); null when unset. */
+function colorOf(item: CollectionItem): EnumColorClasses | null {
+  return props.colorField ? resolveEnumColor(props.schema, props.colorField, item[props.colorField]) : null;
 }
 
 interface DayPair {
@@ -179,7 +174,7 @@ function recordsOnDay(day: Ymd): CalendarEntry[] {
     .map(({ span }) => ({
       id: itemIdOf(span.item, props.schema),
       label: itemLabelOf(span.item, props.schema, labelField.value),
-      colorIndex: colorIndexOf(span.item),
+      color: colorOf(span.item),
     }));
 }
 
@@ -191,7 +186,7 @@ const undatedEntries = computed<CalendarEntry[]>(() =>
   bucketed.value.noDate.map((item) => ({
     id: itemIdOf(item, props.schema),
     label: itemLabelOf(item, props.schema, labelField.value),
-    colorIndex: colorIndexOf(item),
+    color: colorOf(item),
   })),
 );
 
@@ -199,13 +194,12 @@ const DAY_CHIP_DEFAULT = "bg-indigo-50 text-indigo-700 border-indigo-100 hover:b
 const UNDATED_CHIP_DEFAULT = "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100";
 
 /** Chip classes: the selected chip keeps the solid indigo highlight; otherwise
- *  a coloured value tints the chip from the palette, and an uncoloured value
- *  (-1) falls back to `uncolored`. */
+ *  a record with a resolved colour tints the chip, and one with none (no colour
+ *  field) falls back to `uncolored`. */
 function chipClass(entry: CalendarEntry, uncolored: string): string {
   if (entry.id === props.selected) return "bg-indigo-600 text-white border-indigo-600";
-  if (entry.colorIndex < 0) return uncolored;
-  const cls = enumColorClasses(entry.colorIndex);
-  return `${cls.badge} ${cls.border} hover:brightness-95`;
+  if (!entry.color) return uncolored;
+  return `${entry.color.badge} ${entry.color.border} hover:brightness-95`;
 }
 
 const monthLabel = computed<string>(() => {

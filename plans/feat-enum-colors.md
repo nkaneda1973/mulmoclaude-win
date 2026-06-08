@@ -19,13 +19,21 @@ list cell.
 - **All views**, not just the dashboard.
 - **List view**: colour only the enum control itself (the inline `<select>`),
   NOT the whole row.
-- **notifyWhen**: remove its role in dashboard *colouring* only. `notifyWhen`
-  stays as a schema feature (server-side completion bell + the dashboard's
-  functional "alert box" listing flagged records) — we are not deleting it.
-- **Colour source**: a standard, ordered palette assigned by the value's
-  **index in the enum's `values` array** (declaration order), cycling when an
-  enum declares more values than the palette holds. Empty / unknown /
+- **notifyWhen**: it no longer drives a 3-state alert/ok/none dashboard colour.
+  Instead it defines the **notification enum** (see below). `notifyWhen` also
+  stays a server feature (completion bell + dashboard "alert box") — not deleted.
+- **Colour source (normal enum)**: a standard, ordered palette assigned by the
+  value's **index in the enum's `values` array** (declaration order), cycling
+  when an enum declares more values than the palette holds. Empty / unknown /
   Uncategorized → neutral grey.
+- **Notification enum** (the field a schema's `notifyWhen` targets): instead of
+  the palette, its values read the **notification severity colours** to match
+  the bell — the first flagged value in `notifyWhen.in` (most urgent) → red,
+  the remaining flagged values → amber, every non-flagged value → neutral grey.
+  e.g. todos `priority: [urgent, high, medium, low]` with
+  `notifyWhen.in: [urgent, high]` → urgent=red, high=amber, medium/low=grey.
+- **Palette order**: rose and amber are placed LAST (indices 6-7) so small
+  enums never draw a palette colour that reads like the notification red/amber.
 - **No schema/type/server/i18n changes** — colouring is purely derived from
   existing `values`. (A per-value override could be a future follow-up.)
 - **Primary enum**: the field a view groups by. Dashboard & kanban already use

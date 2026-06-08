@@ -524,7 +524,7 @@
                       :value="item[key] == null ? '' : String(item[key])"
                       :disabled="isRowInlineSaving(item)"
                       class="rounded-lg border px-2 py-0.5 text-[11px] font-semibold focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                      :class="enumControlClass(field, item[key])"
+                      :class="enumControlClass(String(key), item[key])"
                       :data-testid="`collections-inline-enum-${key}-${item[collection.schema.primaryKey]}`"
                       :aria-label="field.label"
                       @click.stop
@@ -708,7 +708,7 @@ import { useConfirm } from "../composables/useConfirm";
 import { useAppApi } from "../composables/useAppApi";
 import { useShortcuts } from "../composables/useShortcuts";
 import { actionVisible, fieldVisible } from "../utils/collections/actionVisible";
-import { enumColorClasses, enumValueIndex } from "../utils/collections/enumColors";
+import { resolveEnumColor } from "../utils/collections/enumColors";
 import { readCollectionViewMode, writeCollectionViewMode } from "../utils/collections/collectionViewMode";
 import { useCollectionRendering } from "../composables/collections/useCollectionRendering";
 import { buildUpdatedRecord, coerceInlineValue, draftToRecord, firstMissingRequiredField, rowFromItem } from "../utils/collections/draft";
@@ -907,9 +907,12 @@ function showEnumPlaceholder(item: CollectionItem, fieldKey: string): boolean {
 }
 
 /** Tailwind fill/text/border classes tinting an inline enum `<select>` by its
- *  current value's palette colour (neutral grey when unset/unknown). */
-function enumControlClass(field: FieldSpec, value: unknown): string {
-  const cls = enumColorClasses(enumValueIndex(field.values, value));
+ *  current value's colour (palette, or notification red/amber/grey when the
+ *  field is the schema's notifyWhen target). */
+function enumControlClass(fieldKey: string, value: unknown): string {
+  const schema = collection.value?.schema;
+  if (!schema) return "";
+  const cls = resolveEnumColor(schema, fieldKey, value);
   return `${cls.badge} ${cls.border}`;
 }
 
