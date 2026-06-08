@@ -276,7 +276,7 @@ function clampDim(value: number, fallback: number): number {
   return value;
 }
 
-function extractSlideDimensions(html: string): { width: number; height: number } {
+export function extractSlideDimensions(html: string): { width: number; height: number } {
   const match = html.match(/viewBox="0 0 (\d+) (\d+)"/);
   if (!match) return { width: DEFAULT_SLIDE_WIDTH, height: DEFAULT_SLIDE_HEIGHT };
   const width = clampDim(Number(match[1]), DEFAULT_SLIDE_WIDTH);

