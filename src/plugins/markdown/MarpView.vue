@@ -65,7 +65,8 @@ const renderError = ref<string | null>(null);
 
 const { pdfDownloading, pdfError, downloadPdf } = usePdfDownload();
 
-const slideScale = computed(() => (containerWidth.value - WRAPPER_PADDING_PX * 2) / NATIVE_IFRAME_WIDTH);
+const MIN_SCALE = 0.05;
+const slideScale = computed(() => Math.max(MIN_SCALE, (containerWidth.value - WRAPPER_PADDING_PX * 2) / NATIVE_IFRAME_WIDTH));
 
 const nativeContentHeight = computed(() => {
   if (slideCount.value === 0) return BODY_PADDING_PX * 2;
