@@ -160,11 +160,15 @@ interface StatCard {
 
 const cards = computed<StatCard[]>(() => {
   const values = groupSpec.value?.values ?? [];
+  const declared = new Set(values);
   const counts = new Map<string, number>(values.map((value) => [value, 0]));
   let uncategorized = 0;
   for (const item of visibleItems.value) {
+    // Test declared membership, not truthiness: an enum that explicitly
+    // declares "" as a value must count into its own card rather than
+    // falling through to the (suppressed) Uncategorized bucket.
     const value = valueOf(item);
-    if (value) counts.set(value, (counts.get(value) ?? 0) + 1);
+    if (declared.has(value)) counts.set(value, (counts.get(value) ?? 0) + 1);
     else uncategorized += 1;
   }
   const result: StatCard[] = values.map((value) => ({ value, label: value, count: counts.get(value) ?? 0, status: statusOfValue(value) }));
