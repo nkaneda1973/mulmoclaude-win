@@ -1,10 +1,12 @@
 // Vue-router setup (history mode — clean URLs without #).
 //
-// Each page has its own route: /chat, /files, /calendar,
-// /automations, /wiki, /skills, /roles, /sources. Layout preference
+// Each page has its own route: /chat, /files, /automations, /wiki,
+// /feeds, /collections. (Skills and Roles are not pages — they live in
+// the Settings modal; /skills and /roles redirect to /chat.) Layout
+// preference
 // (single vs. stack) is a separate concern persisted in localStorage
 // — it is not part of the URL. Several pages accept an optional
-// identifier (automations :taskId, sources :slug) so
+// identifier (automations :taskId, feeds/collections :slug) so
 // notifications and external links can deep-link to a specific item.
 //
 // History mode requires the server to serve index.html for any path
@@ -40,13 +42,13 @@ const routes: RouteRecordRaw[] = [
   // (`/files`) yields an empty array, which we treat as "no file
   // selected". See plans/done/feat-files-path-url.md.
   { path: "/files/:pathMatch(.*)*", name: PAGE_ROUTES.files, component: Stub },
-  { path: "/calendar", name: PAGE_ROUTES.calendar, component: Stub },
-  // Automations accepts an optional `:taskId` for the same reason —
-  // scheduled-task notifications deep-link to a specific task row.
+  // Automations accepts an optional `:taskId` — scheduled-task
+  // notifications deep-link to a specific task row.
   { path: "/automations/:taskId?", name: PAGE_ROUTES.automations, component: Stub },
-  // Legacy Scheduler URL — split into Calendar + Automations (#758).
-  // Redirect preserves bookmarks; delete once telemetry shows no hits.
-  { path: "/scheduler", redirect: "/calendar" },
+  // Legacy Scheduler / Calendar URLs — the Calendar view was removed;
+  // both redirect to Automations to preserve old bookmarks.
+  { path: "/scheduler", redirect: "/automations" },
+  { path: "/calendar", redirect: "/automations" },
   // Wiki sub-views live on the path rather than in query params so
   // URLs mirror the filesystem layout (`data/wiki/pages/<slug>.md`)
   // and stay sibling-safe (no query-key bleed from other routes).
@@ -54,8 +56,11 @@ const routes: RouteRecordRaw[] = [
   // catch-all redirect below. `slug` only applies when `section ===
   // "pages"`. See plans/done/feat-wiki-path-urls.md.
   { path: "/wiki/:section(pages|log|lint-report|graph)?/:slug?", name: PAGE_ROUTES.wiki, component: Stub },
-  { path: "/skills", name: PAGE_ROUTES.skills, component: Stub },
-  { path: "/roles", name: PAGE_ROUTES.roles, component: Stub },
+  // Skills and Roles are no longer standalone pages — they moved into
+  // the Settings modal (Management group). Redirect old bookmarks to
+  // chat; the surfaces are reachable via the gear → Skills / Roles tabs.
+  { path: "/skills", redirect: "/chat" },
+  { path: "/roles", redirect: "/chat" },
   // Data-source Feeds — the declarative retrieval registry. `/feeds`
   // lists every feed; `/feeds/:slug` opens that feed's records in
   // <CollectionView> (the same component collections use), with the
