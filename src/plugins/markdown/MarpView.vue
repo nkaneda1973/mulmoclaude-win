@@ -110,7 +110,7 @@ function buildSrcDoc(html: string, css: string): string {
 <meta http-equiv="Content-Security-Policy" content="${buildCsp()}">
 <meta name="referrer" content="no-referrer">
 <style>
-html,body { margin:0; padding:${BODY_PADDING_PX}px; background:transparent; }
+html,body { margin:0; padding:${BODY_PADDING_PX}px; background:transparent; overflow:hidden; }
 ${css}
 div.marpit > section {
   display: block !important;
