@@ -271,6 +271,12 @@ const sourceDetails = ref<HTMLDetailsElement>();
 // `fileVersion` watcher below can reset it on remote writes.
 const marpSplitMode = ref(false);
 
+// `editing` tracks whether the legacy bottom <details> editor is
+// open. Hoisted above `enterMarpSplitMode` (which clears this on
+// entry) and the click-delegation handler below; the toggle setter
+// lives in `onDetailsToggle` further down.
+const editing = ref(false);
+
 // Remote write: refetch so the rendered view tracks disk. If the
 // editor is open we close it first — `fileVersion` only fires once
 // per remote write, so leaving the panel open and skipping the fetch
@@ -393,7 +399,6 @@ watch(
   },
 );
 
-const editing = ref(false);
 const { copied, copy } = useClipboardCopy();
 
 function onDetailsToggle(event: Event) {
