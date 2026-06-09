@@ -315,6 +315,15 @@ function enterMarpSplitMode(): void {
   // buffer on fresh loads, and the remote-write watcher closes split
   // mode + reloads when disk diverges. Explicit discard stays on the
   // Cancel button.
+  //
+  // Tear down the legacy bottom <details> state in case it was open:
+  // Vue's `v-else` unmounts that subtree without firing the
+  // `@toggle` listener, leaving `editing` stuck on `true` — which
+  // then reverts task-checkbox clicks (`onMarkdownClick`) and hides
+  // the copy button (`v-show="!editing"`) for the rest of the
+  // session (Codex review on PR #1658).
+  if (sourceDetails.value?.open) sourceDetails.value.open = false;
+  editing.value = false;
   saveError.value = null;
   marpSplitMode.value = true;
 }
