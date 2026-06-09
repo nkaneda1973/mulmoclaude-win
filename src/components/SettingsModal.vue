@@ -114,8 +114,13 @@
                 <span class="text-xs font-semibold text-gray-700">{{ t("settingsToolsTab.connectorsSectionTitle") }}</span>
                 <div v-if="connectorsLoading" class="text-xs text-gray-400">{{ t("common.loading") }}</div>
                 <ul v-else-if="connectors.length > 0" class="text-xs text-gray-700 space-y-0.5">
-                  <li v-for="c in connectors" :key="c.name" class="flex items-center gap-1.5">
-                    <span class="material-icons text-[14px]" :class="c.connected ? 'text-green-600' : 'text-gray-400'">
+                  <li
+                    v-for="c in connectors"
+                    :key="c.name"
+                    class="flex items-center gap-1.5"
+                    :aria-label="`${c.name} — ${c.connected ? t('settingsToolsTab.connectorConnected') : t('settingsToolsTab.connectorDisconnected')}`"
+                  >
+                    <span class="material-icons text-[14px]" :class="c.connected ? 'text-green-600' : 'text-gray-400'" aria-hidden="true">
                       {{ c.connected ? "check_circle" : "radio_button_unchecked" }}
                     </span>
                     {{ c.name }}

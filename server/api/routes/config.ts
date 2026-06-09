@@ -29,7 +29,7 @@ import { loadReferenceDirs, saveReferenceDirs, validateReferenceDirs, type Refer
 import { loadSchedulerOverrides, saveSchedulerOverrides, UTC_HH_MM_RE, type ScheduleOverrides } from "../../utils/files/scheduler-overrides-io.js";
 import { applyScheduleOverride } from "../../events/scheduler-adapter.js";
 import { SCHEDULE_TYPES } from "@receptron/task-scheduler";
-import { SUBPROCESS_PROBE_TIMEOUT_MS } from "../../utils/time.js";
+import { ONE_SECOND_MS } from "../../utils/time.js";
 
 // Public surface of /api/config. GET returns the full config tree so
 // the client can render every section in one request. PUT surfaces are
@@ -309,6 +309,7 @@ export interface ConnectorEntry {
   connected: boolean;
 }
 
+const MCP_LIST_TIMEOUT_MS = 30 * ONE_SECOND_MS;
 const CLAUDE_AI_PREFIX = "claude.ai ";
 const CONNECTED_MARKER = "✓ Connected";
 
@@ -324,7 +325,7 @@ function parseConnectors(stdout: string): ConnectorEntry[] {
 
 function listClaudeMcpServers(): Promise<string> {
   return new Promise((resolve, reject) => {
-    execFile("claude", ["mcp", "list"], { timeout: SUBPROCESS_PROBE_TIMEOUT_MS }, (err, stdout) => {
+    execFile("claude", ["mcp", "list"], { timeout: MCP_LIST_TIMEOUT_MS }, (err, stdout) => {
       if (err) return reject(err);
       return resolve(stdout);
     });

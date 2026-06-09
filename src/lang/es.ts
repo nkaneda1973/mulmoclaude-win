@@ -1163,6 +1163,8 @@ const esMessages = {
       "Nombres adicionales de herramientas que pasar a Claude mediante {allowedTools}. Uno por línea. Útil para servidores MCP integrados en Claude Code como Gmail / Google Calendar tras autenticarte mediante {claudeMcp}.",
     connectorsSectionTitle: "Conectores conectados",
     connectorsEmpty: "No se encontraron conectores.",
+    connectorConnected: "Conectado",
+    connectorDisconnected: "No conectado",
     connectorsGuide: "Los conectores como Slack y Gmail permiten a Claude acceder a tus cuentas. Agrega o elimina conectores desde Claude Desktop.",
   },
   collectionsView: {
