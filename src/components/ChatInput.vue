@@ -185,18 +185,35 @@ function readFileAsDataUrl(file: File): Promise<string | null> {
   });
 }
 
-function addFiles(files: File[]): void {
-  fileError.value = null;
-  const currentCount = props.pastedFiles.length;
-  const remainingSlots = MAX_ATTACHMENTS - currentCount;
-
+function clampToSlots(files: File[]): File[] {
+  const remainingSlots = MAX_ATTACHMENTS - props.pastedFiles.length;
   if (files.length > remainingSlots) {
     fileError.value = t("chatInput.tooManyFiles", { max: MAX_ATTACHMENTS });
-    if (remainingSlots <= 0) return;
   }
-  const accepted = files.slice(0, remainingSlots);
+  return remainingSlots <= 0 ? [] : files.slice(0, remainingSlots);
+}
 
-  const firstError = accepted.reduce<string | null>((err, file) => err ?? validateFile(file), null);
+function findFirstValidationError(files: File[]): string | null {
+  return files.reduce<string | null>((err, file) => err ?? validateFile(file), null);
+}
+
+function emitClampedFiles(valid: PastedFile[]): void {
+  const slotsNow = MAX_ATTACHMENTS - props.pastedFiles.length;
+  const clamped = slotsNow < valid.length ? valid.slice(0, Math.max(0, slotsNow)) : valid;
+  if (clamped.length > 0) {
+    emit("update:pastedFiles", [...props.pastedFiles, ...clamped]);
+  }
+  if (clamped.length < valid.length) {
+    fileError.value = t("chatInput.tooManyFiles", { max: MAX_ATTACHMENTS });
+  }
+}
+
+function addFiles(files: File[]): void {
+  fileError.value = null;
+  const accepted = clampToSlots(files);
+  if (accepted.length === 0) return;
+
+  const firstError = findFirstValidationError(accepted);
   if (firstError) {
     fileError.value = firstError;
     return;
@@ -211,15 +228,7 @@ function addFiles(files: File[]): void {
   Promise.all(pending)
     .then((results) => {
       const valid = results.filter((result): result is PastedFile => result !== null);
-      if (valid.length === 0) return;
-      const slotsNow = MAX_ATTACHMENTS - props.pastedFiles.length;
-      const clamped = slotsNow < valid.length ? valid.slice(0, Math.max(0, slotsNow)) : valid;
-      if (clamped.length > 0) {
-        emit("update:pastedFiles", [...props.pastedFiles, ...clamped]);
-      }
-      if (clamped.length < valid.length) {
-        fileError.value = t("chatInput.tooManyFiles", { max: MAX_ATTACHMENTS });
-      }
+      if (valid.length > 0) emitClampedFiles(valid);
     })
     .catch(() => {
       fileError.value = t("chatInput.unsupportedFileType");

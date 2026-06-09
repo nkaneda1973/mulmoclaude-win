@@ -3,7 +3,7 @@
     <img v-if="isImage" :src="dataUrl" alt="Attached image" class="max-h-20 max-w-40 object-contain" />
     <div v-else class="flex items-center gap-1.5 text-xs text-gray-700">
       <span class="material-icons text-base" :class="iconColor">{{ icon }}</span>
-      <span class="max-w-40 truncate">{{ filename || "attachment" }}</span>
+      <span class="max-w-40 truncate">{{ filename || t("chatInput.attachmentFallbackName") }}</span>
     </div>
     <button
       data-testid="chat-attachment-remove"

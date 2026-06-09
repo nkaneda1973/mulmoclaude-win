@@ -981,6 +981,17 @@ function unsubscribeSession(chatSessionId: string): void {
   }
 }
 
+type AttachmentResult = { paths: string[] } | { error: string } | null;
+
+async function resolveAttachmentPaths(files: PastedFile[]): Promise<AttachmentResult> {
+  if (files.length === 0) return null;
+  const results = await Promise.all(files.map((file) => resolvePastedAttachment(file)));
+  const firstFailure = results.find((res) => !res.ok);
+  if (firstFailure && !firstFailure.ok) return { error: firstFailure.error };
+  const paths = results.filter((res): res is { ok: true; value: string } => res.ok).map((res) => res.value);
+  return paths.length > 0 ? { paths } : null;
+}
+
 async function sendMessage(text?: string) {
   const message = typeof text === "string" ? text : userInput.value.trim();
   if (!message || activeSessionRunning.value) return;
@@ -988,26 +999,20 @@ async function sendMessage(text?: string) {
   const filesSnapshot = [...pastedFiles.value];
   pastedFiles.value = [];
 
-  let attachmentPaths: string[] | undefined;
-  if (filesSnapshot.length > 0) {
-    const results = await Promise.all(filesSnapshot.map((file) => resolvePastedAttachment(file)));
-    const firstFailure = results.find((res) => !res.ok);
-    if (firstFailure && !firstFailure.ok) {
-      userInput.value = message;
-      pastedFiles.value = filesSnapshot;
-      const recoverySession = sessionMap.get(currentSessionId.value);
-      if (recoverySession) pushErrorMessage(recoverySession, t("chatInput.attachImageFailed", { error: firstFailure.error }));
-      return;
-    }
-    attachmentPaths = results.filter((res): res is { ok: true; value: string } => res.ok).map((res) => res.value);
-    if (attachmentPaths.length === 0) attachmentPaths = undefined;
+  const resolved = await resolveAttachmentPaths(filesSnapshot);
+  if (resolved !== null && "error" in resolved) {
+    userInput.value = message;
+    pastedFiles.value = filesSnapshot;
+    const recoverySession = sessionMap.get(currentSessionId.value);
+    if (recoverySession) pushErrorMessage(recoverySession, t("chatInput.attachImageFailed", { error: resolved.error }));
+    return;
   }
+  const attachmentPaths = resolved?.paths;
 
   const session = sessionMap.get(currentSessionId.value);
   if (!session) return;
 
   beginUserTurn(session, message, attachmentPaths);
-
   ensureSessionSubscription(session);
 
   const result = await postAgentRun(
