@@ -309,11 +309,11 @@ export interface ConnectorEntry {
   connected: boolean;
 }
 
-const MCP_LIST_TIMEOUT_MS = 30 * ONE_SECOND_MS;
+const MCP_LIST_TIMEOUT_MS = 60 * ONE_SECOND_MS;
 const CLAUDE_AI_PREFIX = "claude.ai ";
 const CONNECTED_MARKER = "✓ Connected";
 
-function parseConnectors(stdout: string): ConnectorEntry[] {
+export function parseConnectors(stdout: string): ConnectorEntry[] {
   return stdout
     .split("\n")
     .filter((line) => line.startsWith(CLAUDE_AI_PREFIX))
