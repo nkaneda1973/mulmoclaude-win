@@ -389,7 +389,7 @@
 
             <!-- URL string → external link (new tab). -->
             <a
-              v-else-if="render.isExternalUrl(detailRecord[key])"
+              v-else-if="field.type !== 'file' && render.isExternalUrl(detailRecord[key])"
               :href="String(detailRecord[key])"
               target="_blank"
               rel="noopener noreferrer"

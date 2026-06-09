@@ -11,6 +11,7 @@ import { computed, ref, type ComputedRef, type Ref } from "vue";
 import { apiGet } from "../../utils/api";
 import { API_ROUTES } from "../../config/apiRoutes";
 import { htmlPreviewUrlFor, svgPreviewUrlFor } from "../useContentDisplay";
+import { isValidFilePath } from "../useFileSelection";
 import { evaluateDerived, type FormulaContext } from "../../utils/collections/derivedFormula";
 import type { EmbedRow, EmbedView } from "../../components/collectionEmbed";
 import type {
@@ -238,10 +239,12 @@ export function useCollectionRendering(collection: Ref<CollectionDetail | null>,
     return htmlPreviewUrlFor(value) ?? svgPreviewUrlFor(value);
   }
 
-  // In-app File Explorer route for any non-empty workspace path — the
-  // fallback for `file` values that aren't a directly-served artifact.
+  // In-app File Explorer route for a workspace path — the fallback for
+  // `file` values that aren't a directly-served artifact. Returns null
+  // for paths the Files view would reject (absolute or `..`-traversing),
+  // so we never emit a link that lands on an empty Files page.
   function fileRoutePath(value: unknown): string | null {
-    if (typeof value !== "string" || value.length === 0) return null;
+    if (!isValidFilePath(value)) return null;
     return `/files/${value.split("/").map(encodeURIComponent).join("/")}`;
   }
 

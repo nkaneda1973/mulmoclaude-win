@@ -478,7 +478,7 @@
                     <!-- URL string → external link (new tab). `@click.stop` so
                      clicking the link doesn't also open the row's detail. -->
                     <a
-                      v-else-if="isExternalUrl(item[key])"
+                      v-else-if="field.type !== 'file' && isExternalUrl(item[key])"
                       :href="String(item[key])"
                       target="_blank"
                       rel="noopener noreferrer"
