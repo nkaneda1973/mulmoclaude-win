@@ -352,9 +352,13 @@
                   <tr v-for="(row, rowIdx) in render.tableRows(detailRecord[key])" :key="rowIdx" class="hover:bg-slate-50/50">
                     <td v-for="(subField, subKey) in field.of" :key="subKey" class="px-4 py-2 align-middle font-medium">
                       <template v-if="subField.type === 'boolean'">
-                        <span v-if="row[subKey] === true" class="material-icons text-emerald-600 text-base">check_circle</span>
-                        <!-- eslint-disable-next-line @intlify/vue-i18n/no-raw-text -- bare "—" empty-value glyph (boolean=false), same as elsewhere. -->
-                        <span v-else class="text-slate-300">—</span>
+                        <input
+                          type="checkbox"
+                          :checked="row[subKey] === true"
+                          class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500/20 cursor-pointer"
+                          :data-testid="`collections-detail-table-bool-${key}-${rowIdx}-${subKey}`"
+                          @change="emit('toggleTableBool', String(key), rowIdx, String(subKey), !row[subKey])"
+                        />
                       </template>
                       <span v-else :class="[subField.type === 'money' ? 'font-bold text-slate-800 tabular-nums' : '']">{{
                         render.formatSubCell(subField, row[subKey], detailRecord)
@@ -475,6 +479,7 @@ const emit = defineEmits<{
   close: [];
   delete: [];
   runAction: [action: CollectionAction];
+  toggleTableBool: [fieldKey: string, rowIndex: number, subKey: string, newValue: boolean];
 }>();
 
 const { t } = useI18n();

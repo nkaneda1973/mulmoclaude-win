@@ -277,6 +277,7 @@
               @close="onDayClose"
               @delete="viewing && confirmDelete(viewing)"
               @run-action="runAction"
+              @toggle-table-bool="commitTableBoolToggle"
             />
           </template>
         </CollectionDayView>
@@ -548,6 +549,7 @@
         @close="closeView"
         @delete="viewing && confirmDelete(viewing)"
         @run-action="runAction"
+        @toggle-table-bool="commitTableBoolToggle"
       />
     </CollectionRecordModal>
 
@@ -1510,6 +1512,28 @@ function commitToggle(item: CollectionItem, field: FieldSpec): void {
   const next = toggleChecked(item, field) ? field.offValue : field.onValue;
   if (next === undefined) return;
   void commitInlineEdit(item, targetKey, enumField, next);
+}
+
+/** Toggle a boolean cell inside a table sub-row of the detail panel.
+ *  Optimistic update + PUT, same pattern as commitInlineEdit. */
+async function commitTableBoolToggle(fieldKey: string, rowIndex: number, subKey: string, newValue: boolean): Promise<void> {
+  const item = viewing.value;
+  if (!item || !collection.value) return;
+  const { slug } = collection.value;
+  const itemId = rowId(item);
+  if (!itemId || inlineSavingRows.value.has(itemId)) return;
+  const rows = item[fieldKey];
+  if (!Array.isArray(rows) || rowIndex >= rows.length) return;
+  const previous = rows[rowIndex][subKey];
+  rows[rowIndex][subKey] = newValue;
+  inlineError.value = null;
+  inlineSavingRows.value.add(itemId);
+  const result = await apiPut<ItemMutationResponse>(itemUrl(slug, itemId), { ...item });
+  inlineSavingRows.value.delete(itemId);
+  if (!result.ok) {
+    rows[rowIndex][subKey] = previous;
+    inlineError.value = result.error;
+  }
 }
 
 async function confirmDelete(item: CollectionItem): Promise<void> {
