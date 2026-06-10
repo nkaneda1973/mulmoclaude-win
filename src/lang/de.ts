@@ -1248,6 +1248,8 @@ const deMessages = {
     viewDashboard: "Dashboard",
     dashboardAlertHeading: "{label} — {count}",
     dashboardAllItems: "Alle Einträge",
+    sortedAsc: "Nach {field} aufsteigend sortiert",
+    sortedDesc: "Nach {field} absteigend sortiert",
     source: {
       user: "Benutzer",
       project: "Projekt",

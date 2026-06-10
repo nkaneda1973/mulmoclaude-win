@@ -1228,6 +1228,8 @@ const jaMessages = {
     viewDashboard: "ダッシュボード",
     dashboardAlertHeading: "{label} — {count}件",
     dashboardAllItems: "一覧",
+    sortedAsc: "{field}の昇順で並べ替え中",
+    sortedDesc: "{field}の降順で並べ替え中",
     source: {
       user: "ユーザー",
       project: "プロジェクト",

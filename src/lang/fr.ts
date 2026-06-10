@@ -1238,6 +1238,8 @@ const frMessages = {
     viewDashboard: "Tableau de bord",
     dashboardAlertHeading: "{label} — {count}",
     dashboardAllItems: "Tous les éléments",
+    sortedAsc: "Trié par {field} croissant",
+    sortedDesc: "Trié par {field} décroissant",
     source: {
       user: "Utilisateur",
       project: "Projet",

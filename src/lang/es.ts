@@ -1245,6 +1245,8 @@ const esMessages = {
     viewDashboard: "Panel",
     dashboardAlertHeading: "{label} — {count}",
     dashboardAllItems: "Todos los elementos",
+    sortedAsc: "Ordenado por {field} ascendente",
+    sortedDesc: "Ordenado por {field} descendente",
     source: {
       user: "Usuario",
       project: "Proyecto",

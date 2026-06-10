@@ -374,7 +374,26 @@
           <thead>
             <tr class="bg-slate-50 border-b border-slate-200">
               <th v-for="[key, field] in listColumnFields" :key="key" class="px-5 py-3 font-bold text-slate-500 text-left uppercase tracking-wider">
-                {{ field.label }}
+                <span v-if="isSortableField(field)" class="inline-flex items-center gap-0.5" :data-testid="`collection-sort-${key}`">
+                  <span>{{ field.label }}</span>
+                  <span class="inline-flex flex-col -space-y-[5px]">
+                    <button
+                      type="button"
+                      class="material-icons text-[8px] leading-none hover:text-indigo-400 transition-colors"
+                      :class="sortState?.direction === 'asc' && isSortedField(String(key)) ? 'text-indigo-600' : 'text-slate-300'"
+                      :aria-label="t('collectionsView.sortedAsc', { field: field.label })"
+                      @click="toggleSort(String(key), 'asc')"
+                    >expand_less</button>
+                    <button
+                      type="button"
+                      class="material-icons text-[8px] leading-none hover:text-indigo-400 transition-colors"
+                      :class="sortState?.direction === 'desc' && isSortedField(String(key)) ? 'text-indigo-600' : 'text-slate-300'"
+                      :aria-label="t('collectionsView.sortedDesc', { field: field.label })"
+                      @click="toggleSort(String(key), 'desc')"
+                    >expand_more</button>
+                  </span>
+                </span>
+                <span v-else>{{ field.label }}</span>
               </th>
             </tr>
           </thead>
@@ -645,6 +664,7 @@ import { useShortcuts } from "../composables/useShortcuts";
 import { actionVisible, fieldVisible } from "../utils/collections/actionVisible";
 import { resolveEnumColor } from "../utils/collections/enumColors";
 import { readCollectionViewMode, writeCollectionViewMode } from "../utils/collections/collectionViewMode";
+import { compareItems, readCollectionSort, writeCollectionSort, type SortDirection, type SortState } from "../utils/collections/collectionSort";
 import { useCollectionRendering } from "../composables/collections/useCollectionRendering";
 import { buildUpdatedRecord, coerceInlineValue, draftToRecord, firstMissingRequiredField, rowFromItem } from "../utils/collections/draft";
 import type {
@@ -783,6 +803,53 @@ const {
 
 const searchQuery = ref("");
 
+// ── Sort state ──────────────────────────────────────────────────────
+const sortState = ref<SortState | null>(null);
+
+const SORTABLE_TYPES = new Set(["string", "text", "email", "number", "date", "datetime", "boolean", "enum", "money", "toggle"]);
+
+function isSortableField(field: FieldSpec): boolean {
+  return SORTABLE_TYPES.has(field.type);
+}
+
+/** Resolve the actual data key for sorting: toggle fields project an
+ *  enum field and store no value themselves, so sort by the projected key. */
+function resolveSortKey(fieldKey: string): string {
+  const field = collection.value?.schema.fields[fieldKey];
+  if (field?.type === "toggle" && field.field) return field.field;
+  return fieldKey;
+}
+
+function toggleSort(fieldKey: string, direction: SortDirection): void {
+  const sortKey = resolveSortKey(fieldKey);
+  const current = sortState.value;
+  if (current?.field === sortKey && current.direction === direction) {
+    sortState.value = null;
+  } else {
+    sortState.value = { field: sortKey, direction };
+  }
+  persistSort();
+}
+
+function isSortedField(fieldKey: string): boolean {
+  const sortKey = resolveSortKey(fieldKey);
+  return sortState.value?.field === sortKey;
+}
+
+function persistSort(): void {
+  const slug = activeSlug.value;
+  if (!slug || embedded.value) return;
+  writeCollectionSort(slug, sortState.value);
+}
+
+function restoreSort(slug: string): void {
+  if (embedded.value) {
+    sortState.value = null;
+    return;
+  }
+  sortState.value = readCollectionSort(slug);
+}
+
 /** Case-insensitive substring match across an item's scalar fields.
  *  Object-valued fields (table rows, nested records) are skipped —
  *  they don't render as searchable text in the list table. */
@@ -795,8 +862,12 @@ function itemMatchesQuery(item: CollectionItem, query: string): boolean {
 
 const filteredItems = computed<CollectionItem[]>(() => {
   const query = searchQuery.value.trim().toLowerCase();
-  if (!query) return items.value;
-  return items.value.filter((item) => itemMatchesQuery(item, query));
+  const filtered = query ? items.value.filter((item) => itemMatchesQuery(item, query)) : [...items.value];
+  const sort = sortState.value;
+  if (!sort || !collection.value) return filtered;
+  const fieldSpec = collection.value.schema.fields[sort.field];
+  if (!fieldSpec) return filtered;
+  return filtered.sort((itemA, itemB) => compareItems(itemA, itemB, sort.field, fieldSpec, sort.direction));
 });
 
 // ────────────────────────────────────────────────────────────────
@@ -996,7 +1067,8 @@ async function loadCollection(slug: string): Promise<void> {
   loadError.value = null;
   collection.value = null;
   items.value = [];
-  searchQuery.value = ""; // Reset search query on collection load
+  searchQuery.value = "";
+  restoreSort(slug);
   render.resetLinkedCaches();
   viewing.value = null;
   openDay.value = null; // never carry a previous collection's open day over
@@ -1702,7 +1774,8 @@ watch(
       items.value = [];
       enumOriginallyEmpty.value = new Set();
       inlineSavingRows.value = new Set();
-      searchQuery.value = ""; // Reset search query
+      searchQuery.value = "";
+      sortState.value = null;
       loading.value = false;
     }
   },

@@ -1221,6 +1221,8 @@ const zhMessages = {
     viewDashboard: "仪表板",
     dashboardAlertHeading: "{label} — {count} 项",
     dashboardAllItems: "全部条目",
+    sortedAsc: "按{field}升序排列",
+    sortedDesc: "按{field}降序排列",
     source: {
       user: "用户",
       project: "项目",
