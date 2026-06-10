@@ -383,7 +383,7 @@
                   <span>{{ field.label }}</span>
                   <button
                     type="button"
-                    class="material-icons text-sm h-8 w-8 flex items-center justify-center rounded hover:text-indigo-400 transition-colors"
+                    class="material-icons h-8 w-8 flex items-center justify-center rounded hover:text-indigo-400 transition-colors"
                     :class="sortState?.field === String(key) ? 'text-indigo-600' : 'text-slate-300'"
                     :aria-label="sortAriaLabel(String(key), field.label)"
                     @click="cycleSort(String(key))"
