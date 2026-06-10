@@ -383,14 +383,18 @@
                       :class="sortState?.direction === 'asc' && isSortedField(String(key)) ? 'text-indigo-600' : 'text-slate-300'"
                       :aria-label="t('collectionsView.sortedAsc', { field: field.label })"
                       @click="toggleSort(String(key), 'asc')"
-                    >expand_less</button>
+                    >
+                      expand_less
+                    </button>
                     <button
                       type="button"
                       class="material-icons text-[8px] leading-none hover:text-indigo-400 transition-colors"
                       :class="sortState?.direction === 'desc' && isSortedField(String(key)) ? 'text-indigo-600' : 'text-slate-300'"
                       :aria-label="t('collectionsView.sortedDesc', { field: field.label })"
                       @click="toggleSort(String(key), 'desc')"
-                    >expand_more</button>
+                    >
+                      expand_more
+                    </button>
                   </span>
                 </span>
                 <span v-else>{{ field.label }}</span>
@@ -860,13 +864,19 @@ function itemMatchesQuery(item: CollectionItem, query: string): boolean {
   });
 }
 
+function defaultSort(result: CollectionItem[]): CollectionItem[] {
+  const primaryKey = collection.value?.schema.primaryKey;
+  if (!primaryKey) return result;
+  return result.sort((itemA, itemB) => String(itemA[primaryKey] ?? "").localeCompare(String(itemB[primaryKey] ?? "")));
+}
+
 const filteredItems = computed<CollectionItem[]>(() => {
   const query = searchQuery.value.trim().toLowerCase();
   const filtered = query ? items.value.filter((item) => itemMatchesQuery(item, query)) : [...items.value];
   const sort = sortState.value;
-  if (!sort || !collection.value) return filtered;
+  if (!sort || !collection.value) return defaultSort(filtered);
   const fieldSpec = collection.value.schema.fields[sort.field];
-  if (!fieldSpec) return filtered;
+  if (!fieldSpec) return defaultSort(filtered);
   return filtered.sort((itemA, itemB) => compareItems(itemA, itemB, sort.field, fieldSpec, sort.direction));
 });
 
