@@ -355,9 +355,10 @@
                         <input
                           type="checkbox"
                           :checked="row[subKey] === true"
-                          class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500/20 cursor-pointer"
+                          :disabled="tableBoolSaving"
+                          class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500/20 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                           :data-testid="`collections-detail-table-bool-${key}-${rowIdx}-${subKey}`"
-                          @change="emit('toggleTableBool', String(key), rowIdx, String(subKey), !row[subKey])"
+                          @change="emit('toggleTableBool', String(key), row, String(subKey), !row[subKey])"
                         />
                       </template>
                       <span v-else :class="[subField.type === 'money' ? 'font-bold text-slate-800 tabular-nums' : '']">{{
@@ -464,6 +465,8 @@ const props = defineProps<{
   /** Shared rendering/derivation helpers + ref/embed caches. */
   render: CollectionRendering;
   locale: string;
+  /** True while a table-bool inline save is in flight — disables checkboxes. */
+  tableBoolSaving?: boolean;
 }>();
 
 // The edit/create draft is a two-way model: the form's v-model bindings and
@@ -479,7 +482,7 @@ const emit = defineEmits<{
   close: [];
   delete: [];
   runAction: [action: CollectionAction];
-  toggleTableBool: [fieldKey: string, rowIndex: number, subKey: string, newValue: boolean];
+  toggleTableBool: [fieldKey: string, row: Record<string, unknown>, subKey: string, newValue: boolean];
 }>();
 
 const { t } = useI18n();

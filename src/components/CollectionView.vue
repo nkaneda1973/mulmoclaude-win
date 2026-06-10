@@ -271,6 +271,7 @@
               :is-singleton="isSingleton"
               :render="render"
               :locale="locale"
+              :table-bool-saving="tableBoolSaving"
               @submit="saveEditor"
               @cancel="cancelEditor"
               @edit="editFromView"
@@ -543,6 +544,7 @@
         :is-singleton="isSingleton"
         :render="render"
         :locale="locale"
+        :table-bool-saving="tableBoolSaving"
         @submit="saveEditor"
         @cancel="cancelEditor"
         @edit="editFromView"
@@ -758,6 +760,10 @@ const enumOriginallyEmpty = ref<Set<string>>(new Set());
  *  otherwise clobber the newer field on disk while the UI shows the
  *  newer optimistic value (Codex PR #1599 P2). */
 const inlineSavingRows = ref<Set<string>>(new Set());
+const tableBoolSaving = computed(() => {
+  const item = viewing.value;
+  return item !== null && inlineSavingRows.value.has(rowId(item));
+});
 const actionPending = ref(false);
 const actionError = ref<string | null>(null);
 const chatOpen = ref(false);
@@ -1515,23 +1521,23 @@ function commitToggle(item: CollectionItem, field: FieldSpec): void {
 }
 
 /** Toggle a boolean cell inside a table sub-row of the detail panel.
- *  Optimistic update + PUT, same pattern as commitInlineEdit. */
-async function commitTableBoolToggle(fieldKey: string, rowIndex: number, subKey: string, newValue: boolean): Promise<void> {
+ *  Receives the row object reference from the filtered `tableRows()` list
+ *  and looks it up by identity in the raw array, avoiding index mismatch
+ *  when non-object entries are filtered out. */
+async function commitTableBoolToggle(fieldKey: string, row: Record<string, unknown>, subKey: string, newValue: boolean): Promise<void> {
   const item = viewing.value;
   if (!item || !collection.value) return;
   const { slug } = collection.value;
   const itemId = rowId(item);
   if (!itemId || inlineSavingRows.value.has(itemId)) return;
-  const rows = item[fieldKey];
-  if (!Array.isArray(rows) || rowIndex >= rows.length) return;
-  const previous = rows[rowIndex][subKey];
-  rows[rowIndex][subKey] = newValue;
+  const previous = row[subKey];
+  row[subKey] = newValue;
   inlineError.value = null;
   inlineSavingRows.value.add(itemId);
   const result = await apiPut<ItemMutationResponse>(itemUrl(slug, itemId), { ...item });
   inlineSavingRows.value.delete(itemId);
   if (!result.ok) {
-    rows[rowIndex][subKey] = previous;
+    row[subKey] = previous;
     inlineError.value = result.error;
   }
 }
