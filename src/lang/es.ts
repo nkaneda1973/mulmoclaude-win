@@ -1247,6 +1247,7 @@ const esMessages = {
     dashboardAllItems: "Todos los elementos",
     sortAsc: "Ordenar por {field} ascendente",
     sortDesc: "Ordenar por {field} descendente",
+    sortClear: "Quitar orden de {field}",
     source: {
       user: "Usuario",
       project: "Proyecto",

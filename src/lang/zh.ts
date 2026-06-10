@@ -1223,6 +1223,7 @@ const zhMessages = {
     dashboardAllItems: "全部条目",
     sortAsc: "按{field}升序排列",
     sortDesc: "按{field}降序排列",
+    sortClear: "清除{field}的排序",
     source: {
       user: "用户",
       project: "项目",

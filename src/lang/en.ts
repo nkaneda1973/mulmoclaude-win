@@ -1234,6 +1234,7 @@ const enMessages = {
     dashboardAllItems: "All items",
     sortAsc: "Sort by {field} ascending",
     sortDesc: "Sort by {field} descending",
+    sortClear: "Clear sort for {field}",
     source: {
       user: "User",
       project: "Project",

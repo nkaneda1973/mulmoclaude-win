@@ -1250,6 +1250,7 @@ const deMessages = {
     dashboardAllItems: "Alle Einträge",
     sortAsc: "Nach {field} aufsteigend sortieren",
     sortDesc: "Nach {field} absteigend sortieren",
+    sortClear: "Sortierung von {field} aufheben",
     source: {
       user: "Benutzer",
       project: "Projekt",

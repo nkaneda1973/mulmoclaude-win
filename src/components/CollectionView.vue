@@ -381,26 +381,15 @@
               >
                 <span v-if="isSortableField(field)" class="inline-flex items-center gap-0.5" :data-testid="`collection-sort-${key}`">
                   <span>{{ field.label }}</span>
-                  <span class="inline-flex flex-col">
-                    <button
-                      type="button"
-                      class="material-icons text-[10px] leading-none min-w-6 min-h-6 flex items-center justify-center hover:text-indigo-400 transition-colors"
-                      :class="sortState?.direction === 'asc' && isSortedField(String(key)) ? 'text-indigo-600' : 'text-slate-300'"
-                      :aria-label="t('collectionsView.sortAsc', { field: field.label })"
-                      @click="toggleSort(String(key), 'asc')"
-                    >
-                      expand_less
-                    </button>
-                    <button
-                      type="button"
-                      class="material-icons text-[10px] leading-none min-w-6 min-h-6 flex items-center justify-center hover:text-indigo-400 transition-colors"
-                      :class="sortState?.direction === 'desc' && isSortedField(String(key)) ? 'text-indigo-600' : 'text-slate-300'"
-                      :aria-label="t('collectionsView.sortDesc', { field: field.label })"
-                      @click="toggleSort(String(key), 'desc')"
-                    >
-                      expand_more
-                    </button>
-                  </span>
+                  <button
+                    type="button"
+                    class="material-icons text-sm h-8 w-8 flex items-center justify-center rounded hover:text-indigo-400 transition-colors"
+                    :class="sortState?.field === String(key) ? 'text-indigo-600' : 'text-slate-300'"
+                    :aria-label="sortAriaLabel(String(key), field.label)"
+                    @click="cycleSort(String(key))"
+                  >
+                    {{ sortIcon(String(key)) }}
+                  </button>
                 </span>
                 <span v-else>{{ field.label }}</span>
               </th>
@@ -673,7 +662,7 @@ import { useShortcuts } from "../composables/useShortcuts";
 import { actionVisible, fieldVisible } from "../utils/collections/actionVisible";
 import { resolveEnumColor } from "../utils/collections/enumColors";
 import { readCollectionViewMode, writeCollectionViewMode } from "../utils/collections/collectionViewMode";
-import { compareItems, readCollectionSort, writeCollectionSort, type SortDirection, type SortState } from "../utils/collections/collectionSort";
+import { compareItems, readCollectionSort, writeCollectionSort, type SortState } from "../utils/collections/collectionSort";
 import { useCollectionRendering } from "../composables/collections/useCollectionRendering";
 import { buildUpdatedRecord, coerceInlineValue, draftToRecord, firstMissingRequiredField, rowFromItem } from "../utils/collections/draft";
 import type {
@@ -821,23 +810,32 @@ function isSortableField(field: FieldSpec): boolean {
   return SORTABLE_TYPES.has(field.type);
 }
 
-function toggleSort(fieldKey: string, direction: SortDirection): void {
+function cycleSort(fieldKey: string): void {
   const current = sortState.value;
-  if (current?.field === fieldKey && current.direction === direction) {
-    sortState.value = null;
+  if (current?.field !== fieldKey) {
+    sortState.value = { field: fieldKey, direction: "asc" };
+  } else if (current.direction === "asc") {
+    sortState.value = { field: fieldKey, direction: "desc" };
   } else {
-    sortState.value = { field: fieldKey, direction };
+    sortState.value = null;
   }
   persistSort();
 }
 
-function isSortedField(fieldKey: string): boolean {
-  return sortState.value?.field === fieldKey;
+function sortIcon(fieldKey: string): string {
+  if (sortState.value?.field !== fieldKey) return "swap_vert";
+  return sortState.value.direction === "asc" ? "arrow_upward_alt" : "arrow_downward_alt";
+}
+
+function sortAriaLabel(fieldKey: string, fieldLabel: string): string {
+  if (sortState.value?.field !== fieldKey) return t("collectionsView.sortAsc", { field: fieldLabel });
+  if (sortState.value.direction === "asc") return t("collectionsView.sortDesc", { field: fieldLabel });
+  return t("collectionsView.sortClear", { field: fieldLabel });
 }
 
 function ariaSortValue(fieldKey: string): "ascending" | "descending" | "none" | undefined {
-  if (!isSortedField(fieldKey)) return undefined;
-  return sortState.value?.direction === "asc" ? "ascending" : "descending";
+  if (sortState.value?.field !== fieldKey) return undefined;
+  return sortState.value.direction === "asc" ? "ascending" : "descending";
 }
 
 function persistSort(): void {

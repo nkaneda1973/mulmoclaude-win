@@ -1240,6 +1240,7 @@ const frMessages = {
     dashboardAllItems: "Tous les éléments",
     sortAsc: "Trier par {field} croissant",
     sortDesc: "Trier par {field} décroissant",
+    sortClear: "Annuler le tri de {field}",
     source: {
       user: "Utilisateur",
       project: "Projet",

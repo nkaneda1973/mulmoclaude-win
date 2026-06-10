@@ -1230,6 +1230,7 @@ const jaMessages = {
     dashboardAllItems: "一覧",
     sortAsc: "{field}を昇順で並べ替え",
     sortDesc: "{field}を降順で並べ替え",
+    sortClear: "{field}の並べ替えを解除",
     source: {
       user: "ユーザー",
       project: "プロジェクト",

@@ -1236,6 +1236,7 @@ const ptBRMessages = {
     dashboardAllItems: "Todos os itens",
     sortAsc: "Ordenar por {field} crescente",
     sortDesc: "Ordenar por {field} decrescente",
+    sortClear: "Limpar ordenação de {field}",
     source: {
       user: "Usuário",
       project: "Projeto",
