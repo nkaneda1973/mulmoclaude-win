@@ -381,10 +381,10 @@
               >
                 <span v-if="isSortableField(field)" class="inline-flex items-center gap-0.5" :data-testid="`collection-sort-${key}`">
                   <span>{{ field.label }}</span>
-                  <span class="inline-flex flex-col -space-y-[5px]">
+                  <span class="inline-flex flex-col -space-y-0.5">
                     <button
                       type="button"
-                      class="material-icons text-[8px] leading-none p-0.5 hover:text-indigo-400 transition-colors"
+                      class="material-icons text-[10px] leading-none min-w-6 min-h-3 flex items-center justify-center hover:text-indigo-400 transition-colors"
                       :class="sortState?.direction === 'asc' && isSortedField(String(key)) ? 'text-indigo-600' : 'text-slate-300'"
                       :aria-label="t('collectionsView.sortAsc', { field: field.label })"
                       @click="toggleSort(String(key), 'asc')"
@@ -393,7 +393,7 @@
                     </button>
                     <button
                       type="button"
-                      class="material-icons text-[8px] leading-none p-0.5 hover:text-indigo-400 transition-colors"
+                      class="material-icons text-[10px] leading-none min-w-6 min-h-3 flex items-center justify-center hover:text-indigo-400 transition-colors"
                       :class="sortState?.direction === 'desc' && isSortedField(String(key)) ? 'text-indigo-600' : 'text-slate-300'"
                       :aria-label="t('collectionsView.sortDesc', { field: field.label })"
                       @click="toggleSort(String(key), 'desc')"
@@ -821,28 +821,18 @@ function isSortableField(field: FieldSpec): boolean {
   return SORTABLE_TYPES.has(field.type);
 }
 
-/** Resolve the actual data key for sorting: toggle fields project an
- *  enum field and store no value themselves, so sort by the projected key. */
-function resolveSortKey(fieldKey: string): string {
-  const field = collection.value?.schema.fields[fieldKey];
-  if (field?.type === "toggle" && field.field) return field.field;
-  return fieldKey;
-}
-
 function toggleSort(fieldKey: string, direction: SortDirection): void {
-  const sortKey = resolveSortKey(fieldKey);
   const current = sortState.value;
-  if (current?.field === sortKey && current.direction === direction) {
+  if (current?.field === fieldKey && current.direction === direction) {
     sortState.value = null;
   } else {
-    sortState.value = { field: sortKey, direction };
+    sortState.value = { field: fieldKey, direction };
   }
   persistSort();
 }
 
 function isSortedField(fieldKey: string): boolean {
-  const sortKey = resolveSortKey(fieldKey);
-  return sortState.value?.field === sortKey;
+  return sortState.value?.field === fieldKey;
 }
 
 function ariaSortValue(fieldKey: string): "ascending" | "descending" | "none" | undefined {

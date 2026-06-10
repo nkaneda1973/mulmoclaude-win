@@ -109,10 +109,32 @@ describe("compareItems", () => {
     });
   });
 
-  describe("toggle fields", () => {
-    const spec = field("toggle");
-    test("sorts like boolean", () => {
-      assert.ok(compare(false, true, spec) < 0);
+  describe("toggle fields (projected enum)", () => {
+    const toggleSpec: FieldSpec = { type: "toggle", label: "Done", field: "status", onValue: "Done", offValue: "Todo" };
+
+    function compareToggle(leftStatus: unknown, rightStatus: unknown, dir: SortDirection = "asc"): number {
+      const itemLeft: CollectionItem = { status: leftStatus };
+      const itemRight: CollectionItem = { status: rightStatus };
+      return compareItems(itemLeft, itemRight, "done", toggleSpec, dir);
+    }
+
+    test("onValue items sort after non-onValue ascending (true > false)", () => {
+      assert.ok(compareToggle("Done", "Todo") > 0);
+    });
+    test("non-onValue items sort before onValue ascending", () => {
+      assert.ok(compareToggle("Todo", "Done") < 0);
+    });
+    test("both onValue returns 0", () => {
+      assert.equal(compareToggle("Done", "Done"), 0);
+    });
+    test("both non-onValue returns 0", () => {
+      assert.equal(compareToggle("Todo", "In Progress"), 0);
+    });
+    test("descending reverses order", () => {
+      assert.ok(compareToggle("Done", "Todo", "desc") < 0);
+    });
+    test("null projected value treated as unchecked", () => {
+      assert.equal(compareToggle(null, "Todo"), 0);
     });
   });
 });

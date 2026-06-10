@@ -95,11 +95,18 @@ function compareByType(valLeft: unknown, valRight: unknown, fieldSpec: FieldSpec
   }
 }
 
+function resolveToggleValues(itemLeft: CollectionItem, itemRight: CollectionItem, fieldSpec: FieldSpec): [unknown, unknown] {
+  const projectedKey = fieldSpec.field ?? "";
+  return [itemLeft[projectedKey] === fieldSpec.onValue, itemRight[projectedKey] === fieldSpec.onValue];
+}
+
 /** Compare two items for sorting by a given field. Null/undefined values
- *  always sort to the end regardless of direction. */
+ *  always sort to the end regardless of direction.
+ *  Toggle fields read the projected enum value and compare as binary
+ *  (matches onValue → true, otherwise false). */
 export function compareItems(itemLeft: CollectionItem, itemRight: CollectionItem, field: string, fieldSpec: FieldSpec, direction: SortDirection): number {
-  const valLeft = itemLeft[field];
-  const valRight = itemRight[field];
+  const [valLeft, valRight] =
+    fieldSpec.type === "toggle" && fieldSpec.field ? resolveToggleValues(itemLeft, itemRight, fieldSpec) : [itemLeft[field], itemRight[field]];
   const multiplier = direction === "asc" ? 1 : -1;
 
   if (valLeft == null && valRight == null) return 0;
