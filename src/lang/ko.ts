@@ -1232,8 +1232,8 @@ const koMessages = {
     viewDashboard: "대시보드",
     dashboardAlertHeading: "{label} — {count}건",
     dashboardAllItems: "전체 항목",
-    sortedAsc: "{field} 오름차순 정렬 중",
-    sortedDesc: "{field} 내림차순 정렬 중",
+    sortAsc: "{field} 오름차순 정렬",
+    sortDesc: "{field} 내림차순 정렬",
     source: {
       user: "사용자",
       project: "프로젝트",

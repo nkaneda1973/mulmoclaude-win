@@ -373,24 +373,29 @@
         <table class="min-w-full text-xs">
           <thead>
             <tr class="bg-slate-50 border-b border-slate-200">
-              <th v-for="[key, field] in listColumnFields" :key="key" class="px-5 py-3 font-bold text-slate-500 text-left uppercase tracking-wider">
+              <th
+                v-for="[key, field] in listColumnFields"
+                :key="key"
+                class="px-5 py-3 font-bold text-slate-500 text-left uppercase tracking-wider"
+                :aria-sort="ariaSortValue(String(key))"
+              >
                 <span v-if="isSortableField(field)" class="inline-flex items-center gap-0.5" :data-testid="`collection-sort-${key}`">
                   <span>{{ field.label }}</span>
                   <span class="inline-flex flex-col -space-y-[5px]">
                     <button
                       type="button"
-                      class="material-icons text-[8px] leading-none hover:text-indigo-400 transition-colors"
+                      class="material-icons text-[8px] leading-none p-0.5 hover:text-indigo-400 transition-colors"
                       :class="sortState?.direction === 'asc' && isSortedField(String(key)) ? 'text-indigo-600' : 'text-slate-300'"
-                      :aria-label="t('collectionsView.sortedAsc', { field: field.label })"
+                      :aria-label="t('collectionsView.sortAsc', { field: field.label })"
                       @click="toggleSort(String(key), 'asc')"
                     >
                       expand_less
                     </button>
                     <button
                       type="button"
-                      class="material-icons text-[8px] leading-none hover:text-indigo-400 transition-colors"
+                      class="material-icons text-[8px] leading-none p-0.5 hover:text-indigo-400 transition-colors"
                       :class="sortState?.direction === 'desc' && isSortedField(String(key)) ? 'text-indigo-600' : 'text-slate-300'"
-                      :aria-label="t('collectionsView.sortedDesc', { field: field.label })"
+                      :aria-label="t('collectionsView.sortDesc', { field: field.label })"
                       @click="toggleSort(String(key), 'desc')"
                     >
                       expand_more
@@ -838,6 +843,11 @@ function toggleSort(fieldKey: string, direction: SortDirection): void {
 function isSortedField(fieldKey: string): boolean {
   const sortKey = resolveSortKey(fieldKey);
   return sortState.value?.field === sortKey;
+}
+
+function ariaSortValue(fieldKey: string): "ascending" | "descending" | "none" | undefined {
+  if (!isSortedField(fieldKey)) return undefined;
+  return sortState.value?.direction === "asc" ? "ascending" : "descending";
 }
 
 function persistSort(): void {

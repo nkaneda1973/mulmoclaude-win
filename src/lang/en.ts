@@ -1232,8 +1232,8 @@ const enMessages = {
     viewDashboard: "Dashboard",
     dashboardAlertHeading: "{label} — {count}",
     dashboardAllItems: "All items",
-    sortedAsc: "Sorted by {field} ascending",
-    sortedDesc: "Sorted by {field} descending",
+    sortAsc: "Sort by {field} ascending",
+    sortDesc: "Sort by {field} descending",
     source: {
       user: "User",
       project: "Project",

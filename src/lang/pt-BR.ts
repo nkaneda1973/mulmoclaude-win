@@ -1234,8 +1234,8 @@ const ptBRMessages = {
     viewDashboard: "Painel",
     dashboardAlertHeading: "{label} — {count}",
     dashboardAllItems: "Todos os itens",
-    sortedAsc: "Ordenado por {field} crescente",
-    sortedDesc: "Ordenado por {field} decrescente",
+    sortAsc: "Ordenar por {field} crescente",
+    sortDesc: "Ordenar por {field} decrescente",
     source: {
       user: "Usuário",
       project: "Projeto",
