@@ -1091,7 +1091,7 @@ async function loadCollection(slug: string): Promise<void> {
   collection.value = null;
   items.value = [];
   searchQuery.value = "";
-  restoreSort(slug);
+  sortState.value = null;
   render.resetLinkedCaches();
   viewing.value = null;
   openDay.value = null; // never carry a previous collection's open day over
@@ -1110,6 +1110,7 @@ async function loadCollection(slug: string): Promise<void> {
     return;
   }
   collection.value = result.data.collection;
+  restoreSort(slug);
   items.value = result.data.items;
   enumOriginallyEmpty.value = snapshotEmptyEnums(result.data.collection.schema, result.data.items);
   // Fan out to fetch each unique target collection so the table can
