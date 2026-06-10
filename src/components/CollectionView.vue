@@ -220,6 +220,28 @@
       </div>
     </div>
 
+    <!-- Repair banner: the server flagged record files that won't load /
+         violate the schema and are silently skipped. The button reports
+         them back to the LLM (same path presentCollection uses) so it
+         fixes the files. View-independent, so it sits above the body. -->
+    <div
+      v-if="collection && dataIssues.length > 0"
+      class="mx-6 mt-4 rounded-xl border border-amber-200 bg-amber-50/60 p-4 text-sm text-amber-900 shadow-sm flex items-center gap-3"
+      data-testid="collections-data-issues"
+    >
+      <span class="material-icons text-amber-600">warning</span>
+      <span class="flex-1">{{ t("collectionsView.dataIssuesDetected", { count: dataIssues.length }) }}</span>
+      <button
+        type="button"
+        class="h-8 px-2.5 flex items-center gap-1 rounded border border-amber-300 bg-white hover:bg-amber-100 text-amber-700 font-bold text-xs transition-colors"
+        data-testid="collections-repair"
+        @click="repairCollection"
+      >
+        <span class="material-icons text-sm">build</span>
+        <span>{{ t("collectionsView.repair") }}</span>
+      </button>
+    </div>
+
     <div class="flex-1 overflow-auto">
       <div v-if="loading" class="flex flex-col items-center justify-center py-20 text-sm text-slate-500 gap-3">
         <div class="h-8 w-8 border-2 border-indigo-600/20 border-t-indigo-600 rounded-full animate-spin"></div>
@@ -330,6 +352,7 @@
             :items="filteredItems"
             :group-field="kanbanGroupField"
             :selected="viewing ? String(viewing[collection.schema.primaryKey] ?? '') : undefined"
+            :notified-ids="notifiedItemIds"
             @select="onCalendarSelect"
             @move="onKanbanMove"
           />
@@ -392,10 +415,10 @@
                 v-for="[key, field] in listColumnFields"
                 :key="key"
                 :aria-sort="isSortableField(field) ? sortAriaValue(key) : undefined"
-                class="px-5 py-3 font-bold text-slate-500 text-left uppercase tracking-wider"
+                class="px-5 py-3 font-bold text-slate-500 text-left uppercase tracking-wider whitespace-nowrap"
               >
                 <div class="flex items-center gap-1">
-                  <span>{{ field.label }}</span>
+                  <span class="truncate max-w-[14rem]" :title="field.label">{{ field.label }}</span>
                   <button
                     v-if="isSortableField(field)"
                     type="button"
@@ -699,11 +722,15 @@ import type {
   CollectionDetail,
   CollectionDetailResponse,
   CollectionItem,
+  CollectionRecordIssue,
   EditState,
   FieldSpec,
   ItemMutationResponse,
   TableRowDraft,
 } from "./collectionTypes";
+import { shortHexId } from "../utils/id";
+import { useNotifications } from "../composables/useNotifications";
+import { collectionNotifiedItemIds } from "../utils/collections/notifiedItems";
 
 /** `slug` / `selected` are supplied only in EMBEDDED mode (the
  *  `presentCollection` chat card mounts this component and drives both
@@ -744,6 +771,7 @@ const router = useRouter();
 const { openConfirm } = useConfirm();
 const appApi = useAppApi();
 const { unpin } = useShortcuts();
+const { entries: notifierEntries } = useNotifications();
 
 /** Embedded when a `slug` prop is supplied; standalone (route-driven)
  *  otherwise. Switches the slug/selected source and the open/close
@@ -770,6 +798,17 @@ const collection = ref<CollectionDetail | null>(null);
 const items = ref<CollectionItem[]>([]);
 const loading = ref(true);
 const loadError = ref<string | null>(null);
+// Record files the server flagged as malformed/invalid (silently skipped
+// at read time). When non-empty the view shows a Repair banner whose
+// button reports them back to the LLM. See `repairCollection`.
+const dataIssues = ref<CollectionRecordIssue[]>([]);
+
+// Primary-keys of this collection's records that currently have an active
+// bell notification — passed to the Kanban board to flag their cards.
+const notifiedItemIds = computed<Set<string>>(() => {
+  const slug = collection.value?.slug;
+  return slug ? collectionNotifiedItemIds(notifierEntries.value, slug) : new Set<string>();
+});
 /** True while a feed collection's manual refresh is in flight. */
 const refreshing = ref(false);
 /** Slug already auto-refreshed on first open — prevents a reload loop
@@ -1070,6 +1109,27 @@ async function runCollectionAction(action: CollectionAction): Promise<void> {
   appApi.startNewChat(result.data.prompt, result.data.role);
 }
 
+/** Report the server-detected record data problems back to the LLM so it
+ *  fixes the offending files. Mirrors the `presentCollection` validation
+ *  path (`dispatchPresentCollection`), but user-initiated via the Repair
+ *  button instead of fired automatically after a write. Dispatches into
+ *  the current chat when embedded, else seeds a new General chat. */
+function repairCollection(): void {
+  const current = collection.value;
+  if (!current || dataIssues.value.length === 0) return;
+  // Issue text carries record-controlled values (ids, enum values), so
+  // defang structural injection vectors before it rides into the LLM
+  // prompt — mirrors `defangForPrompt` on the server's presentCollection path.
+  const defang = (value: string): string => value.replace(/[<>]/g, "").replace(/`/g, "'").replace(/\$\{/g, "$ {").slice(0, 200);
+  const lines = dataIssues.value.map((issue) => `- ${defang(issue.file)}: ${defang(issue.problem)}`).join("\n");
+  const prompt = t("collectionsView.repairPrompt", { title: current.title, count: dataIssues.value.length, issues: lines });
+  if (props.sendTextMessage) {
+    props.sendTextMessage(prompt);
+    return;
+  }
+  appApi.startNewChat(prompt, BUILTIN_ROLE_IDS.general);
+}
+
 /** Actions whose optional `when` predicate matches the open record.
  *  Status-driven buttons (e.g. invoice "Record payment") stay hidden
  *  until the record reaches the matching state. */
@@ -1161,6 +1221,7 @@ async function loadCollection(slug: string): Promise<void> {
   loadError.value = null;
   collection.value = null;
   items.value = [];
+  dataIssues.value = []; // never carry a previous collection's issues over
   searchQuery.value = ""; // Reset search query on collection load
   sortState.value = null; // Drop any active column sort from the prior collection
   render.resetLinkedCaches();
@@ -1182,6 +1243,7 @@ async function loadCollection(slug: string): Promise<void> {
   }
   collection.value = result.data.collection;
   items.value = result.data.items;
+  dataIssues.value = result.data.issues ?? [];
   enumOriginallyEmpty.value = snapshotEmptyEnums(result.data.collection.schema, result.data.items);
   // Fan out to fetch each unique target collection so the table can
   // render ref values as display names (not slugs) and the form
@@ -1379,6 +1441,19 @@ function setView(next: CollectionViewMode): void {
   view.value = next;
 }
 
+/** A short, slug-safe id not already used by a loaded record. Collisions
+ *  are astronomically unlikely (32 bits), but we still re-roll a few
+ *  times against the in-memory set before giving up and using the last
+ *  candidate (the server's overwrite guard is the final backstop). */
+function generateUniqueItemId(primaryKey: string): string {
+  const existing = new Set(items.value.map((item) => String(item[primaryKey] ?? "")));
+  let candidate = shortHexId();
+  for (let attempt = 0; attempt < 8 && existing.has(candidate); attempt++) {
+    candidate = shortHexId();
+  }
+  return candidate;
+}
+
 function openCreate(): void {
   if (!collection.value) return;
   const text: Record<string, string> = {};
@@ -1402,8 +1477,16 @@ function openCreate(): void {
   }
   // Singleton collections fix the primary key to the schema-declared
   // value (e.g. "me") so the first Add can't pick an arbitrary id.
+  // Otherwise pre-fill a unique, editable id so the user doesn't have to
+  // invent one — the primary-key input stays enabled in create mode, so
+  // they can still override it before saving. Matches the id shape the
+  // server would generate for a blank-id POST (`generateItemId`).
   const { singleton, primaryKey } = collection.value.schema;
-  if (singleton) text[primaryKey] = singleton;
+  if (singleton) {
+    text[primaryKey] = singleton;
+  } else if (primaryKey in text) {
+    text[primaryKey] = generateUniqueItemId(primaryKey);
+  }
   viewing.value = null; // one panel open at a time
   editing.value = { mode: "create", text, bool, boolOriginallyPresent, boolTouched, table, originalId: null };
   saveError.value = null;
