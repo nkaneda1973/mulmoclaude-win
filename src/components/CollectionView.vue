@@ -381,10 +381,10 @@
               >
                 <span v-if="isSortableField(field)" class="inline-flex items-center gap-0.5" :data-testid="`collection-sort-${key}`">
                   <span>{{ field.label }}</span>
-                  <span class="inline-flex flex-col -space-y-0.5">
+                  <span class="inline-flex flex-col">
                     <button
                       type="button"
-                      class="material-icons text-[10px] leading-none min-w-6 min-h-3 flex items-center justify-center hover:text-indigo-400 transition-colors"
+                      class="material-icons text-[10px] leading-none min-w-6 min-h-6 flex items-center justify-center hover:text-indigo-400 transition-colors"
                       :class="sortState?.direction === 'asc' && isSortedField(String(key)) ? 'text-indigo-600' : 'text-slate-300'"
                       :aria-label="t('collectionsView.sortAsc', { field: field.label })"
                       @click="toggleSort(String(key), 'asc')"
@@ -393,7 +393,7 @@
                     </button>
                     <button
                       type="button"
-                      class="material-icons text-[10px] leading-none min-w-6 min-h-3 flex items-center justify-center hover:text-indigo-400 transition-colors"
+                      class="material-icons text-[10px] leading-none min-w-6 min-h-6 flex items-center justify-center hover:text-indigo-400 transition-colors"
                       :class="sortState?.direction === 'desc' && isSortedField(String(key)) ? 'text-indigo-600' : 'text-slate-300'"
                       :aria-label="t('collectionsView.sortDesc', { field: field.label })"
                       @click="toggleSort(String(key), 'desc')"
@@ -846,12 +846,25 @@ function persistSort(): void {
   writeCollectionSort(slug, sortState.value);
 }
 
+function isSortableColumn(fieldKey: string): boolean {
+  const schema = collection.value?.schema;
+  if (!schema) return false;
+  const fieldSpec = schema.fields[fieldKey];
+  return fieldSpec != null && isSortableField(fieldSpec);
+}
+
 function restoreSort(slug: string): void {
   if (embedded.value) {
     sortState.value = null;
     return;
   }
-  sortState.value = readCollectionSort(slug);
+  const stored = readCollectionSort(slug);
+  if (stored && !isSortableColumn(stored.field)) {
+    writeCollectionSort(slug, null);
+    sortState.value = null;
+    return;
+  }
+  sortState.value = stored;
 }
 
 /** Case-insensitive substring match across an item's scalar fields.
