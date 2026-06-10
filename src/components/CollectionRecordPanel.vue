@@ -356,7 +356,7 @@
                           type="checkbox"
                           :checked="row[subKey] === true"
                           :disabled="tableBoolSaving"
-                          :aria-label="`${subField.label}`"
+                          :aria-label="`${subField.label} #${rowIdx + 1}`"
                           class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500/20 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                           :data-testid="`collections-detail-table-bool-${key}-${rowIdx}-${subKey}`"
                           @change="emit('toggleTableBool', String(key), row, String(subKey), ($event.target as HTMLInputElement).checked)"
