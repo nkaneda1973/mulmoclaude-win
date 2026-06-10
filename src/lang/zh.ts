@@ -82,6 +82,8 @@ const zhMessages = {
     cancel: "取消",
     showMore: "显示更多 ({count})",
     showLess: "收起",
+    openTarget: "打开",
+    expandDetails: "展开详情",
   },
   pluginDiagnostics: {
     title: "插件配置问题",
