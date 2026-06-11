@@ -228,8 +228,12 @@ test.describe("collection calendar view", () => {
     await page.goto("/collections/agenda?selected=block");
     await expect(page.getByTestId("collection-day-view")).toBeVisible();
     // Reopening the collection without a selection must not leave a stale popup.
+    // After #1675 the deep-link-forced calendar is no longer persisted to
+    // localStorage, so the second visit lands on the user's stored
+    // preference (table by default) rather than the previously forced
+    // calendar. The teardown invariant we actually care about — the day
+    // popup must be gone — holds either way.
     await page.goto("/collections/agenda");
-    await expect(page.getByTestId("collection-calendar")).toBeVisible();
     await expect(page.getByTestId("collection-day-view")).toHaveCount(0);
   });
 
