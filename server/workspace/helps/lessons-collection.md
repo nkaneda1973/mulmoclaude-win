@@ -22,9 +22,10 @@ self-contained HTML lessons you author.
 > stores its **workspace-relative path**, and the row becomes a clickable link
 > that re-opens the rendered page. The collection never stores the lesson body —
 > it points at it. One concept per lesson, one HTML file per lesson, one record
-> per lesson. **How that file gets written matters — see "Authoring the lesson
-> HTML" below: `presentHtml` renders a single lesson to the learner; don't loop it
-> to batch-create files.**
+> per lesson. **How and *when* that file gets written matters — see "Authoring the
+> lesson HTML" and "Pre-generating lessons in the background" below: author ahead of
+> time in a hidden background session so the learner never waits; `presentHtml`
+> renders a single lesson to the learner but don't loop it to batch-create files.**
 
 ## Ground it in the learner's goal first
 
@@ -131,11 +132,21 @@ already authored — its `lesson` HTML path. Pick the mode from `status`, and ne
 jump straight to a quiz — the HTML page IS the lesson, so deliver it first.
 
 Deliver the page with `presentHtml`:
-- `lesson` empty (not authored yet — lessons are written just-in-time) → author the
+- `lesson` already set (often pre-authored in the background — see below) → present
+  it by passing its **path** to `presentHtml` (no duplicate save). Instant.
+- `lesson` empty (the prefetch worker hasn't finished, or never ran) → author the
   page **from the `objective` brief** and present it with `presentHtml` (passing the
   `html`), then write the returned `data.filePath` into the record's `lesson` field.
-- `lesson` already set → present it by passing its **path** to `presentHtml` (no
-  duplicate save).
+  This is the graceful fallback.
+
+**The moment the page is on screen — _before_ you teach or quiz — prefetch the next
+lesson** so its generation overlaps the whole time the learner spends here: call
+`spawnBackgroundChat` (`hidden: true`, `role: "tutor"`) to author the next-by-`order`
+lesson's HTML in the background (a self-contained message that reads that record and
+`Write`s the page to `artifacts/html/lessons-<topic>/<id>.html`, sets its `lesson`
+field, and presents nothing). Skip if it's already authored or this is the last
+lesson. **Do this now, not at the end** — the learner often advances the instant they
+finish, and a prefetch fired during the wrap-up is too late to hide the wait.
 
 Then branch on `status`:
 - `planned` / `learning` → teach the page, check understanding with a question or a
@@ -147,7 +158,8 @@ Then branch on `status`:
 
 Cite real sources in the page and in `resources`, and record anything to revisit in
 `notes`. Don't re-show the collection card after a single lesson — just keep the
-conversation going; the board reflects the new `status` next time it's opened.
+conversation going; the board reflects the new `status` next time it's opened. (The
+next lesson was already prefetched right after you showed this page — see above.)
 ```
 
 `data/skills/lessons-<topic>/templates/continue.md` (collection-level):
@@ -160,9 +172,11 @@ Continue the course. The summary above lists every lesson's `id`, `title`, and
 2. else the lowest-`order` `status: planned` lesson → start it
 3. else a `practiced` (not yet `mastered`) lesson → review it
 
-In cases 1–3, run that one lesson exactly like the per-lesson Learn button (author
-its page from `objective` if `lesson` is empty, else present by `path`; deliver it;
-check understanding; update `status` + `notes`). Don't re-show the collection card
+In cases 1–3, run that one lesson exactly like the per-lesson Learn button: present
+by `path` if `lesson` is set (else author from `objective`), and **immediately
+prefetch the next lesson** with a hidden `spawnBackgroundChat` worker — _before_ you
+teach or quiz, so it generates while the learner works. Then deliver the lesson, check
+understanding, and update `status` + `notes`. Don't re-show the collection card
 afterwards — just continue the conversation.
 
 4. only if **every** lesson is `mastered` → append the next batch as `planned`
@@ -211,6 +225,68 @@ of teaching, not an optional step before the quiz.
 Keep lesson pages **self-contained** (inline everything or an allowed CDN) so
 they render correctly regardless of the directory they were saved in.
 
+## Pre-generating lessons in the background — no wait
+
+Authoring a full HTML page takes the model tens of seconds, and `presentHtml` only
+renders **after** the page is fully generated. So a lesson authored at the moment
+the learner asks for it makes them **stare at a blank canvas** — worst of all on the
+very first lesson of a brand-new course. The fix: author **ahead of time, in a
+parallel background session**, so the page is already on disk (and the record's
+`lesson` field set) by the time the learner opens it. Then you just present it by
+`path`, instantly.
+
+The tool is **`spawnBackgroundChat({ message, role, hidden })`** — it launches a
+second, independent agent session that runs **concurrently** with this conversation
+and returns immediately. To pre-author one lesson:
+
+```
+spawnBackgroundChat({
+  role: "tutor",
+  hidden: true,
+  message: "<a fully self-contained instruction — see the rules below>"
+})
+```
+
+Rules for the worker:
+
+- **`hidden: true`, always.** These are plumbing, not conversations — a visible
+  worker would clutter the learner's chat history. (`hidden: false` exists for other
+  uses where the user *should* see the spawned chat; a lesson worker is never that.)
+- **The `message` must be fully self-contained** — the worker shares NONE of this
+  chat's context. Spell out: read the record at
+  `data/lessons-<topic>/items/<id>.json`; author a self-contained HTML page **from
+  its `objective`** (full `<!DOCTYPE html>`, inline CSS/JS or an allowed CDN — see
+  `config/helps/presenthtml.md`); **`Write`** it to
+  `artifacts/html/lessons-<topic>/<id>.html`; set that path as the record's `lesson`
+  field; do **NOT** call `presentHtml` and do **NOT** present anything — just write
+  the files and stop. (No one is viewing the worker's canvas, so presenting there is
+  wasted.)
+- **One lesson per call**, and don't spawn a fleet — the host caps concurrent hidden
+  workers and a worker can't spawn further workers.
+
+**When to pre-author:**
+
+1. **At course creation — pre-author lesson 1 (optionally 2).** Right after
+   `presentCollection` shows the roadmap, fire a worker for lesson 1 and tell the
+   learner it's being prepared (e.g. "コースができました!最初のレッスンを準備中です。
+   準備ができたら『始めて』と言ってください"). The learner reads the roadmap while the
+   page generates — the wait now **overlaps** with something useful instead of being
+   dead air. Do **not** also author lesson 1 inline in the same turn.
+2. **Prefetch the next lesson the moment you present the current one — not at the
+   end.** As soon as lesson N's page is on screen (*before* you teach or quiz it),
+   fire a worker for the next-by-`order` lesson, so its generation overlaps the
+   *whole* time the learner spends on N. Waiting until you update `status`/`notes` is
+   too late — the learner often advances the instant they finish, and the wait
+   reappears. By the time they reach N+1, it's already authored → instant.
+
+**Presenting, and the fallback.** When the learner opens a lesson, check its `lesson`
+field: **set** → `presentHtml` by `path` (instant); **still empty** (the worker
+hasn't finished, or never ran) → author it inline from `objective` as usual. The
+inline path is the graceful fallback — background pre-generation is a pure
+optimization, never a dependency. Because workers write to the **stable**
+`artifacts/html/lessons-<topic>/<id>.html` path, a rare double-author (learner races
+ahead of the worker) just overwrites in place — never a duplicate.
+
 ## SKILL.md
 
 `data/skills/lessons-<topic>/SKILL.md` tells the agent when and how to operate the
@@ -231,23 +307,33 @@ collection. Keep it short — the schema and templates do the heavy lifting. Cov
     what makes deferred authoring work: when you write the page later, the record's
     `objective` is the prompt you generate it from, so write it that way. Once the
     records are written, call `presentCollection` **once** to show the roadmap (this
-    also surfaces any malformed records right away).
-  - **Pre-author the initial set** (optional): you *may* **Write** a few lesson
-    HTML pages **directly to disk** at `artifacts/html/lessons-<topic>/<id>.html`
-    (see "Authoring the lesson HTML") and set their `lesson` paths up front — but
-    you don't have to. Leaving every lesson `planned` with an empty `lesson` and
-    authoring each one just-in-time (when it's taught) is the better default.
+    also surfaces any malformed records right away). **Then immediately fire a hidden
+    `spawnBackgroundChat` worker to pre-author lesson 1** and tell the learner it's
+    being prepared — do NOT author lesson 1 inline in the same turn (see
+    "Pre-generating lessons in the background"). The learner reads the roadmap while
+    it generates.
+  - **Pre-author lesson 1 in the background** (then the rest just-in-time): the
+    worker above writes lesson 1's HTML to disk and sets its `lesson` path, so the
+    first open never waits. You *may* fire a second worker for lesson 2 as well.
+    Leaving the rest `planned` with an empty `lesson` and prefetching each next
+    lesson as you open the current one is the default — never pre-generate the
+    whole course up front.
   - **Learn a lesson** (the per-lesson **Learn** button): always **deliver the page
-    with `presentHtml` first** — never jump straight to a quiz. Author it from
-    `objective` if `lesson` is empty (store the returned `data.filePath`), else
-    present by `path`. Then branch on `status`: `planned`/`learning` → teach + quiz
-    (→ `learning`/`practiced`); `practiced`/`mastered` → review quiz (→ `mastered`,
-    or back to `learning` if shaky). Record gaps in `notes`.
+    with `presentHtml` first** — never jump straight to a quiz. Present by `path` if
+    `lesson` is set (usually it was pre-authored in the background), else author from
+    `objective` inline (store the returned `data.filePath`) as the fallback. **The
+    moment the page is shown — before teaching or quizzing — prefetch the next lesson**
+    with a hidden `spawnBackgroundChat` worker, so its generation overlaps this whole
+    lesson rather than starting at the end. Then branch on `status`:
+    `planned`/`learning` → teach + quiz (→ `learning`/`practiced`);
+    `practiced`/`mastered` → review quiz (→ `mastered`, or back to `learning` if
+    shaky). Record gaps in `notes`.
   - **Continue the course** (the header **Learn** button, `continue` action): from
     the progress summary, resume a `learning` lesson, else start the lowest-`order`
-    `planned` one, else review a `practiced` lesson — and only once everything is
-    `mastered`, append the next batch of `planned` lessons (paragraph `objective`
-    each, HTML authored lazily later).
+    `planned` one, else review a `practiced` lesson; **prefetch the next lesson the
+    moment you present the current one** (not after running it) — and only once
+    everything is `mastered`, append the next batch of `planned` lessons (paragraph
+    `objective` each, HTML authored lazily later).
 - **Operations** — all I/O is plain Read / Write / Edit on
   `data/lessons-<topic>/items/<id>.json`, one record per file (Add / List /
   Update status / Edit / Delete). Rather than dumping the whole course into chat,
