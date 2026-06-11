@@ -1825,14 +1825,52 @@ function onDayClose(): void {
   closeView();
 }
 
+// ── Deep-link guards (#1675) ────────────────────────────────────
+//
+// Two pieces of transient state work together so a `?selected=<id>`
+// notification deep-link can open a record at its calendar day
+// **without** silently overwriting the user's saved view preference:
+//
+//   `storedViewAtSlugLoad` — snapshot of what was in localStorage at
+//      the moment the user navigated to this collection. Captured
+//      synchronously in the activeSlug watcher BEFORE the persist
+//      watcher has a chance to fire (the load-time fire would
+//      otherwise replace a null with "table" and make us think the
+//      user had chosen "table" when they hadn't).
+//
+//   `skipNextViewPersist` — single-shot suppression for the persist
+//      watcher. Set by `maybeOpenCalendarForSelected` right before
+//      it forces view.value = "calendar"; consumed on the very next
+//      ready watcher fire so the forced view doesn't become sticky.
+//      Any user-driven view toggle afterwards persists normally.
+//
+// Both are explicitly reset on slug change so neither can leak
+// across collections. Invariant: `skipNextViewPersist` is only set
+// in `maybeOpenCalendarForSelected`; if a new code path ever forces
+// view.value programmatically, it must own the same set/consume
+// dance or persisted state will diverge.
+const storedViewAtSlugLoad = ref<CollectionViewMode | null>(null);
+const skipNextViewPersist = ref(false);
+
 /** Deep-link entry: a `?selected=<id>` link to a calendar-capable collection
- *  opens in calendar view with the popup focused on the record's day. Runs
- *  on load / slug change only (not on in-app selection), so table users
- *  aren't forced into the calendar. */
+ *  opens in calendar view with the popup focused on the record's day — but
+ *  only when the user hasn't already chosen a different view for this
+ *  collection. Runs on load / slug change only. See the comment block above
+ *  for why the guards exist and why `storedViewAtSlugLoad` (not a fresh
+ *  `readCollectionViewMode` call) is the source of truth. */
 function maybeOpenCalendarForSelected(): void {
   if (embedded.value || !hasCalendar.value || !viewing.value) return;
+  // (a) Honor stored preference captured BEFORE the load-time persist
+  // write fired. A fresh `readCollectionViewMode` here would race the
+  // watcher: by the time we reach this line, localStorage may already
+  // hold the load-normalized view ("table") even though the user had
+  // no preference when navigation began.
+  if (storedViewAtSlugLoad.value !== null) return;
   const day = dayOfItem(viewing.value);
   if (!day) return;
+  // (b) Suppress the next persist so this transient force doesn't
+  // become sticky.
+  skipNextViewPersist.value = true;
   view.value = "calendar";
   openDay.value = day;
 }
@@ -1861,6 +1899,16 @@ watch(
       anchorOverride.value = null;
       kanbanOverride.value = null;
     }
+    // Snapshot the saved preference NOW, before `loadCollection` /
+    // its watchers get a chance to overwrite localStorage with the
+    // load-normalized view. `maybeOpenCalendarForSelected` uses this
+    // snapshot as the source of truth for guard (a) (#1675).
+    storedViewAtSlugLoad.value = !embedded.value && slug ? readCollectionViewMode(slug) : null;
+    // Reset the persist-suppression flag too: any pending suppression
+    // belongs to the previous slug's loadCollection cycle and must
+    // not carry over into the new one, or it would silently swallow
+    // the first persist of the new collection's view.
+    skipNextViewPersist.value = false;
     if (slug) {
       loadCollection(slug);
     } else {
@@ -1893,7 +1941,17 @@ watch([activeView, calendarAnchorField, kanbanGroupField, loading], () => {
   // Don't write during the load window: until the collection resolves,
   // `hasCalendar`/`hasKanban` are false so `activeView` reads "table",
   // which would clobber a stored "calendar"/"kanban" before it can apply.
-  if (activeSlug.value && !loading.value && collection.value) writeCollectionViewMode(activeSlug.value, activeView.value);
+  if (!activeSlug.value || loading.value || !collection.value) return;
+  // Consume a pending one-shot suppression so the persist watcher's
+  // next ready write is treated as transparent: maybeOpenCalendar's
+  // deep-link force lands here once on its way through, and we want
+  // to *not* persist that. Subsequent user-driven view changes fall
+  // straight through the `if` and write normally.
+  if (skipNextViewPersist.value) {
+    skipNextViewPersist.value = false;
+    return;
+  }
+  writeCollectionViewMode(activeSlug.value, activeView.value);
 });
 
 // React to the active selection changing while already on this
