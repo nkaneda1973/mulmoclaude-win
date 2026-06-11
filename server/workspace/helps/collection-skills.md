@@ -81,7 +81,9 @@ description: A personal recipe box. Use whenever the user asks to add, list,
 **Add / Update** — `manageCollection` putItems: each row is validated against
 the schema BEFORE the write; fix any `rejected` row from its `problem` text
 and retry just those. Use `mode: "create"` when adding so an id collision is
-rejected instead of silently overwritten.
+rejected instead of silently overwritten, and `mode: "merge"` with a partial
+row (`{ id, <changed fields> }`) when updating — the default upsert replaces
+the WHOLE record and would erase every optional field the row omits.
 **List / Read** — `manageCollection` getItems: the only way to see
 host-computed `derived` / `toggle` / `embed` values (the stored JSON never
 contains them); pass `ids` / `fields` on large collections.

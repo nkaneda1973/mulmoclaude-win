@@ -76,9 +76,9 @@ collection. Keep it short — the schema does the heavy lifting. It should cover
   - **List** — getItems (it includes the host-computed `mastered` value);
     rather than dumping every word into chat, point the user at
     `/collections/vocabulary`.
-  - **Update proficiency** — getItems with `ids` → change `proficiency` →
-    putItems.
-  - **Edit** — same getItems → change → putItems (preserve the other fields).
+  - **Update proficiency** — putItems with `mode: "merge"` and
+    `{ id, proficiency }` (merge keeps the fields the row omits).
+  - **Edit** — same: putItems `mode: "merge"` with just the changed fields.
   - **Delete** — remove the JSON file.
 - After any change, call `presentCollection` with slug `vocabulary` (and the
   record id) to render the result inline.

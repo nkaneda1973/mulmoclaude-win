@@ -106,7 +106,7 @@ Omit fields the user didn't supply or that Yahoo Finance didn't return — don't
 
 **List**: `manageCollection` `getItems` with `slug: "stock-quotes"` (use `fields` to keep it small). Don't dump every record into chat — link to `/collections/stock-quotes`.
 
-**Update**: `getItems` with `ids: ["<id>"]`, merge, `putItems`. Preserve fields the user didn't ask to change. Always update `asOf`.
+**Update**: `putItems` with `mode: "merge"` and a partial row (`{ id, <changed fields> }`) — it keeps every field the row omits. Always update `asOf`.
 
 **Delete**: Confirm once if ambiguous, then remove the file (`data/stock-quotes/items/<id>.json`).
 
@@ -177,7 +177,7 @@ Omit fields the user didn't supply — don't write empty strings. Never write `p
 
 **List / value the portfolio**: `manageCollection` `getItems` with `slug: "portfolio"` — the returned records INCLUDE the host-computed `price` and `value`, so total the `value` column from there (reading the raw JSON files would show neither). Don't dump every record into chat — link to `/collections/portfolio`.
 
-**Update shares**: `getItems` with `ids: ["<id>"]`, change `shares`, `putItems`. Preserve other fields.
+**Update shares**: `putItems` with `mode: "merge"` and `{ "id": "<id>", "shares": <n> }` — merge keeps the fields the row omits.
 
 **Refresh prices**: don't touch the portfolio records — go refresh the matching row in `stock-quotes` instead. The portfolio's `price` and `value` columns update on the next render.
 

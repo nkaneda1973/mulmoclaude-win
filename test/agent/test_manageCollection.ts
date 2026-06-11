@@ -91,7 +91,7 @@ describe("manageCollection — argument validation", () => {
     assert.match(await run({ action: "getItems", slug: "portfolio", fields: "name" }), /`fields` must be an array/);
     assert.match(await run({ action: "putItems", slug: "portfolio" }), /`items` is required/);
     assert.match(await run({ action: "putItems", slug: "portfolio", items: [[1]] }), /`items` is required/);
-    assert.match(await run({ action: "putItems", slug: "portfolio", items: [{ id: "a" }], mode: "merge" }), /`mode` must be/);
+    assert.match(await run({ action: "putItems", slug: "portfolio", items: [{ id: "a" }], mode: "replace" }), /`mode` must be/);
   });
 
   it("is registered as an alwaysActive MCP tool", () => {
@@ -197,5 +197,40 @@ describe("manageCollection — putItems", () => {
     const upserted = await runJson({ action: "putItems", slug: "portfolio", items: [record("h1", { shares: 5 })] });
     assert.deepEqual(upserted.written, ["h1"]);
     assert.equal(stored("h1").shares, 5);
+  });
+
+  it('mode "merge" updates only the carried fields, keeping the rest', async () => {
+    writeRecord("data/portfolio/items", "h1", record("h1", { ticker: "aapl", shares: 10, notes: "keep me" }));
+    const merged = await runJson({ action: "putItems", slug: "portfolio", items: [{ id: "h1", status: "closed" }], mode: "merge" });
+    assert.deepEqual(merged.written, ["h1"]);
+    // The partial row changed status; everything it omitted survives.
+    assert.deepEqual(stored("h1"), record("h1", { ticker: "aapl", shares: 10, notes: "keep me", status: "closed" }));
+  });
+
+  it("the same partial row under default upsert documents the hazard merge prevents", async () => {
+    // A partial upsert passes validation only when every REQUIRED field
+    // is carried — here it isn't, so validation already rejects it. With
+    // name carried it would write and erase the optionals; merge is the
+    // safe path for partial updates either way.
+    writeRecord("data/portfolio/items", "h1", record("h1", { notes: "keep me" }));
+    const partial = await runJson({ action: "putItems", slug: "portfolio", items: [{ id: "h1", status: "closed" }] });
+    assert.match((partial.rejected as { problem: string }[])[0]?.problem ?? "", /missing required field 'name'/);
+    assert.equal(stored("h1").notes, "keep me");
+  });
+
+  it('mode "merge" rejects an unknown id instead of creating a partial record', async () => {
+    const result = await runJson({ action: "putItems", slug: "portfolio", items: [{ id: "ghost", status: "open" }], mode: "merge" });
+    const [rejectedRow] = result.rejected as { id: string; problem: string }[];
+    assert.match(rejectedRow?.problem ?? "", /not found .* use "upsert" or "create"/);
+    assert.ok(!existsSync(path.join(workdir, "data/portfolio/items/ghost.json")));
+  });
+
+  it('mode "merge" still validates the merged result and rejects computed keys', async () => {
+    writeRecord("data/portfolio/items", "h1", record("h1", { notes: "keep me" }));
+    const badEnum = await runJson({ action: "putItems", slug: "portfolio", items: [{ id: "h1", status: "nope" }], mode: "merge" });
+    assert.match((badEnum.rejected as { problem: string }[])[0]?.problem ?? "", /not one of/);
+    assert.equal(stored("h1").status, "open"); // untouched
+    const computed = await runJson({ action: "putItems", slug: "portfolio", items: [{ id: "h1", value: 1 }], mode: "merge" });
+    assert.match((computed.rejected as { problem: string }[])[0]?.problem ?? "", /'value' is derived/);
   });
 });

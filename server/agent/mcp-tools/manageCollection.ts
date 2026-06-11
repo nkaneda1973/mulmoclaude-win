@@ -49,10 +49,12 @@ interface GetItemsArgs {
   fields?: string[];
 }
 
+type PutMode = "upsert" | "create" | "merge";
+
 interface PutItemsArgs {
   slug: string;
   items: CollectionItem[];
-  mode: "upsert" | "create";
+  mode: PutMode;
 }
 
 function optionalStringArray(value: unknown, name: string): { ok: true; value?: string[] } | { ok: false; error: string } {
@@ -134,10 +136,29 @@ interface RejectedRow {
   problem: string;
 }
 
+/** `mode: "merge"` resolves the row against the EXISTING record —
+ *  a partial row updates just the fields it carries, instead of a
+ *  whole-record upsert silently erasing the optional fields it omits
+ *  (an upsert of `{id, status}` would pass validation yet drop
+ *  `notes`/`lesson`/…). Merge is a partial UPDATE by definition, so a
+ *  missing record is a reject, not an implicit create — a merged-over-
+ *  nothing partial record is exactly the data shape this mode exists
+ *  to prevent. */
+async function mergeWithExisting(
+  collection: LoadedCollection,
+  record: CollectionItem,
+  itemId: string,
+  deps: ManageCollectionDeps,
+): Promise<CollectionItem | string> {
+  const existing = await readItem(collection.dataDir, itemId, { workspaceRoot: deps.workspaceRoot });
+  if (!existing) return `'${itemId}' not found — mode "merge" updates an existing record; use "upsert" or "create" to add it`;
+  return { ...existing, ...record };
+}
+
 async function putOneItem(
   collection: LoadedCollection,
   record: CollectionItem,
-  mode: "upsert" | "create",
+  mode: PutMode,
   deps: ManageCollectionDeps,
 ): Promise<{ written?: string; rejected?: RejectedRow }> {
   const { schema } = collection;
@@ -148,9 +169,15 @@ async function putOneItem(
   if (itemId === null) return reject("(no id)", `record has no '${schema.primaryKey}' value — set it (it doubles as the filename)`);
   const computed = computedKeyProblem(record, schema);
   if (computed) return reject(itemId, computed);
-  const invalid = validateRecordObject(record, itemId, schema);
+  let toWrite = record;
+  if (mode === "merge") {
+    const merged = await mergeWithExisting(collection, record, itemId, deps);
+    if (typeof merged === "string") return reject(itemId, merged);
+    toWrite = merged;
+  }
+  const invalid = validateRecordObject(toWrite, itemId, schema);
   if (invalid) return reject(itemId, invalid);
-  const result = await writeItem(collection.dataDir, itemId, record, { refuseOverwrite: mode === "create", workspaceRoot: deps.workspaceRoot });
+  const result = await writeItem(collection.dataDir, itemId, toWrite, { refuseOverwrite: mode === "create", workspaceRoot: deps.workspaceRoot });
   if (result.kind === "ok") return { written: result.itemId };
   if (result.kind === "invalid-id") return reject(itemId, `'${itemId}' is not a valid record id (letters/digits with - or _ inside, no path characters)`);
   if (result.kind === "conflict") return reject(itemId, `'${itemId}' already exists — mode "create" refuses overwrite; use "upsert" to update it`);
@@ -172,8 +199,10 @@ function parsePutItems(args: Record<string, unknown>, slug: string): PutItemsArg
   const { items, mode } = args;
   const validItems = Array.isArray(items) && items.length > 0 && items.every((entry) => Boolean(entry) && typeof entry === "object" && !Array.isArray(entry));
   if (!validItems) return "manageCollection: `items` is required for putItems — a non-empty array of record objects.";
-  if (mode !== undefined && mode !== "upsert" && mode !== "create") return 'manageCollection: `mode` must be "upsert" (default) or "create".';
-  return { slug, items: items as CollectionItem[], mode: (mode as "upsert" | "create" | undefined) ?? "upsert" };
+  if (mode !== undefined && mode !== "upsert" && mode !== "create" && mode !== "merge") {
+    return 'manageCollection: `mode` must be "upsert" (default), "create", or "merge".';
+  }
+  return { slug, items: items as CollectionItem[], mode: (mode as PutItemsArgs["mode"] | undefined) ?? "upsert" };
 }
 
 export function makeManageCollectionTool(deps: ManageCollectionDeps = {}) {
@@ -204,8 +233,9 @@ export function makeManageCollectionTool(deps: ManageCollectionDeps = {}) {
           },
           mode: {
             type: "string",
-            enum: ["upsert", "create"],
-            description: 'putItems: "upsert" (default) overwrites existing records; "create" rejects rows whose id already exists.',
+            enum: ["upsert", "create", "merge"],
+            description:
+              'putItems: "upsert" (default) replaces existing records WHOLE; "create" rejects rows whose id already exists; "merge" updates only the fields a row carries, keeping the rest of the existing record (rejects unknown ids). Use "merge" when changing a few fields.',
           },
         },
         required: ["action", "slug"],
@@ -220,7 +250,8 @@ export function makeManageCollectionTool(deps: ManageCollectionDeps = {}) {
     prompt:
       "Use `manageCollection` instead of raw Read/Write/Edit when working with a collection's records (raw file I/O stays available as the escape hatch). " +
       "`getItems` is the only way to see computed values — `derived` fields (e.g. a portfolio's value), `toggle` projections, and `embed` records are host-computed and never present in the stored JSON files. On large collections pass `ids` and/or `fields` to keep the result small. " +
-      "`putItems` validates every row against the schema before writing (required fields, enum values, primaryKey = record id) and returns `{ written, rejected }`; fix each rejected row using its `problem` text and retry just those rows. Never include computed fields in a row you write.",
+      "`putItems` validates every row against the schema before writing (required fields, enum values, primaryKey = record id) and returns `{ written, rejected }`; fix each rejected row using its `problem` text and retry just those rows. Never include computed fields in a row you write. " +
+      'To update a few fields of an existing record, use `mode: "merge"` with a partial row ({ id, <changed fields> }) — the default upsert replaces the WHOLE record, so a partial upsert would silently erase every optional field it omits.',
 
     async handler(args: Record<string, unknown>): Promise<string> {
       const action = typeof args.action === "string" ? args.action : "";
