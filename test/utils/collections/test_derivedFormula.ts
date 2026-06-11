@@ -27,6 +27,19 @@ describe("evaluateDerived — literals + arithmetic", () => {
   it("handles parens nested deeply", () => {
     assert.equal(evaluateDerived("((1 + 2) * (3 + 4))", { record: {} }), 21);
   });
+
+  it("scrubs IEEE-754 representation noise from the result", () => {
+    // 100 * 310.85 is exactly 31085 in real math but 31085.000000000004
+    // in float — getItems hands the raw number to the agent, so the
+    // noise must be gone.
+    assert.equal(evaluateDerived("shares * price", { record: { shares: 100, price: 310.85 } }), 31085);
+    assert.equal(evaluateDerived("0.1 + 0.2", { record: {} }), 0.3); // the canonical float-noise case
+  });
+
+  it("preserves genuine decimal precision", () => {
+    assert.equal(evaluateDerived("shares * price", { record: { shares: 100, price: 310.855 } }), 31085.5);
+    assert.equal(evaluateDerived("1 / 3", { record: {} }), 0.333333333333333); // 15 sig digits, not truncated to 2
+  });
 });
 
 describe("evaluateDerived — identifiers", () => {

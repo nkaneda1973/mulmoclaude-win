@@ -67,7 +67,14 @@ export function evaluateDerived(formula: string, ctx: FormulaContext): number | 
     return null;
   }
   const value = evaluate(ast, ctx);
-  return Number.isFinite(value) ? value : null;
+  if (!Number.isFinite(value)) return null;
+  // Scrub IEEE-754 representation noise: 100 * 310.85 is 31085 in real
+  // math but 31085.000000000004 in float, and `manageCollection getItems`
+  // hands this raw number to the agent (the UI rounds via Intl, the LLM
+  // sees the value verbatim). toPrecision(15) collapses the artifact —
+  // 15 sig digits is below JS's ~15-17 noise floor — while leaving
+  // genuine decimals (31085.5, a 0.333… ratio) untouched.
+  return Number(value.toPrecision(15));
 }
 
 // ─── Tokens ────────────────────────────────────────────────
