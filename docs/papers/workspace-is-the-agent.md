@@ -16,17 +16,17 @@ is nothing but files in a workspace, most of them written in DSLs.
 
 ## Abstract
 
-A recurring move in agent design is to name the one artifact that is the source
-of truth. Nakajima's *The Log is the Agent* (arXiv:2605.21997) makes the
-append-only event log primary and derives the working agent from it, buying
-deterministic replay, cheap forking, and end-to-end lineage. MulmoClaude makes a
-different artifact primary: **the workspace**. Its founding philosophy is "the
-workspace is the database; files are the source of truth; Claude is the
-intelligent interface." This paper argues that the philosophy understates its own
-reach. The workspace does not hold only *data*. It holds *code* — roles,
-collection schemas, skills, automations, tool wiring, a linked wiki — almost all
-of it written in domain-specific languages that Claude interprets. Once you see
-that, the right statement is stronger: **the workspace is the agent.**
+MulmoClaude's founding philosophy is *the workspace is the database; files are
+the source of truth; Claude is the intelligent interface.* Its long-term memory
+follows Andrej Karpathy's *LLM Knowledge Bases* idea — rather than a flat
+`memory.md`, the agent builds and maintains its own interconnected wiki, an
+artifact it authors and curates itself. This paper argues that the philosophy,
+and that lineage, understate their own reach. The workspace does not hold only
+*data*. It holds *code* — roles, collection schemas, skills, automations, tool
+wiring — almost all of it written in domain-specific languages that Claude
+interprets. Once the artifact the agent maintains includes its own *behavior*,
+the right statement is stronger: **the workspace is the agent**, and an agent
+that authors its own workspace is **self-improving**.
 
 The consequence is that the boundary between "the agent" and "the applications
 the agent builds for its user" dissolves. A collection skill — a todo list, a
@@ -79,38 +79,44 @@ That is why the sharper claim is **the workspace is the agent.** The workspace i
 not where the agent keeps its data. The workspace *is* the agent, of which data
 is one part.
 
-### 1.1 Relationship to "The Log is the Agent"
+### 1.1 Lineage: from self-maintained memory to self-improvement
 
-Nakajima's event-sourced design and MulmoClaude's workspace design both answer
-the question "what single artifact is primary?" — and they answer it
-differently, with different payoffs.
+The direct ancestor of this design is Andrej Karpathy's *LLM Knowledge Bases*
+idea: rather than cramming everything into the context window or a flat
+`memory.md`, let the LLM build and maintain its own **wiki** — a growing,
+interconnected set of files that serves as genuine long-term memory. MulmoClaude
+ships exactly that: a wiki the agent writes, links, and lints itself. The
+principle Karpathy named is the one this paper builds on — *the agent maintains
+its own artifact.* The files are the agent's own, authored and curated by it, not
+handed to it from outside.
 
-| | *The Log is the Agent* | *The Workspace is the Agent* |
-|---|---|---|
-| Primary artifact | append-only event log | the workspace (files) |
-| What it captures | full execution **history** | current **configuration + state** |
-| Behavior is… | **derived** by replaying the log | **authored** as DSL code, then interpreted |
-| Fork | replay shared prefix, branch | `cp -r workspace/` — code *and* memory at once |
-| Replay | deterministic re-execution (pinned model calls) | re-instantiate a prior *configuration*, not a *run* |
-| Audit / lineage | the log itself | `git log` / `git blame` over the workspace |
-| Optimized for | **auditing past executions** | **forking and evolving living agents** |
+This paper takes that principle one step past memory. Karpathy's wiki is
+self-maintained **data** (unstructured knowledge); collections already extend it
+to self-maintained **structured** data. The observation here is that the same
+workspace also holds self-maintained **code** — schemas, skills, roles,
+automations (§1). So the agent does not merely curate its own *knowledge*; it
+builds and refines its own *applications*. The instant the artifact the agent
+maintains includes its own behavior, "self-maintaining" becomes
+**self-improving** — and that turn is the whole subject of this paper.
 
-The crucial divergence is the replay row. The log model buys *execution* replay
-by recording every model call; you can re-run exactly what happened. The
-workspace model does not capture that, and largely does not want to. Its unit of
-reproducibility is the **agent as a configuration**, not the **run as a
-trace**. You cannot byte-for-byte replay yesterday's conversation, because the
-LLM step is nondeterministic — but you can reconstruct precisely *what the agent
-was* (its roles, schemas, skills, memory) at any point, and fork it to diverge
-from there. For an assistant whose value is an accumulating, personalized set of
-capabilities, forking the *program* matters far more than replaying the *trace*.
+It is worth saying why that turn matters so much. An agent that only accumulates
+facts gets *better-informed*; an agent that can author and refine the
+applications it runs gets *more capable* — and capable in a direction shaped by
+one particular user (§4). This kind of self-improvement **compounds**: each app
+the agent crystallizes makes the next interaction faster and more reliable, and
+the workspace grows into a personal capability surface that no general model
+update can reproduce. That is a more consequential property than any single
+feature, which is why the rest of the paper is about the loop that produces it
+(§4), the boundary that keeps it reliable (§5), and the discipline it demands
+(§6).
 
-The two views are complementary rather than rival. A git-backed workspace
-recovers much of what the log model celebrates — `checkout` is configuration
-replay, `branch` is fork, `blame` is lineage — without a bespoke event-sourcing
-runtime. What it cannot recover is execution determinism, and that is the right
-thing to give up here. The rest of this paper develops the workspace view on its
-own terms, because its most interesting consequence has nothing to do with logs.
+> A note on what this design gives up. Other work names a different primary
+> artifact — Nakajima's *The Log is the Agent* (arXiv:2605.21997) makes the
+> event log primary to get deterministic execution replay. The workspace view
+> deliberately forgoes byte-for-byte run replay (the LLM step is
+> nondeterministic) in exchange for an agent you can read, fork, and evolve as
+> plain files. The two optimize for different things; this paper pursues the
+> second.
 
 ---
 
@@ -374,7 +380,7 @@ engineering fall out of the file system:
   they are the same files.
 - **Versioning an agent is `git`.** A git-backed workspace gives configuration
   replay (`checkout`), branching (`branch`), and self-edit lineage (`blame`) —
-  the workspace-level analogues of the log model's properties (§1.1).
+  audit and rollback for the agent's edits to itself, with no bespoke runtime.
 - **Portability is trivial.** The agent is just files. No runtime state is locked
   inside a process; nothing is stranded in a database server. Move the directory,
   move the agent.
@@ -426,6 +432,8 @@ agent, and building software is how the agent grows.**
   derived fields, actions.
 - [`extension-mechanisms.md`](../extension-mechanisms.md) — the seven extension
   paths the host exposes to Claude, and how to choose among them.
-- Nakajima, *The Log is the Agent: Event-Sourced Reactive Graphs for Auditable,
-  Forkable Agentic Systems*, arXiv:2605.21997 — the event-sourced counterpoint
-  discussed in §1.1.
+- Karpathy, [*LLM Knowledge Bases*](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f)
+  — the self-maintained-wiki idea this paper extends from memory to applications
+  (§1.1).
+- Nakajima, *The Log is the Agent*, arXiv:2605.21997 — names a different primary
+  artifact (the event log); briefly contrasted in §1.1.
