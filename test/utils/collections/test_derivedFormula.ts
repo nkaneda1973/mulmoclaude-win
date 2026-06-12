@@ -28,25 +28,29 @@ describe("evaluateDerived — literals + arithmetic", () => {
     assert.equal(evaluateDerived("((1 + 2) * (3 + 4))", { record: {} }), 21);
   });
 
-  it("scrubs IEEE-754 representation noise from the result", () => {
+  it("snaps a near-integer result back to the integer", () => {
     // 100 * 310.85 is exactly 31085 in real math but 31085.000000000004
     // in float — getItems hands the raw number to the agent, so the
-    // noise must be gone.
+    // whole-unit noise must be gone.
     assert.equal(evaluateDerived("shares * price", { record: { shares: 100, price: 310.85 } }), 31085);
-    assert.equal(evaluateDerived("0.1 + 0.2", { record: {} }), 0.3); // the canonical float-noise case
+    assert.equal(evaluateDerived("a * b", { record: { a: -100, b: 310.85 } }), -31085); // negatives too
   });
 
-  it("preserves genuine decimal precision", () => {
+  it("preserves genuine fractional precision (no blanket rounding)", () => {
     assert.equal(evaluateDerived("shares * price", { record: { shares: 100, price: 310.855 } }), 31085.5);
-    assert.equal(evaluateDerived("1 / 3", { record: {} }), 0.333333333333333); // 15 sig digits, not truncated to 2
+    assert.equal(evaluateDerived("1 / 3", { record: {} }), 1 / 3); // full precision, not truncated
+    // Sub-unit float noise is left faithful — scrubbing it would mean
+    // rounding real fractional data, which the display layer owns.
+    assert.equal(evaluateDerived("0.1 + 0.2", { record: {} }), 0.1 + 0.2);
   });
 
-  it("preserves exact integers beyond 15 significant digits", () => {
-    // toPrecision(15) would round these 16-digit safe integers — they
-    // are real data, not float noise (which is never integral), so the
-    // integer gate must pass them through verbatim.
-    assert.equal(evaluateDerived("n", { record: { n: 9007199254740991 } }), 9007199254740991); // MAX_SAFE_INTEGER
+  it("never corrupts large or high-precision values (noise ≠ signal at the 16th digit)", () => {
+    // A blanket precision pass would mangle these; the integer-snap is
+    // narrow enough to leave every one untouched.
+    assert.equal(evaluateDerived("n", { record: { n: 9007199254740991 } }), 9007199254740991); // MAX_SAFE_INTEGER (already integral)
     assert.equal(evaluateDerived("n", { record: { n: 1000000000000001 } }), 1000000000000001);
+    assert.equal(evaluateDerived("n", { record: { n: 99999999999999.98 } }), 99999999999999.98); // .98 is >1e-6 from the integer
+    assert.equal(evaluateDerived("n", { record: { n: 0.1234567890123456 } }), 0.1234567890123456);
   });
 });
 

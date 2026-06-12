@@ -68,19 +68,24 @@ export function evaluateDerived(formula: string, ctx: FormulaContext): number | 
   }
   const value = evaluate(ast, ctx);
   if (!Number.isFinite(value)) return null;
-  // Scrub IEEE-754 representation noise: 100 * 310.85 is 31085 in real
-  // math but 31085.000000000004 in float, and `manageCollection getItems`
-  // hands this raw number to the agent (the UI rounds via Intl, the LLM
-  // sees the value verbatim). toPrecision(15) collapses the artifact —
-  // 15 sig digits is below JS's ~15-17 noise floor — while leaving
-  // genuine decimals (31085.5, a 0.333… ratio) untouched.
+  // Snap a near-integer result back to the integer: 100 * 310.85 is
+  // 31085 in real math but 31085.000000000004 in float, and
+  // `manageCollection getItems` hands this raw number to the agent (the
+  // UI rounds via Intl; the LLM sees it verbatim).
   //
-  // Exact integers are returned verbatim: a 16-digit safe integer like
-  // 9007199254740991 would otherwise be ROUNDED by toPrecision(15)
-  // (corrupting real data, not noise). Float noise is never integral —
-  // 31085.000000000004 isn't an integer — so the artifact still gets
-  // scrubbed; only legitimate whole numbers skip the pass.
-  return Number.isInteger(value) ? value : Number(value.toPrecision(15));
+  // Deliberately narrow — only a value a hair (1e-6) from a NON-ZERO
+  // integer is snapped. Noise and genuine precision are indistinguishable
+  // at the ~16th digit (31085.000000000004 sits ~1.1 ULP from its
+  // integer; a real 99999999999999.98 sits ~1.3 ULP from its own), so a
+  // blanket precision pass would corrupt legitimate data. Whole-unit
+  // results are the unambiguous case and the one that actually showed up
+  // (integer-valued money). Everything else — 31085.5, a 0.333… ratio,
+  // 0.1234567890123456, a 16-digit safe integer (already integral),
+  // 99999999999999.98 — is returned untouched. Sub-unit fractional noise
+  // is left faithful; rounding real fractional data is the display
+  // layer's call, not the evaluator's.
+  const rounded = Math.round(value);
+  return rounded !== 0 && Math.abs(value - rounded) < 1e-6 ? rounded : value;
 }
 
 // ─── Tokens ────────────────────────────────────────────────
