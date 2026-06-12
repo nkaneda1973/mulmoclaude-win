@@ -74,7 +74,13 @@ export function evaluateDerived(formula: string, ctx: FormulaContext): number | 
   // sees the value verbatim). toPrecision(15) collapses the artifact —
   // 15 sig digits is below JS's ~15-17 noise floor — while leaving
   // genuine decimals (31085.5, a 0.333… ratio) untouched.
-  return Number(value.toPrecision(15));
+  //
+  // Exact integers are returned verbatim: a 16-digit safe integer like
+  // 9007199254740991 would otherwise be ROUNDED by toPrecision(15)
+  // (corrupting real data, not noise). Float noise is never integral —
+  // 31085.000000000004 isn't an integer — so the artifact still gets
+  // scrubbed; only legitimate whole numbers skip the pass.
+  return Number.isInteger(value) ? value : Number(value.toPrecision(15));
 }
 
 // ─── Tokens ────────────────────────────────────────────────

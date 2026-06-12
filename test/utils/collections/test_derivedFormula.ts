@@ -40,6 +40,14 @@ describe("evaluateDerived — literals + arithmetic", () => {
     assert.equal(evaluateDerived("shares * price", { record: { shares: 100, price: 310.855 } }), 31085.5);
     assert.equal(evaluateDerived("1 / 3", { record: {} }), 0.333333333333333); // 15 sig digits, not truncated to 2
   });
+
+  it("preserves exact integers beyond 15 significant digits", () => {
+    // toPrecision(15) would round these 16-digit safe integers — they
+    // are real data, not float noise (which is never integral), so the
+    // integer gate must pass them through verbatim.
+    assert.equal(evaluateDerived("n", { record: { n: 9007199254740991 } }), 9007199254740991); // MAX_SAFE_INTEGER
+    assert.equal(evaluateDerived("n", { record: { n: 1000000000000001 } }), 1000000000000001);
+  });
 });
 
 describe("evaluateDerived — identifiers", () => {
