@@ -7,12 +7,23 @@
 
 import type { SortState } from "./sortItems";
 
-export type CollectionViewMode = "table" | "calendar" | "kanban" | "dashboard";
+/** The host's built-in, field-derived view modes. */
+export type BuiltInViewMode = "table" | "calendar" | "kanban" | "dashboard";
+/** A custom (LLM-authored) view's selector key: `custom:<viewId>`. */
+export type CustomViewMode = `custom:${string}`;
+export type CollectionViewMode = BuiltInViewMode | CustomViewMode;
 
 const STORAGE_KEY = "collection_view_modes";
 const SORT_STORAGE_KEY = "collection_sorts";
 
-const VIEW_MODES: readonly CollectionViewMode[] = ["table", "calendar", "kanban", "dashboard"];
+const BUILT_IN_MODES: readonly BuiltInViewMode[] = ["table", "calendar", "kanban", "dashboard"];
+
+/** A persisted mode is valid if it's a known built-in OR any `custom:<id>`
+ *  key (the id is validated against the live schema at render time, so an
+ *  unknown custom id simply collapses to the table there). */
+function isValidViewMode(value: string): value is CollectionViewMode {
+  return BUILT_IN_MODES.includes(value as BuiltInViewMode) || value.startsWith("custom:");
+}
 
 type ViewModeMap = Record<string, CollectionViewMode>;
 
@@ -31,7 +42,7 @@ function readAll(): ViewModeMap {
 
 export function readCollectionViewMode(slug: string): CollectionViewMode | null {
   const stored = readAll()[slug];
-  return stored && VIEW_MODES.includes(stored) ? stored : null;
+  return stored && isValidViewMode(stored) ? stored : null;
 }
 
 export function writeCollectionViewMode(slug: string, view: CollectionViewMode): void {

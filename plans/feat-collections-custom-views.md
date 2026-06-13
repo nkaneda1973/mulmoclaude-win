@@ -412,9 +412,17 @@ from on day one.
    view-data` reusing the `manageCollection` handler; bearer + CSRF exemptions
    in `server/index.ts`. Unit tests: `test/server/test_viewToken.ts`,
    `test/workspace/collections/test_discovery_views.ts`. Uncommitted.
-2. **Part 5 + Part 7** (render harness + selector "+") — the UI, depends on 1.
-3. **Part 6 + Part 8** (authoring contract + sample views) — the help doc; must
-   land in the same PR as the UI so live help matches shipped behaviour.
+2. ✅ **DONE** — **Part 5 + Part 7** (render harness + selector "+"):
+   `CollectionCustomView.vue` (sandboxed iframe, token mint + view-file fetch +
+   `__MC_VIEW` srcdoc via `src/utils/html/customViewSrcdoc.ts`); `view-file`
+   route; `buildCustomViewCsp` (connect-src = origin); view-data CORS +
+   preflight; selector custom buttons + "+" + dispatch in `CollectionView.vue`;
+   `collectionViewMode` widened to `custom:<id>`; i18n in all 8 locales. Tests:
+   `test/utils/html/test_customViewSrcdoc.ts`.
+3. ✅ **DONE** — **Part 6 + Part 8** (authoring contract + sample views):
+   `server/workspace/helps/custom-view.md` (the `__MC_VIEW` contract, read/write
+   API, sandbox rules, year-overview [read] + weekly-planner [write] samples);
+   `collection-skills.md` + `index.md` pointers; `docs/ui-cheatsheet.md` block.
 4. i18n + cheatsheet + tests, then `yarn format && yarn lint && yarn typecheck
    && yarn build`.
 

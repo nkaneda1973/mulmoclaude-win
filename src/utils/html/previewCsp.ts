@@ -36,9 +36,8 @@ export const HTML_PREVIEW_CSP_ALLOWED_CDNS: readonly string[] = [
  * undefined for the `srcdoc` fallback (where `'self'` is meaningless
  * either way and there are no same-origin refs to resolve).
  */
-export function buildHtmlPreviewCsp(origin?: string, cdns: readonly string[] = HTML_PREVIEW_CSP_ALLOWED_CDNS): string {
+function buildCsp(connectSrc: string, imgSelf: string, cdns: readonly string[]): string {
   const cdnList = cdns.join(" ");
-  const imgSelf = origin ?? "'self'";
   return [
     "default-src 'none'",
     // LLM-authored HTML almost always uses inline <script> blocks
@@ -55,10 +54,28 @@ export function buildHtmlPreviewCsp(origin?: string, cdns: readonly string[] = H
     // blocked. Widen via HTML_PREVIEW_CSP_ALLOWED_CDNS if LLM output
     // legitimately needs more hosts.
     `img-src ${imgSelf} ${cdnList} data: blob:`,
-    // Block XHR / fetch / WebSocket so previews can't phone home or
-    // exfiltrate anything the inline scripts happen to compute.
-    "connect-src 'none'",
+    `connect-src ${connectSrc}`,
   ].join("; ");
+}
+
+export function buildHtmlPreviewCsp(origin?: string, cdns: readonly string[] = HTML_PREVIEW_CSP_ALLOWED_CDNS): string {
+  // Block XHR / fetch / WebSocket so previews can't phone home or
+  // exfiltrate anything the inline scripts happen to compute.
+  return buildCsp("'none'", origin ?? "'self'", cdns);
+}
+
+/**
+ * CSP for a custom collection view (see plans/feat-collections-custom-views.md).
+ * Identical to the preview policy EXCEPT `connect-src` is the explicit server
+ * origin (not `'none'`): a custom view legitimately `fetch()`es its
+ * collection's data endpoint. Constraining `connect-src` to the origin keeps
+ * the anti-exfiltration property — the view reaches its own data endpoint but
+ * no third-party host. `origin` MUST be the explicit server origin (the
+ * sandboxed iframe has an opaque origin, so `'self'` would never match — same
+ * reason `img-src` takes the explicit origin).
+ */
+export function buildCustomViewCsp(origin: string, cdns: readonly string[] = HTML_PREVIEW_CSP_ALLOWED_CDNS): string {
+  return buildCsp(origin, origin, cdns);
 }
 
 /**
