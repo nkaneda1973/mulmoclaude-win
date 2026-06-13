@@ -450,9 +450,9 @@ router.get(API_ROUTES.collections.viewFile, async (req: Request<{ slug: string }
       notFound(res, `custom view '${viewId}' not found on collection '${slug}'`);
       return;
     }
-    // Path-safe read through the collections domain layer (no raw fs / hardcoded
-    // subpaths in the route): staging-only `data/skills/<slug>/views/*.html`.
-    const html = await readCustomViewHtml(slug, view.file);
+    // Path-safe, source-aware read through the collections domain layer (no raw
+    // fs / hardcoded subpaths in the route).
+    const html = await readCustomViewHtml(collection, view.file);
     if (html === null) {
       notFound(res, `view file '${view.file}' not found — author it at data/skills/<slug>/${view.file}`);
       return;

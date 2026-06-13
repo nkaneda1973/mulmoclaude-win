@@ -13,6 +13,7 @@
       v-else-if="srcdoc"
       :key="view.id"
       data-testid="collection-custom-view-iframe"
+      :title="view.label"
       :srcdoc="srcdoc"
       sandbox="allow-scripts"
       class="w-full h-full border-0"
