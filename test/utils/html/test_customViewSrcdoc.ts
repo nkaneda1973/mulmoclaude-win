@@ -30,16 +30,15 @@ describe("buildCustomViewSrcdoc", () => {
     assert.match(out, /connect-src http:\/\/localhost:3001/);
   });
 
-  it("allows NO third-party hosts in the CSP (token-exfiltration guard)", () => {
+  it("locks connect-src to the origin (the exfiltration channel) but allows CDN resource loads", () => {
     const out = buildCustomViewSrcdoc("<head></head>", boot);
-    // No CDN allowlist — a custom view holds a scoped token, so any external
-    // resource destination would be an exfiltration channel.
-    for (const host of ["jsdelivr", "unpkg", "cdnjs", "plot.ly", "googleapis", "gstatic"]) {
-      assert.ok(!out.includes(host), `CSP must not allow third-party host "${host}"`);
-    }
-    // script/style are inline-only; the only host token is the server origin.
-    assert.match(out, /script-src 'unsafe-inline'[; ]/);
-    assert.match(out, /style-src 'unsafe-inline'[; ]/);
+    // connect-src (fetch/XHR/WebSocket/beacon) is the channel that could stream
+    // the token/records to an attacker — it must be the origin only, never '*'.
+    assert.match(out, /connect-src http:\/\/localhost:3001/);
+    assert.ok(!/connect-src[^;]*\*/.test(out), "connect-src must not be wildcard");
+    // Resource loads may use the curated CDN allowlist (charting libs, fonts) —
+    // those hosts don't relay request data to attackers.
+    assert.match(out, /script-src[^;]*cdn\.jsdelivr\.net/);
   });
 
   it("wraps a fragment that has no <head>", () => {

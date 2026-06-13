@@ -99,20 +99,19 @@ silently.
 
 ## Sandbox rules (what the view may and may not do)
 
-The view runs in a `sandbox="allow-scripts"` iframe with a strict CSP. Because
-the view is handed a scoped token, the policy allows **no third-party hosts at
-all** (any external URL could carry the token out in its query string) — so a
-custom view must be **fully self-contained**:
+The view runs in a `sandbox="allow-scripts"` iframe with a strict CSP:
 
-- **Inline `<script>` and `<style>` only.** No external scripts, styles, or web
-  fonts (no CDNs). If you need a charting routine, write it inline or draw on a
-  `<canvas>`; use system fonts (`font-family: system-ui, sans-serif`).
-- **Images** must be same-origin (a workspace path) or inline `data:` / `blob:`
-  URLs. No external images.
-- **`fetch` is allowed ONLY to `window.__MC_VIEW.dataUrl`.** All other origins
-  are blocked — no phone-home, no third-party analytics, no fetching weather /
-  prices / etc. directly from the view. If the user needs external data, put it
-  in a (feed) collection and read it through `dataUrl`.
+- **Inline `<script>` and `<style>` only.** External scripts/styles/fonts must
+  come from the allowed CDNs: `cdn.jsdelivr.net`, `unpkg.com`,
+  `cdnjs.cloudflare.com`, `fonts.googleapis.com`, `fonts.gstatic.com`,
+  `cdn.plot.ly` — so charting libraries (Chart.js, Plotly, D3) load fine from
+  those CDNs. No other external hosts.
+- **`fetch` (and XHR / WebSocket / `sendBeacon`) is allowed ONLY to
+  `window.__MC_VIEW.dataUrl`'s origin.** All other origins are blocked — no
+  phone-home, no third-party analytics, no fetching weather / prices / etc.
+  directly from the view. If the user needs external data, put it in a (feed)
+  collection and read it through `dataUrl`. (This is the channel that actually
+  matters for keeping the scoped token and records from leaking off-box.)
 - No access to cookies, `localStorage`, or the parent page — the iframe has an
   opaque origin. The token is the only credential, and it is scoped to this one
   collection.
