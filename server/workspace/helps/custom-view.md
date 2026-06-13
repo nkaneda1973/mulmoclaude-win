@@ -124,6 +124,12 @@ The view runs in a `sandbox="allow-scripts"` iframe with a strict CSP:
 - No access to cookies, `localStorage`, or the parent page — the iframe has an
   opaque origin. The token is the only credential, and it is scoped to this one
   collection.
+- **Opening external links is allowed** — use `<a href="…" target="_blank"
+  rel="noopener">` (or `window.open(url, "_blank")`) to open a record's URL in a
+  new browser tab, e.g. a feed card linking to its article. The link opens as a
+  normal tab. (A plain same-tab `<a href>` would try to navigate the sandboxed
+  frame itself and is blocked, so always use `target="_blank"` for outbound
+  links.)
 - Build a full HTML document with a `<head>` (the host injects its bootstrap at
   the start of `<head>`).
 
