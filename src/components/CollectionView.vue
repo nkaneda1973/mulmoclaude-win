@@ -144,7 +144,7 @@
              the schema has a `date` field, kanban only with an `enum` field;
              local UI state, never persisted. -->
         <div
-          v-if="hasCalendar || hasKanban || hasDashboard || hasCustomViews || canAddCustomView"
+          v-if="hasCalendar || hasKanban || hasCustomViews || canAddCustomView"
           class="flex gap-0.5"
           role="group"
           :aria-label="t('collectionsView.viewToggle')"
@@ -184,18 +184,6 @@
             <span class="material-icons text-sm">view_kanban</span>
             <span>{{ t("collectionsView.viewKanban") }}</span>
           </button>
-          <button
-            v-if="hasDashboard"
-            type="button"
-            class="h-8 px-2.5 flex items-center gap-1 rounded text-xs font-bold transition-colors"
-            :class="activeView === 'dashboard' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'"
-            :aria-pressed="activeView === 'dashboard'"
-            data-testid="collection-view-toggle-dashboard"
-            @click="setView('dashboard')"
-          >
-            <span class="material-icons text-sm">dashboard</span>
-            <span>{{ t("collectionsView.viewDashboard") }}</span>
-          </button>
           <!-- Custom (LLM-authored) views declared on the schema. -->
           <button
             v-for="cv in customViews"
@@ -234,10 +222,9 @@
         >
           <option v-for="key in dateFields" :key="key" :value="key">{{ collection?.schema.fields[key]?.label ?? key }}</option>
         </select>
-        <!-- Which enum field groups the board / drives the dashboard (only
-             when >1 enum field). -->
+        <!-- Which enum field groups the board (only when >1 enum field). -->
         <select
-          v-if="(kanbanActive || dashboardActive) && enumFields.length > 1"
+          v-if="kanbanActive && enumFields.length > 1"
           :value="kanbanGroupField"
           class="h-8 px-2 rounded border border-slate-200 bg-white text-xs font-semibold text-slate-600 focus:outline-none focus:border-indigo-500 cursor-pointer"
           :aria-label="t('collectionsView.kanbanFieldLabel')"
@@ -389,19 +376,6 @@
             @move="onKanbanMove"
           />
         </div>
-      </div>
-
-      <!-- Dashboard body: a read-only snapshot for enum-bearing collections —
-           stat cards by status, a notifyWhen-driven alert box, and an openable
-           item list. Editing still happens via the table/detail panel. -->
-      <div v-else-if="dashboardActive" class="p-4 flex flex-col gap-4">
-        <CollectionDashboardView
-          :schema="collection.schema"
-          :items="filteredItems"
-          :group-field="kanbanGroupField"
-          :selected="viewing ? String(viewing[collection.schema.primaryKey] ?? '') : undefined"
-          @select="onCalendarSelect"
-        />
       </div>
 
       <!-- Custom (LLM-authored) HTML view, rendered in a sandboxed iframe over
@@ -620,7 +594,7 @@
     </div>
 
     <!-- Shared record modal — the single open/edit surface for every view
-         mode (table / kanban / dashboard) and the calendar's undated tray.
+         mode (table / kanban) and the calendar's undated tray.
          Calendar's DATED records keep their day-view modal (which embeds the
          same panel on its right), so this is suppressed while that's open. -->
     <CollectionRecordModal v-if="collection && (viewing || editing) && !(calendarActive && openDay)" @close="closeRecordModal">
@@ -732,7 +706,6 @@ import PinToggle from "./PinToggle.vue";
 import CollectionRecordPanel from "./CollectionRecordPanel.vue";
 import CollectionRecordModal from "./CollectionRecordModal.vue";
 import CollectionCalendarView from "./CollectionCalendarView.vue";
-import CollectionDashboardView from "./CollectionDashboardView.vue";
 import CollectionDayView from "./CollectionDayView.vue";
 import CollectionKanbanView from "./CollectionKanbanView.vue";
 import CollectionCustomView from "./CollectionCustomView.vue";
@@ -1439,10 +1412,6 @@ const enumFields = computed<string[]>(() =>
 /** Whether the kanban toggle is offered (needs an `enum` field to group on). */
 const hasKanban = computed<boolean>(() => enumFields.value.length > 0);
 
-/** Whether the dashboard toggle is offered. Like the kanban, the dashboard
- *  groups + colours records by an `enum` field, so it needs one to exist. */
-const hasDashboard = computed<boolean>(() => enumFields.value.length > 0);
-
 /** The effective view, collapsing any stale mode whose enabling field
  *  vanished (e.g. `view = "kanban"` after switching to an enum-less
  *  collection) back to "table". Single source of truth for the toggle and
@@ -1454,7 +1423,6 @@ const hasCustomViews = computed<boolean>(() => customViews.value.length > 0);
 const activeView = computed<CollectionViewMode>(() => {
   if (view.value === "calendar" && hasCalendar.value) return "calendar";
   if (view.value === "kanban" && hasKanban.value) return "kanban";
-  if (view.value === "dashboard" && hasDashboard.value) return "dashboard";
   if (view.value.startsWith("custom:")) {
     const viewId = view.value.slice("custom:".length);
     if (customViews.value.some((entry) => entry.id === viewId)) return view.value;
@@ -1473,7 +1441,7 @@ const activeCustomView = computed<CustomViewSpec | null>(() => {
 /** Narrow a (possibly custom) mode to a built-in one, used where only the
  *  built-in views are representable (the embedded card's viewState). */
 function builtInViewOrTable(mode: CollectionViewMode): BuiltInViewMode {
-  return mode === "calendar" || mode === "kanban" || mode === "dashboard" ? mode : "table";
+  return mode === "calendar" || mode === "kanban" ? mode : "table";
 }
 
 /** Whether to offer the "+" (author a new custom view) button. Standalone
@@ -1500,9 +1468,6 @@ const calendarActive = computed<boolean>(() => activeView.value === "calendar");
 
 /** True when the kanban is the active body. */
 const kanbanActive = computed<boolean>(() => activeView.value === "kanban");
-
-/** True when the dashboard is the active body. */
-const dashboardActive = computed<boolean>(() => activeView.value === "dashboard");
 
 // In-view override for which enum field groups the board; null ⇒ the schema
 // hint, else the first enum field.
