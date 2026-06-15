@@ -20,6 +20,17 @@
 name: PR triage (non-maintainer guard)
 
 on:
+  # zizmor: ignore[dangerous-triggers]
+  # `pull_request_target` is needed so forked PRs get a write-scoped
+  # GITHUB_TOKEN (we must comment + close them). The two usual abuse
+  # paths for this trigger don't apply here:
+  #   1. We never `actions/checkout` the PR's code, so no attacker
+  #      script ever runs with elevated permissions.
+  #   2. PR-controlled fields (author login, additions count) reach
+  #      the shell only through `env:` bindings and are referenced as
+  #      `${VAR}` (quoted) inside bash. There is no `${{ github.event.
+  #      pull_request.* }}` template substitution into the shell body,
+  #      so zizmor's template-injection vector is closed.
   pull_request_target:
     types: [opened, reopened, synchronize]
     branches: [main]
