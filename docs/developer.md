@@ -33,7 +33,7 @@ A direct pull request is welcome for:
 
 - Typos, copy fixes, documentation tweaks
 - Dependency version bumps
-- Single-file bug fixes with an obvious root cause and a matching test, **under 10 lines of diff (additions + deletions)**
+- Single-file bug fixes with an obvious root cause and a matching test, **10 lines of diff or fewer (additions + deletions, inclusive)**
 - Anything a maintainer or a continuous integration bot explicitly asks for in a review comment
 
 Anything larger than that should start as an issue. If you are not sure, opening an issue first is always cheaper than writing a pull request that will not be accepted. Thanks for understanding.
