@@ -9,6 +9,11 @@ import type { Component } from "vue";
 import type { PluginRegistration, ToolPlugin } from "../../tools/types";
 import type { ToolResult } from "gui-chat-protocol";
 import { View, Preview, TOOL_DEFINITION, TOOL_NAME, type MarkdownToolData } from "@mulmoclaude/markdown-plugin/vue";
+// The package's component scoped styles (incl. the flex/overflow layout
+// that makes the document scrollable) are compiled into a standalone
+// stylesheet; Vite lib mode does NOT auto-inject it, so the consumer
+// must import it — same as @mulmoclaude/form-plugin (task #6).
+import "@mulmoclaude/markdown-plugin/style.css";
 import { pluginEndpoints } from "../api";
 import { wrapWithScope } from "../scope";
 import { apiCall } from "../../utils/api";
