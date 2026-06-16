@@ -41,15 +41,16 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
-import { usePdfDownload } from "../../composables/usePdfDownload";
+import { useRuntime } from "gui-chat-protocol/vue";
+import { usePdfExport } from "./usePdfExport";
+import type { MarpThemeEntry } from "./contract";
 import { errorMessage } from "../../utils/errors";
 import { rewriteMarkdownImageRefs } from "../../utils/image/rewriteMarkdownImageRefs";
 import { applyCustomMarpSize } from "../../utils/markdown/marpCustomSize";
-import { apiGet } from "../../utils/api";
-import { pluginEndpoints } from "../api";
 import { MARP_HTML_ALLOWLIST } from "../../utils/markdown/marpTheme";
 
 const { t } = useI18n();
+const { dispatch } = useRuntime();
 
 const props = defineProps<{
   markdown: string;
@@ -78,7 +79,7 @@ const slideWidth = ref(DEFAULT_SLIDE_WIDTH);
 const slideHeight = ref(DEFAULT_SLIDE_HEIGHT);
 const renderError = ref<string | null>(null);
 
-const { pdfDownloading, pdfError, downloadPdf } = usePdfDownload();
+const { pdfDownloading, pdfError, downloadPdf } = usePdfExport();
 
 const nativeIframeWidth = computed(() => slideWidth.value + BODY_PADDING_PX * 2);
 
@@ -165,19 +166,12 @@ function resetRenderState(): void {
   slideHeight.value = DEFAULT_SLIDE_HEIGHT;
 }
 
-interface MarpThemeEntry {
-  readonly name: string;
-  readonly css: string;
-}
-
-const marpThemesEndpoints = pluginEndpoints<{ list: string }>("marpThemes");
-
 // Cache the workspace's Marp themes so we don't re-fetch on every
 // keystroke. Fetched lazily on first render; a theme edit requires a
 // manual reload until follow-up work wires pubsub invalidation.
 // **Successful** responses are cached, including an empty list (=
 // user has no themes — confirmed by the server, not just guessed).
-// Failed fetches (network blip, server temporarily down) leave the
+// Failed dispatches (network blip, server temporarily down) leave the
 // cache null so the next render retries — caching `[]` on failure
 // would silently disable themes for the rest of the session
 // (CodeRabbit #1653 review).
@@ -185,10 +179,14 @@ let cachedThemes: readonly MarpThemeEntry[] | null = null;
 
 async function loadMarpThemes(): Promise<readonly MarpThemeEntry[]> {
   if (cachedThemes !== null) return cachedThemes;
-  const result = await apiGet<readonly MarpThemeEntry[]>(marpThemesEndpoints.list);
-  if (!result.ok || !Array.isArray(result.data)) return [];
-  cachedThemes = result.data;
-  return cachedThemes;
+  try {
+    const { themes } = await dispatch<{ themes: MarpThemeEntry[] }>({ kind: "marpThemes" });
+    if (!Array.isArray(themes)) return [];
+    cachedThemes = themes;
+    return cachedThemes;
+  } catch {
+    return [];
+  }
 }
 
 async function prepareMarp(markdown: string): Promise<{ html: string; css: string }> {
@@ -264,7 +262,7 @@ onBeforeUnmount(() => {
 
 async function onExportPdf(): Promise<void> {
   if (!props.markdown) return;
-  await downloadPdf(props.markdown, props.pdfFilename, { marp: true, baseDir: props.baseDir });
+  await downloadPdf({ markdown: props.markdown, filename: props.pdfFilename, marp: true, baseDir: props.baseDir });
 }
 </script>
 

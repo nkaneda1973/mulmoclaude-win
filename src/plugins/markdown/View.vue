@@ -148,16 +148,15 @@
 <script setup lang="ts">
 import { computed, ref, watch, nextTick } from "vue";
 import { useI18n } from "vue-i18n";
+import { useRuntime } from "gui-chat-protocol/vue";
 import { marked } from "marked";
 import { formatScalarField, useMarkdownDoc } from "../../composables/useMarkdownDoc";
 import type { ToolResult } from "gui-chat-protocol";
-import { isFilePath, type MarkdownToolData, type DocumentEndpoints } from "./definition";
+import { isFilePath, type MarkdownToolData } from "./definition";
 import { rewriteMarkdownImageRefs } from "../../utils/image/rewriteMarkdownImageRefs";
 import { findTaskLines, makeTasksInteractive, toggleTaskAt } from "../../utils/markdown/taskList";
-import { usePdfDownload } from "../../composables/usePdfDownload";
-import { apiGet, apiPut } from "../../utils/api";
+import { usePdfExport } from "./usePdfExport";
 import { handleExternalLinkClick } from "../../utils/dom/externalLink";
-import { pluginEndpoints } from "../api";
 import { useClipboardCopy } from "../../composables/useClipboardCopy";
 import { buildPdfFilename } from "../../utils/files/filename";
 import { useAppApi } from "../../composables/useAppApi";
@@ -167,6 +166,7 @@ import MarpView from "./MarpView.vue";
 import MarpSplitEditor from "./MarpSplitEditor.vue";
 
 const { t } = useI18n();
+const { dispatch } = useRuntime();
 
 const props = defineProps<{
   selectedResult: ToolResult<MarkdownToolData>;
@@ -191,9 +191,6 @@ const loadError = ref<string | null>(null);
 const markdownContent = ref("");
 const editableMarkdown = ref("");
 
-const endpoints = pluginEndpoints<DocumentEndpoints>("markdown");
-const filesEndpoints = pluginEndpoints<{ content: string }>("files");
-
 async function fetchMarkdownContent(): Promise<void> {
   loadError.value = null;
   const raw = props.selectedResult.data?.markdown;
@@ -204,19 +201,18 @@ async function fetchMarkdownContent(): Promise<void> {
   }
   if (isFilePath(raw)) {
     loading.value = true;
-    const result = await apiGet<{ content?: string }>(filesEndpoints.content, {
-      path: raw,
-    });
-    if (!result.ok) {
+    try {
+      const { content } = await dispatch<{ content: string }>({ kind: "loadDoc", path: raw });
+      markdownContent.value = content ?? "";
+    } catch (err) {
       // Preserve any previously-loaded content instead of wiping it —
       // the user sees the banner AND whatever they were reading, not
       // a blank canvas. editableMarkdown is left in sync so the editor
       // (if open) doesn't flip between states.
-      loadError.value = result.error;
+      loadError.value = err instanceof Error ? err.message : String(err);
       loading.value = false;
       return;
     }
-    markdownContent.value = result.data.content ?? "";
     loading.value = false;
   } else {
     // Legacy inline content
@@ -410,7 +406,7 @@ async function copyText() {
   await copy(markdownContent.value);
 }
 
-const { pdfDownloading, pdfError, downloadPdf: rawDownloadPdf } = usePdfDownload();
+const { pdfDownloading, pdfError, downloadPdf: rawDownloadPdf } = usePdfExport();
 
 async function downloadPdf() {
   if (!markdownContent.value) return;
@@ -422,7 +418,7 @@ async function downloadPdf() {
     fallback: "document",
     timestampMs: uuid ? appApi.getResultTimestamp(uuid) : undefined,
   });
-  await rawDownloadPdf(markdownContent.value, filename);
+  await rawDownloadPdf({ markdown: markdownContent.value, filename });
 }
 
 async function applyMarkdown() {
@@ -438,20 +434,19 @@ async function applyMarkdown() {
   if (isFilePath(raw)) {
     saving.value = true;
     pendingSelfSaves.value += 1;
-    const result = await apiPut<unknown>(endpoints.update.url, {
-      relativePath: raw,
-      markdown: editableMarkdown.value,
-    });
-    saving.value = false;
-    if (!result.ok) {
+    try {
+      await dispatch({ kind: "saveDoc", path: raw, markdown: editableMarkdown.value });
+    } catch (err) {
       // Roll back the self-save expectation — no pubsub event will
-      // arrive for a failed PUT, so the counter would otherwise stay
+      // arrive for a failed save, so the counter would otherwise stay
       // high and silently absorb the next *remote* write.
       pendingSelfSaves.value = Math.max(0, pendingSelfSaves.value - 1);
       // Store the raw error; the template formats it via t() so locale
       // switches re-render without double-translating.
-      saveError.value = result.error;
+      saveError.value = err instanceof Error ? err.message : String(err);
       return;
+    } finally {
+      saving.value = false;
     }
   }
 
@@ -495,10 +490,14 @@ async function persistTaskMarkdown(relativePath: string, markdown: string): Prom
   if (props.selectedResult.data?.markdown !== relativePath) return;
 
   pendingSelfSaves.value += 1;
-  const result = await apiPut<unknown>(endpoints.update.url, {
-    relativePath,
-    markdown,
-  });
+  let saveOk = true;
+  let saveErrMsg = "";
+  try {
+    await dispatch({ kind: "saveDoc", path: relativePath, markdown });
+  } catch (err) {
+    saveOk = false;
+    saveErrMsg = err instanceof Error ? err.message : String(err);
+  }
 
   // The user may have switched results during the round-trip. Skip
   // every state mutation past this point — the watcher on
@@ -508,12 +507,12 @@ async function persistTaskMarkdown(relativePath: string, markdown: string): Prom
   // user just made there).
   if (props.selectedResult.data?.markdown !== relativePath) return;
 
-  if (!result.ok) {
+  if (!saveOk) {
     // Failed write — no pubsub event will land for it, so roll the
     // self-save counter back to keep the next genuine remote write
     // visible to the fileVersion watcher.
     pendingSelfSaves.value = Math.max(0, pendingSelfSaves.value - 1);
-    saveError.value = result.error;
+    saveError.value = saveErrMsg;
     // Refetch synchronously inside the chain so subsequent queued
     // clicks observe the canonical (server-side) markdown before
     // computing their own toggle. Detaching this with `void` could

@@ -338,6 +338,31 @@ div.marpit > svg > foreignObject > section img:not([data-marp-twemoji]) {
   }
 }
 
+export interface RenderMarkdownPdfOptions {
+  markdown: string;
+  /** Render via Marp (one page per slide) instead of the `marked`
+   *  pipeline. `format` / `stripFrontmatter` are ignored in Marp mode. */
+  marp?: boolean;
+  /** Workspace-relative source dir for resolving relative `<img>` refs. */
+  baseDir?: string;
+  format?: "Letter" | "A4";
+  stripFrontmatter?: boolean;
+}
+
+/** Render markdown (or a Marp deck) to a PDF buffer. The single code
+ *  path behind both `POST /api/pdf/markdown` and the markdown plugin's
+ *  `exportPdf` host capability (`server/plugins/markdown-builtin.ts`),
+ *  so the HTTP route and the plugin dispatch can never drift. */
+export async function renderMarkdownPdf(options: RenderMarkdownPdfOptions): Promise<Buffer> {
+  const { markdown, marp = false, baseDir, format = "Letter", stripFrontmatter = false } = options;
+  if (marp) {
+    return renderMarpPdf(markdown, baseDir);
+  }
+  const source = stripFrontmatter ? parseFrontmatter(markdown).body : markdown;
+  const html = inlineImages(await marked.parse(source), { sourceDir: baseDir });
+  return renderPdf(wrapHtml(html, MARKDOWN_CSS), format);
+}
+
 function sendPdf(res: Response, buffer: Buffer, filename: string): void {
   const safeFilename = filename.endsWith(".pdf") ? filename : `${filename}.pdf`;
   res.setHeader("Content-Type", "application/pdf");
@@ -399,16 +424,8 @@ router.post(API_ROUTES.pdf.markdown, async (req: Request<object, unknown, PdfMar
   }
 
   try {
-    if (marpMode) {
-      log.info("pdf", "marp", { filename, length: markdown.length, baseDir });
-      const buffer = await renderMarpPdf(markdown, baseDir);
-      sendPdf(res, buffer, filename);
-      return;
-    }
-    log.info("pdf", "markdown", { filename, length: markdown.length, baseDir, stripFrontmatter });
-    const source = stripFrontmatter ? parseFrontmatter(markdown).body : markdown;
-    const html = inlineImages(await marked.parse(source), { sourceDir: baseDir });
-    const buffer = await renderPdf(wrapHtml(html, MARKDOWN_CSS), format);
+    log.info("pdf", marpMode ? "marp" : "markdown", { filename, length: markdown.length, baseDir, stripFrontmatter });
+    const buffer = await renderMarkdownPdf({ markdown, marp: marpMode, baseDir, format, stripFrontmatter });
     sendPdf(res, buffer, filename);
   } catch (err) {
     log.error("pdf", "generation failed", { error: String(err) });
