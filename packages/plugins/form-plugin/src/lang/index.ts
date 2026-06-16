@@ -15,7 +15,7 @@ const MESSAGES = { de, en, es, fr, ja, ko, "pt-BR": ptBR, zh } as const;
 type LocaleKey = keyof typeof MESSAGES;
 
 function isSupportedLocale(value: string): value is LocaleKey {
-  return value in MESSAGES;
+  return Object.prototype.hasOwnProperty.call(MESSAGES, value);
 }
 
 // Reactive message table for the active locale. The host provides the locale via

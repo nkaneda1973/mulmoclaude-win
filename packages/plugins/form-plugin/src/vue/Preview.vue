@@ -31,7 +31,7 @@
             clip-rule="evenodd"
           />
         </svg>
-        Submitted
+        {{ t.submitted }}
       </div>
     </div>
   </div>

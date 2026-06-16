@@ -1,6 +1,6 @@
 {
   "name": "@mulmoclaude/form-plugin",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Structured-form input plugin (presentForm) — shared gui-chat-protocol plugin for MulmoClaude and MulmoTerminal.",
   "type": "module",
   "main": "./dist/index.js",
@@ -10,12 +10,14 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "require": "./dist/index.cjs",
+      "default": "./dist/index.js"
     },
     "./vue": {
       "types": "./dist/vue/index.d.ts",
       "import": "./dist/vue.js",
-      "require": "./dist/vue.cjs"
+      "require": "./dist/vue.cjs",
+      "default": "./dist/vue.js"
     },
     "./style.css": "./dist/style.css"
   },
