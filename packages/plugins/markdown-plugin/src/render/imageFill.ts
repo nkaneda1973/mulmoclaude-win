@@ -1,27 +1,34 @@
-// Shared image-placeholder fill (task #6 Phase 4). The LLM is told to
-// emit `![prompt](__too_be_replaced_image_path__)` for embedded images
-// (see definition.ts); this owns the regex + the substitution format so
-// every host stays in lockstep with that contract, while the actual
-// image GENERATION + STORAGE is injected (each host wires its own
-// Gemini + image store / data-URI strategy).
+// Shared image-placeholder fill (task #6 Phase 4). The LLM is told (see
+// definition.ts) to emit embedded images as one of:
+//   - plain:  ![prompt](__too_be_replaced_image_path__)
+//   - Marp:   ![bg right:45%](__too_be_replaced_image_path__ "prompt")
+// i.e. the GENERATION PROMPT is the alt text, UNLESS the alt is taken by a
+// Marp directive — then the prompt lives in the quoted markdown title. This
+// owns the regex + substitution so every host stays in lockstep, while image
+// GENERATION + STORAGE is injected (each host wires Gemini + URL/data-URI).
 
-// Alt text is bounded ({1,1000}) rather than `+` so the regex stays linear on
-// adversarial/uncontrolled markdown (CodeQL polynomial-ReDoS); image prompts are
-// never anywhere near 1000 chars.
-export const IMAGE_PLACEHOLDER = /!\[([^\]]{1,1000})\]\(\/?__too_be_replaced_image_path__\)/g;
+// Groups: 1 = alt text (prompt OR Marp directive), 2 = optional quoted title
+// (the prompt when the alt is a directive). Both bounded ({1,1000}) rather
+// than `+` so the regex stays linear on uncontrolled markdown (CodeQL
+// polynomial-ReDoS).
+export const IMAGE_PLACEHOLDER = /!\[([^\]]{1,1000})\]\(\/?__too_be_replaced_image_path__(?:\s+"([^"]{1,1000})")?\)/g;
 
-/** Build the markdown that replaces one placeholder. `ref` is the
- *  host-resolved image reference (a workspace-rooted URL, a data URI, …)
- *  or null when generation was unavailable/failed — in which case the
- *  alt text is kept as an italic marker so the operator can see what
- *  *would* have been generated. */
-export function buildImagePlaceholderReplacement(prompt: string, ref: string | null): string {
-  if (ref) return `![${prompt}](${ref})`;
-  return `*🖼️ Image: ${prompt}*`;
+/** Build the markdown that replaces one placeholder. `altText` is kept as the
+ *  rendered alt (the prompt for plain images, or the Marp directive for
+ *  directive images). `ref` is the host-resolved image reference (URL / data
+ *  URI) or null when generation was unavailable/failed — in which case an
+ *  italic marker shows `fallbackLabel` (defaults to `altText`; callers pass
+ *  the generation prompt so a Marp directive isn't shown as the label). */
+export function buildImagePlaceholderReplacement(altText: string, ref: string | null, fallbackLabel: string = altText): string {
+  if (ref) return `![${altText}](${ref})`;
+  return `*🖼️ Image: ${fallbackLabel}*`;
 }
 
 export interface ImagePlaceholderResult {
   full: string;
+  /** The rendered alt text (prompt for plain images, directive for Marp). */
+  alt: string;
+  /** The text used to GENERATE the image (the title when present, else alt). */
   prompt: string;
   ref: string | null;
 }
@@ -64,11 +71,13 @@ export async function fillImagePlaceholders(
   if (matches.length === 0) return { markdown, results: [] };
 
   const total = matches.length;
-  const results = await mapWithConcurrency(matches, deps.concurrency ?? 4, async (match, index) => ({
-    full: match[0],
-    prompt: match[1],
-    ref: await deps.resolveImage(match[1], index, total),
-  }));
+  const results = await mapWithConcurrency(matches, deps.concurrency ?? 4, async (match, index) => {
+    const alt = match[1];
+    // Marp directive form puts the prompt in the title (group 2); plain form
+    // uses the alt itself as the prompt.
+    const prompt = match[2] ?? alt;
+    return { full: match[0], alt, prompt, ref: await deps.resolveImage(prompt, index, total) };
+  });
 
   // One ordered pass over the same matches: `String.replace` with the
   // global regex invokes the replacer per match in document order, and
@@ -79,7 +88,9 @@ export async function fillImagePlaceholders(
   let cursor = 0;
   const filled = markdown.replace(IMAGE_PLACEHOLDER, () => {
     const result = results[cursor++];
-    return buildImagePlaceholderReplacement(result.prompt, result.ref);
+    // Keep the alt (prompt for plain, directive for Marp) in the output; the
+    // null-fallback marker shows the generation prompt, not the directive.
+    return buildImagePlaceholderReplacement(result.alt, result.ref, result.prompt);
   });
   return { markdown: filled, results };
 }

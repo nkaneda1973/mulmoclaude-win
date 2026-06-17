@@ -46,7 +46,9 @@ export const TOOL_DEFINITION: ToolDefinition = {
     "- ![bg fit](path)        — background scaled to fit, no crop\n" +
     "- ![fit](path)           — fit-to-content inline\n" +
     "- ![w:600 h:400](path)   — explicit pixel size\n" +
-    "The placeholder URL `__too_be_replaced_image_path__` still applies — the directive goes in the alt-text slot, the placeholder in the URL slot.\n\n" +
+    "For a GENERATED image WITH a directive you must use THREE slots: the directive in the alt-text slot, the placeholder `__too_be_replaced_image_path__` in the URL slot, AND the image prompt in a quoted markdown TITLE right after the URL:\n" +
+    '    ![bg right:45%](__too_be_replaced_image_path__ "A detailed description of the image to generate")\n' +
+    "The title is REQUIRED in this form — the alt slot is taken by the directive, so WITHOUT a title there is no prompt and no image is generated. (Plain non-directive images keep the prompt in the alt slot, as shown earlier.)\n\n" +
     "Aspect: `size: 16:9` (default 1280×720) or `size: 4:3` (960×720) — handled natively by Marp. For other shapes MulmoClaude bridges the directive so vertical / square / custom decks work too:\n" +
     "- `size: 9:16` → 1080×1920 portrait\n" +
     "- `size: 16:10` → 1280×800\n" +

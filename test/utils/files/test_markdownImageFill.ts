@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { buildImagePlaceholderReplacement } from "@mulmoclaude/markdown-plugin";
+import { buildImagePlaceholderReplacement, fillImagePlaceholders } from "@mulmoclaude/markdown-plugin";
 import { IMAGE_PLACEHOLDER } from "../../../server/utils/files/markdown-image-fill.js";
 
 describe("buildImagePlaceholderReplacement", () => {
@@ -93,5 +93,45 @@ describe("IMAGE_PLACEHOLDER regex", () => {
 
   it("does not match if the alt text is missing (empty `[]` not captured)", () => {
     assert.deepEqual(findAll("![](__too_be_replaced_image_path__)"), []);
+  });
+});
+
+describe("fillImagePlaceholders — plain vs Marp directive (title) forms", () => {
+  it("plain: generates from the alt and keeps it as the alt", async () => {
+    const prompts: string[] = [];
+    const { markdown } = await fillImagePlaceholders("![A sunset over Kyoto](__too_be_replaced_image_path__)", {
+      resolveImage: async (prompt) => {
+        prompts.push(prompt);
+        return "https://img/0.png";
+      },
+    });
+    assert.deepEqual(prompts, ["A sunset over Kyoto"]);
+    assert.equal(markdown, "![A sunset over Kyoto](https://img/0.png)");
+  });
+
+  it("Marp: generates from the TITLE and preserves the directive in the alt", async () => {
+    const prompts: string[] = [];
+    const { markdown } = await fillImagePlaceholders('![bg right:45%](__too_be_replaced_image_path__ "A Tokyo skyline at golden hour")', {
+      resolveImage: async (prompt) => {
+        prompts.push(prompt);
+        return "data:image/png;base64,AAA";
+      },
+    });
+    assert.deepEqual(prompts, ["A Tokyo skyline at golden hour"]);
+    assert.equal(markdown, "![bg right:45%](data:image/png;base64,AAA)");
+  });
+
+  it("Marp null fallback shows the prompt (title), not the directive", async () => {
+    const { markdown } = await fillImagePlaceholders('![bg left:45%](__too_be_replaced_image_path__ "A temple in Asakusa")', {
+      resolveImage: async () => null,
+    });
+    assert.equal(markdown, "*🖼️ Image: A temple in Asakusa*");
+  });
+
+  it("handles a mix of plain + Marp placeholders in document order", async () => {
+    const source = ["![plain prompt](__too_be_replaced_image_path__)", '![bg right:45%](__too_be_replaced_image_path__ "marp prompt")'].join("\n\n");
+    let i = 0;
+    const { markdown } = await fillImagePlaceholders(source, { resolveImage: async () => `https://img/${i++}.png` });
+    assert.equal(markdown, ["![plain prompt](https://img/0.png)", "![bg right:45%](https://img/1.png)"].join("\n\n"));
   });
 });
