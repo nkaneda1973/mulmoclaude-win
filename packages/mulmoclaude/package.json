@@ -36,6 +36,7 @@
     "@mulmoclaude/form-plugin": "^0.1.0",
     "@mulmoclaude/markdown-plugin": "^0.1.2",
     "@mulmoclaude/spotify-plugin": "^0.1.0",
+    "@mulmoclaude/x-plugin": "^0.1.0",
     "@receptron/task-scheduler": "^0.1.0",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
