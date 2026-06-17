@@ -737,7 +737,7 @@ import { dateOf, type Ymd } from "../utils/collections/calendarGrid";
 import { useConfirm } from "../composables/useConfirm";
 import { useAppApi } from "../composables/useAppApi";
 import { useShortcuts } from "../composables/useShortcuts";
-import { actionVisible, fieldVisible } from "../utils/collections/actionVisible";
+import { actionVisible, fieldVisible } from "@mulmoclaude/collection-plugin";
 import { resolveEnumColor } from "../utils/collections/enumColors";
 import {
   readCollectionViewMode,

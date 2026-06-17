@@ -41,7 +41,7 @@ import { clear as notifierClear, listAll, publish as notifierPublish, updateForP
 import type { NotifierEntry } from "../../notifier/types.js";
 import { log } from "../../system/logger/index.js";
 import { errorMessage } from "../../utils/errors.js";
-import { whenMatches } from "../../../src/utils/collections/actionVisible.js";
+import { whenMatches } from "@mulmoclaude/collection-plugin";
 import { loadCollection, type DiscoveryOptions } from "./discovery.js";
 import { listItems, readItem, type IoOptions } from "./io.js";
 import { isTriggerDue, maybeSpawnSuccessor } from "./spawn.js";

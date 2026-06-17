@@ -4,7 +4,7 @@
 // implementation. No Vue, no I/O — every function maps a draft + schema
 // to a value, so the omission/validation semantics are unit-testable.
 
-import { fieldVisible } from "./actionVisible";
+import { fieldVisible } from "@mulmoclaude/collection-plugin";
 import type { CollectionItem, CollectionSchema, EditState, FieldSpec, FieldType, TableRowDraft } from "../../components/collectionTypes";
 
 /** A fresh, empty row draft for a `table` field's sub-schema. */

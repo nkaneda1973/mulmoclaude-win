@@ -6,7 +6,7 @@
 // time; this module gives server consumers (manageCollection getItems)
 // the same numbers the user sees on screen.
 
-import { deriveAll, type DeriveRefRecords } from "../../../src/utils/collections/deriveAll.js";
+import { deriveAll, type DeriveRefRecords } from "@mulmoclaude/collection-plugin";
 import { loadCollection, type DiscoveryOptions, type LoadedCollection } from "./discovery.js";
 import { listItems } from "./io.js";
 import type { CollectionFieldSpec, CollectionItem, CollectionSchema } from "./types.js";
