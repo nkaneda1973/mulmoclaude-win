@@ -434,7 +434,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
-import CollectionEmbedView from "./CollectionEmbedView.vue";
+import { CollectionEmbedView } from "@mulmoclaude/collection-plugin/vue";
 import { fieldVisible } from "@mulmoclaude/collection-plugin";
 import { resolveEnumColor } from "../utils/collections/enumColors";
 import { emptyRow } from "../utils/collections/draft";

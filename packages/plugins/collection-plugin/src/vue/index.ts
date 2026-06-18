@@ -15,3 +15,4 @@ import "../style.css";
 export { configureCollectionUi, collectionUi, type CollectionUi } from "./uiContext";
 export { useCollectionRendering, type CollectionRendering } from "./useCollectionRendering";
 export { default as CollectionRecordModal } from "./components/CollectionRecordModal.vue";
+export { default as CollectionEmbedView } from "./components/CollectionEmbedView.vue";
