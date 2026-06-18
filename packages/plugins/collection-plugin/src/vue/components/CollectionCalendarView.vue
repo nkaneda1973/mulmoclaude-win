@@ -96,10 +96,10 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
-import { bucketRecords, buildMonthGrid, ymdKey, daySlice, MINUTES_PER_DAY, type Ymd, type RecordSpan, type DaySlice } from "@mulmoclaude/collection-plugin";
-import { resolveEnumColor, type EnumColorClasses } from "../utils/collections/enumColors";
-import { labelFieldFor, itemIdOf, itemLabelOf } from "@mulmoclaude/collection-plugin";
-import type { CollectionItem, CollectionSchema } from "./collectionTypes";
+import { bucketRecords, buildMonthGrid, ymdKey, daySlice, MINUTES_PER_DAY, type Ymd, type RecordSpan, type DaySlice } from "../../core/calendarGrid";
+import { resolveEnumColor, type EnumColorClasses } from "../../core/enumColors";
+import { labelFieldFor, itemIdOf, itemLabelOf } from "../../core/itemLabel";
+import type { CollectionItem, CollectionSchema } from "../../core/schema";
 
 const props = defineProps<{
   schema: CollectionSchema;

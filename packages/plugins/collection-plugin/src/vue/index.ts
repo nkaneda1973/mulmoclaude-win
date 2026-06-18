@@ -16,3 +16,5 @@ export { configureCollectionUi, collectionUi, type CollectionUi } from "./uiCont
 export { useCollectionRendering, type CollectionRendering } from "./useCollectionRendering";
 export { default as CollectionRecordModal } from "./components/CollectionRecordModal.vue";
 export { default as CollectionEmbedView } from "./components/CollectionEmbedView.vue";
+export { default as CollectionCalendarView } from "./components/CollectionCalendarView.vue";
+export { default as CollectionDayView } from "./components/CollectionDayView.vue";
