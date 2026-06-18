@@ -726,12 +726,15 @@ import { PAGE_ROUTES } from "../router/pageRoutes";
 import { BUILTIN_ROLE_IDS } from "../config/roles";
 import ConfirmModal from "./ConfirmModal.vue";
 import PinToggle from "./PinToggle.vue";
-import CollectionRecordPanel from "./CollectionRecordPanel.vue";
-import CollectionRecordModal from "./CollectionRecordModal.vue";
+import {
+  CollectionRecordModal,
+  CollectionCalendarView,
+  CollectionDayView,
+  CollectionKanbanView,
+  CollectionRecordPanel,
+  useCollectionRendering,
+} from "@mulmoclaude/collection-plugin/vue";
 import CollectionViewConfigModal from "./CollectionViewConfigModal.vue";
-import CollectionCalendarView from "./CollectionCalendarView.vue";
-import CollectionDayView from "./CollectionDayView.vue";
-import CollectionKanbanView from "./CollectionKanbanView.vue";
 import CollectionCustomView from "./CollectionCustomView.vue";
 import {
   dateOf,
@@ -760,7 +763,6 @@ import {
   type CollectionViewMode,
   type BuiltInViewMode,
 } from "../utils/collections/collectionViewMode";
-import { useCollectionRendering } from "../composables/collections/useCollectionRendering";
 import { buildUpdatedRecord, coerceInlineValue, draftToRecord, firstMissingRequiredField, rowFromItem } from "../utils/collections/draft";
 import type {
   CollectionAction,

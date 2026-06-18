@@ -60,8 +60,12 @@
 </template>
 
 <script setup lang="ts">
+// `<router-link>` is a host-provided global (vue-router). MulmoClaude registers
+// it app-wide; a host embedding this card must do the same and own a
+// `/collections/:slug` route. Translation keys (`collectionsView.*`) resolve
+// against the host's vue-i18n instance — the host must define them.
 import { useI18n } from "vue-i18n";
-import type { EmbedView } from "./collectionEmbed";
+import type { EmbedView } from "../../core/uiTypes";
 
 defineProps<{ view: EmbedView; fieldKey: string }>();
 
