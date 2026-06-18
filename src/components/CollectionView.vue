@@ -732,9 +732,9 @@ import {
   CollectionDayView,
   CollectionKanbanView,
   CollectionRecordPanel,
+  CollectionViewConfigModal,
   useCollectionRendering,
 } from "@mulmoclaude/collection-plugin/vue";
-import CollectionViewConfigModal from "./CollectionViewConfigModal.vue";
 import CollectionCustomView from "./CollectionCustomView.vue";
 import {
   dateOf,

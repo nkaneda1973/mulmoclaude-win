@@ -8,16 +8,24 @@ import { configureCollectionUi } from "@mulmoclaude/collection-plugin/vue";
 // in this host's Tailwind content scan, so the classes the collection components
 // use must be loaded explicitly here.
 import "@mulmoclaude/collection-plugin/style.css";
-import { apiGet } from "../../utils/api";
+import { apiDelete, apiGet } from "../../utils/api";
 import { API_ROUTES } from "../../config/apiRoutes";
 import { htmlPreviewUrlFor, svgPreviewUrlFor } from "../useContentDisplay";
 import { isValidFilePath } from "../useFileSelection";
 import { resolveImageSrc } from "../../utils/image/resolve";
+import { useConfirm } from "../useConfirm";
 import type { CollectionDetailResponse } from "../../components/collectionTypes";
+
+const { openConfirm } = useConfirm();
+
+const viewDeleteUrl = (slug: string, viewId: string): string =>
+  API_ROUTES.collections.viewDelete.replace(":slug", encodeURIComponent(slug)).replace(":viewId", encodeURIComponent(viewId));
 
 configureCollectionUi({
   fetchCollectionDetail: (slug) => apiGet<CollectionDetailResponse>(API_ROUTES.collections.detail.replace(":slug", encodeURIComponent(slug))),
   fileAssetUrl: (value) => (isValidFilePath(value) ? (htmlPreviewUrlFor(value) ?? svgPreviewUrlFor(value)) : null),
   fileRoutePath: (value) => (isValidFilePath(value) ? `/files/${value.split("/").map(encodeURIComponent).join("/")}` : null),
   imageSrc: (imageData) => resolveImageSrc(imageData),
+  confirm: (options) => openConfirm(options),
+  deleteView: (slug, viewId) => apiDelete(viewDeleteUrl(slug, viewId)),
 });

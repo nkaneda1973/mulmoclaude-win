@@ -22,3 +22,4 @@ export { default as CollectionCalendarView } from "./components/CollectionCalend
 export { default as CollectionDayView } from "./components/CollectionDayView.vue";
 export { default as CollectionKanbanView } from "./components/CollectionKanbanView.vue";
 export { default as CollectionRecordPanel } from "./components/CollectionRecordPanel.vue";
+export { default as CollectionViewConfigModal } from "./components/CollectionViewConfigModal.vue";

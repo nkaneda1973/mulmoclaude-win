@@ -5,7 +5,7 @@
 // `collectionUi()`. Mirrors the server-side `configureCollectionHost` binding.
 //
 // This grows as more of the View moves into the package (navigation, chat,
-// confirm, …); today it's the two capabilities `useCollectionRendering` needs.
+// confirm, …) as components migrate.
 
 import type { CollectionDetailResponse } from "../core/uiTypes";
 
@@ -13,6 +13,20 @@ import type { CollectionDetailResponse } from "../core/uiTypes";
  *  `ApiResult` (so the host can pass `apiGet` straight through). The view layer
  *  treats `ok: false` as a skip, never throwing on one failed target. */
 export type CollectionFetchResult<T> = { ok: true; data: T } | { ok: false };
+
+/** Result of a host write (delete / create / update / action) — the normalised
+ *  `ApiResult` shape, so the host passes `apiDelete`/`apiPost`/… straight through.
+ *  Carries the host's error string on failure for inline display. */
+export type CollectionMutationResult = { ok: true } | { ok: false; error: string };
+
+/** Options for the host's confirm dialog — structurally matches the host's own
+ *  `ConfirmOptions`, so `confirm` can forward to `useConfirm().openConfirm`. */
+export interface CollectionConfirmOptions {
+  message: string;
+  confirmText?: string;
+  cancelText?: string;
+  variant?: "primary" | "success" | "danger";
+}
 
 export interface CollectionUi {
   /** Fetch a collection's detail (schema + records) by slug — backs ref/embed
@@ -29,6 +43,12 @@ export interface CollectionUi {
   /** Browser `<img src>` for a stored image value (a workspace file path), via
    *  the host's raw-file endpoint. Replaces the host's `resolveImageSrc`. */
   imageSrc: (imageData: string) => string;
+  /** Open the host's confirm dialog; resolves true if confirmed. Replaces
+   *  `useConfirm().openConfirm`. */
+  confirm: (options: CollectionConfirmOptions) => Promise<boolean>;
+  /** Delete a collection's custom view by id. Replaces the host's
+   *  `apiDelete(API_ROUTES.collections.viewDelete)`. */
+  deleteView: (slug: string, viewId: string) => Promise<CollectionMutationResult>;
 }
 
 let current: CollectionUi | null = null;
