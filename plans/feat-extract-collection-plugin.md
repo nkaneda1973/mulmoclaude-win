@@ -59,17 +59,26 @@ barrier); `startChat` + `notifiedSeverities` are deferred to `installCollectionA
 (App.vue setup) because `useAppApi`/`useNotifications` need a component context. App.vue renders the
 global `<ConfirmModal />`; `PinToggle` is injected via `<component :is>`.
 
-### Sequence (each its own green commit)
-1. ✅ done — steps 1, 2a–2e (PR #1725).
+### Sequence (each its own green commit) — on branch `feat/collection-view-move`
+1. ✅ done — steps 1, 2a–2e (PR #1725, merged).
 2. ✅ sub-modals — steps 2f, 2g.
 3. ✅ **`CollectionView`** — steps 2h-prep / 2h / 2h-cleanup. View layer extraction COMPLETE.
-4. Browsable pages (`CollectionsIndexView` + `FeedsView`, the `/collections` & `/feeds` routes) →
-   package + host router wiring. (These render `PinToggle` + a grid of collection cards; they're the
-   index pages CollectionView's `gotoIndex` navigates to.)
-5. Plugin `./vue` entry (a `ToolPlugin` exposing View + Preview + lang, like chart-plugin); shrink
-   the host `presentCollection` adapter to import it; bump to `0.4.0` + publish.
+4. ✅ **Browsable pages** — `CollectionsIndexView` + `FeedsView` moved; added `listCollections` /
+   `listFeeds` / `gotoDetail` / `reconcileShortcuts` / `personalRoleId` to the binding.
+5. ✅ **Self-contained i18n** — the plugin ships its OWN vue-i18n instance + all 8 locales
+   (`collectionsView.*` + duplicated `common.*`); components use `useCollectionI18n()`; the host's
+   dead `collectionsView` block was removed from all 8 locale files. `localeTag()` (via `unref`)
+   feeds the host locale through the binding. The "ToolPlugin like chart" idea was dropped —
+   `presentCollection` is a *built-in* plugin (host-specific registration), not a runtime plugin, and
+   its tool def already lives in the package.
+
+**The extraction is functionally complete: every collection component is importable from
+`@mulmoclaude/collection-plugin/vue`, the plugin owns its i18n, and it uses no host i18n resources.**
+
+Remaining before a release: bump to `0.4.0` + launcher pin → `^0.4.0`, push, open the PR, publish.
 
 ## Publish gate
 The launcher pins `@mulmoclaude/collection-plugin`; bump + republish before each PR/smoke run so the
 clean-install resolves the current content (`0.2.1` in PR #1723, `0.3.0` in PR #1725). The
-CollectionView move (new capabilities, no new export surface) is a minor bump (`0.4.0`).
+CollectionView + index-pages + i18n work (new capabilities, no new export surface beyond the already-
+shipped `./vue`) is a minor bump (`0.4.0`).
