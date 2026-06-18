@@ -9,8 +9,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { deleteCollection } from "../../../server/workspace/collections/delete.js";
-import type { LoadedCollection } from "@mulmoclaude/collection-plugin/server";
+import { deleteCollection, type LoadedCollection } from "@mulmoclaude/collection-plugin/server";
 import type { CollectionSchema, CollectionSource } from "../../../server/workspace/collections/types.js";
 
 let workdir: string;

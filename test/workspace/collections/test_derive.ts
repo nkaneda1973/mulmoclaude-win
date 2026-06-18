@@ -14,8 +14,7 @@ import path from "node:path";
 
 import { ref } from "vue";
 
-import { enrichItems } from "../../../server/workspace/collections/derive.js";
-import { loadCollection, toDetail } from "@mulmoclaude/collection-plugin/server";
+import { enrichItems, loadCollection, toDetail } from "@mulmoclaude/collection-plugin/server";
 import { useCollectionRendering } from "../../../src/composables/collections/useCollectionRendering.js";
 import { deriveAll } from "@mulmoclaude/collection-plugin";
 import type { CollectionDetail, FieldSpec } from "../../../src/components/collectionTypes.js";

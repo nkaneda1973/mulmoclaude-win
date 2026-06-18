@@ -10,8 +10,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { deleteCustomView } from "../../../server/workspace/collections/views.js";
-import type { LoadedCollection } from "@mulmoclaude/collection-plugin/server";
+import { deleteCustomView, type LoadedCollection } from "@mulmoclaude/collection-plugin/server";
 import type { CollectionCustomView, CollectionSchema, CollectionSource } from "../../../server/workspace/collections/types.js";
 
 let workdir: string;
