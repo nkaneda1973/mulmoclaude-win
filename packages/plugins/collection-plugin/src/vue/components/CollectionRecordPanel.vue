@@ -320,9 +320,13 @@
             <a
               v-else-if="field.type === 'ref' && field.to && typeof detailRecord[key] === 'string' && detailRecord[key]"
               :href="cui.recordHref?.(field.to, String(detailRecord[key]))"
+              :tabindex="cui.recordHref?.(field.to, String(detailRecord[key])) ? undefined : 0"
+              role="link"
               class="text-indigo-600 hover:text-indigo-800 font-bold hover:underline"
               :data-testid="`collections-detail-ref-${key}`"
-              @click.exact.prevent="cui.navigateToRecord(field.to, String(detailRecord[key]))"
+              @click="activateRefLink($event, field.to, String(detailRecord[key]))"
+              @keydown.enter="activateRefLink($event, field.to, String(detailRecord[key]))"
+              @keydown.space="activateRefLink($event, field.to, String(detailRecord[key]))"
               >{{ render.refDisplay(field.to, String(detailRecord[key])) }}</a
             >
 
@@ -416,7 +420,7 @@
               :href="render.fileRoutePath(detailRecord[key]) ?? undefined"
               class="text-blue-600 hover:text-blue-800 font-semibold hover:underline break-all"
               :data-testid="`collections-detail-file-${key}`"
-              @click.exact.prevent="cui.navigate?.(render.fileRoutePath(detailRecord[key]) ?? '')"
+              @click="activatePathLink($event, render.fileRoutePath(detailRecord[key]) ?? '')"
               >{{ String(detailRecord[key]) }}</a
             >
 
@@ -441,6 +445,7 @@ import { fieldVisible } from "../../core/actionVisible";
 import { resolveEnumColor } from "../../core/enumColors";
 import { emptyRow } from "../../core/draft";
 import { collectionUi } from "../uiContext";
+import { activateRefLink, activatePathLink } from "../refLink";
 import type { CollectionRendering } from "../useCollectionRendering";
 import type { CollectionAction, CollectionDetail, CollectionItem, CollectionFieldSpec as FieldSpec } from "../../core/schema";
 import type { EditState, TableRowDraft } from "../../core/uiTypes";

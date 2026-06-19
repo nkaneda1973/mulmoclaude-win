@@ -4,9 +4,13 @@
   <a
     v-if="view.found"
     :href="cui.recordHref?.(view.targetSlug, view.recordId)"
+    :tabindex="cui.recordHref?.(view.targetSlug, view.recordId) ? undefined : 0"
+    role="link"
     class="group block relative rounded-xl border border-slate-200 bg-slate-50/50 p-4 pl-5 space-y-3 hover:bg-indigo-50/20 hover:border-indigo-200 transition-all duration-300 shadow-sm"
     :data-testid="`collections-embed-${fieldKey}`"
-    @click.exact.prevent="cui.navigateToRecord(view.targetSlug, view.recordId)"
+    @click="activateRefLink($event, view.targetSlug, view.recordId)"
+    @keydown.enter="activateRefLink($event, view.targetSlug, view.recordId)"
+    @keydown.space="activateRefLink($event, view.targetSlug, view.recordId)"
   >
     <!-- Left Accent Stripe -->
     <div class="absolute left-0 top-0 bottom-0 w-1 bg-indigo-500 rounded-l-xl transition-all duration-300 group-hover:w-1.5 group-hover:bg-indigo-600"></div>
@@ -50,8 +54,12 @@
         <a
           v-if="view.targetSlug"
           :href="cui.recordHref?.(view.targetSlug)"
+          :tabindex="cui.recordHref?.(view.targetSlug) ? undefined : 0"
+          role="link"
           class="inline-flex items-center gap-0.5 text-xs text-indigo-600 hover:text-indigo-800 font-semibold mt-2 hover:underline"
-          @click.exact.prevent="cui.navigateToRecord(view.targetSlug)"
+          @click="activateRefLink($event, view.targetSlug)"
+          @keydown.enter="activateRefLink($event, view.targetSlug)"
+          @keydown.space="activateRefLink($event, view.targetSlug)"
         >
           <span>{{ t("collectionsView.embedCreate") }}</span>
           <span class="material-icons text-xs">arrow_forward</span>
@@ -70,6 +78,7 @@
 // locale via `collectionUi().localeTag()`.
 import { useCollectionI18n } from "../lang";
 import { collectionUi } from "../uiContext";
+import { activateRefLink } from "../refLink";
 import type { EmbedView } from "../../core/uiTypes";
 
 defineProps<{ view: EmbedView; fieldKey: string }>();
