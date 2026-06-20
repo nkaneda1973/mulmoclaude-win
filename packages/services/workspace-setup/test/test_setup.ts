@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { isPresetSlug, helpsAssetDir, presetSkillsAssetDir, seedHelps, syncPresetSkills } from "../src/index.ts";
@@ -32,6 +32,35 @@ test("seedHelps copies the bundled help docs into a fresh workspace", () => {
     const seeded = readdirSync(path.join(wsDir, "helps"));
     const source = readdirSync(helpsAssetDir());
     assert.deepEqual(seeded.sort(), source.sort());
+  } finally {
+    rmSync(wsDir, { recursive: true, force: true });
+  }
+});
+
+test("syncPresetSkills re-sync replaces a slug cleanly (wipe stale siblings) and leaves no staging dirs", () => {
+  const wsDir = mkdtempSync(path.join(tmpdir(), "wsDir-setup-"));
+  try {
+    const src = path.join(wsDir, "src");
+    const dest = path.join(wsDir, "dest");
+    mkdirSync(path.join(src, "mc-demo"), { recursive: true });
+    writeFileSync(path.join(src, "mc-demo", "SKILL.md"), "v1");
+    writeFileSync(path.join(src, "mc-demo", "old.txt"), "stale");
+
+    const first = syncPresetSkills({ sourceDir: src, destDir: dest });
+    assert.deepEqual(first.copied, ["mc-demo"]);
+    assert.equal(readFileSync(path.join(dest, "mc-demo", "SKILL.md"), "utf8"), "v1");
+    assert.ok(existsSync(path.join(dest, "mc-demo", "old.txt")));
+
+    // Next release: drop the stale sibling, bump SKILL.md.
+    rmSync(path.join(src, "mc-demo", "old.txt"));
+    writeFileSync(path.join(src, "mc-demo", "SKILL.md"), "v2");
+    syncPresetSkills({ sourceDir: src, destDir: dest });
+    assert.equal(readFileSync(path.join(dest, "mc-demo", "SKILL.md"), "utf8"), "v2", "contents refreshed");
+    assert.ok(!existsSync(path.join(dest, "mc-demo", "old.txt")), "stale sibling removed (wipe-and-replace)");
+
+    // Stage-and-swap must not leak temp staging dirs into the catalog.
+    const leftovers = readdirSync(dest).filter((name) => name.includes(".tmp-"));
+    assert.deepEqual(leftovers, [], "no staging dirs leaked");
   } finally {
     rmSync(wsDir, { recursive: true, force: true });
   }

@@ -22,6 +22,7 @@
 // against tmpdirs without touching a real workspace.
 
 import { copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, type Dirent } from "node:fs";
+import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { PRESET_SLUG_PREFIX, isPresetSlug } from "./slug.js";
 
@@ -128,8 +129,42 @@ function ensureDestSlugDir(destSlugDir: string): boolean {
   return info.isDirectory();
 }
 
+/** Refresh one preset slot as stage-and-swap: copy the source tree into a
+ *  temp sibling first and replace the live slot only once the copy is
+ *  known-good. Wipe-and-replace (not merge) so stale sibling assets — e.g. a
+ *  schema.json dropped between releases — don't linger; the catalog preset
+ *  slot is launcher-owned, so user edits there are not preserved across boots.
+ *
+ *  The staging step is what makes a transient copy failure non-destructive: if
+ *  `copyDirTreeSync` throws, the existing preset is untouched (only the temp
+ *  dir is cleaned up) instead of being deleted before its replacement exists.
+ *  Throws on failure (caller records + skips). */
+function replaceSlugTree(sourceSlugDir: string, destSlugDir: string): void {
+  const staging = `${destSlugDir}.tmp-${randomUUID()}`;
+  try {
+    copyDirTreeSync(sourceSlugDir, staging);
+  } catch (err) {
+    rmSync(staging, { recursive: true, force: true });
+    throw err;
+  }
+  // Swap: the staged copy is complete, so replacing the live slot is fast
+  // same-volume fs work. On the rare swap failure, clean up staging and
+  // surface the error.
+  try {
+    rmSync(destSlugDir, { recursive: true, force: true });
+    renameSync(staging, destSlugDir);
+  } catch (err) {
+    rmSync(staging, { recursive: true, force: true });
+    throw err;
+  }
+}
+
 function copySourcesIntoDest(sourceDir: string, destDir: string, opts: SyncPresetSkillsOptions, result: SyncPresetSkillsResult): Set<string> {
-  const synced = new Set<string>();
+  // `keep` is the set of slugs the retirement pass must NOT prune. It tracks
+  // valid SOURCE slugs (present + usable dest slot), NOT successful copies — so
+  // a slug whose refresh fails transiently keeps its existing contents (left
+  // intact by the stage-and-swap above) instead of being pruned as "retired".
+  const keep = new Set<string>();
   for (const entry of readdirSync(sourceDir)) {
     const verdict = classifySourceEntry(sourceDir, entry);
     if (!verdict.ok) {
@@ -146,19 +181,15 @@ function copySourcesIntoDest(sourceDir: string, destDir: string, opts: SyncPrese
       opts.onWarn?.("preset entry skipped", { slug: entry, reason, destSlugDir });
       continue;
     }
-    // Wipe-and-replace so stale sibling assets (e.g. a schema.json
-    // dropped between releases) don't linger. The catalog preset
-    // slot is launcher-owned per the file header; user edits here
-    // are not preserved across boots. SKILL.md alone would survive
-    // the legacy single-file copy, but schema-driven apps and
-    // template-bearing skills need the full tree to be authoritative.
+    // The slug exists in source with a usable dest slot — keep it regardless of
+    // whether the refresh below succeeds, so a transient failure doesn't get it
+    // pruned by `removeRetiredPresets`.
+    keep.add(entry);
     // Per-slug isolation: a transient IO error / permission issue / partial
-    // corruption on one preset must not abort syncing the rest. Skip the
-    // offender (recorded for the caller) and continue.
+    // corruption on one preset must not abort syncing the rest, nor destroy
+    // the existing copy. Skip the offender (recorded) and continue.
     try {
-      rmSync(destSlugDir, { recursive: true, force: true });
-      copyDirTreeSync(path.join(sourceDir, entry), destSlugDir);
-      synced.add(entry);
+      replaceSlugTree(path.join(sourceDir, entry), destSlugDir);
       result.copied.push(entry);
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
@@ -166,13 +197,13 @@ function copySourcesIntoDest(sourceDir: string, destDir: string, opts: SyncPrese
       opts.onWarn?.("preset copy failed, skipping", { slug: entry, reason });
     }
   }
-  return synced;
+  return keep;
 }
 
-function removeRetiredPresets(destDir: string, synced: ReadonlySet<string>, opts: SyncPresetSkillsOptions, result: SyncPresetSkillsResult): void {
+function removeRetiredPresets(destDir: string, keep: ReadonlySet<string>, opts: SyncPresetSkillsOptions, result: SyncPresetSkillsResult): void {
   for (const entry of readdirSync(destDir)) {
     if (!isPresetSlug(entry)) continue;
-    if (synced.has(entry)) continue;
+    if (keep.has(entry)) continue;
     const stalePath = path.join(destDir, entry);
     try {
       if (!statSync(stalePath).isDirectory()) continue;
@@ -230,8 +261,8 @@ export function syncPresetSkills(opts: SyncPresetSkillsOptions): SyncPresetSkill
     opts.onWarn?.("preset sync aborted", { destDir: opts.destDir, reason });
     return result;
   }
-  const synced = copySourcesIntoDest(opts.sourceDir, opts.destDir, opts, result);
-  removeRetiredPresets(opts.destDir, synced, opts, result);
+  const keep = copySourcesIntoDest(opts.sourceDir, opts.destDir, opts, result);
+  removeRetiredPresets(opts.destDir, keep, opts, result);
   if (result.copied.length > 0 || result.removed.length > 0) {
     opts.onInfo?.("preset skills synced", {
       copied: result.copied.length,
