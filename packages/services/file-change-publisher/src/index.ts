@@ -71,14 +71,16 @@ export function pluginFileChannel(scope: string, posixPath: string): string {
 export async function publishFileChange(relativePath: string): Promise<void> {
   const cfg = config;
   if (!cfg) return;
-  // `relativePath` comes from the host's write routes. Resolve + contain it
-  // before doing anything: a path that escapes the workspace is dropped
-  // entirely — we neither stat an arbitrary file nor broadcast an
-  // out-of-workspace path to subscribers or host side-effects. Defence-in-
-  // depth, since this is the shared package both hosts use.
-  const root = path.resolve(cfg.workspaceRoot);
-  const absPath = path.resolve(root, relativePath);
-  if (absPath !== root && !absPath.startsWith(root + path.sep)) {
+  // `relativePath` comes from the host's write routes. Contain it before doing
+  // anything: a path that escapes the workspace is dropped entirely — we
+  // neither stat an arbitrary file nor broadcast an out-of-workspace path to
+  // subscribers or host side-effects. Defence-in-depth, since this is the
+  // shared package both hosts use. `root` carries a trailing separator and the
+  // guard is a single `startsWith` early-return — the canonical containment
+  // shape (so the check is unambiguous for both readers and static analysis).
+  const root = path.resolve(cfg.workspaceRoot) + path.sep;
+  const absPath = path.join(root, relativePath);
+  if (!absPath.startsWith(root)) {
     cfg.warn?.("ignoring file-change for path outside workspace", { path: relativePath });
     return;
   }
