@@ -87,9 +87,12 @@ const { version: previewVersion } = useFileWatch(filePath);
 // can serve `artifacts/html/…` at a custom path. Otherwise derive the default
 // `/artifacts/html/…` URL from `filePath` so already-presented results (whose
 // stored data predates `previewUrl`) still render. Relative asset refs resolve
-// against this real URL.
+// against this real URL. Single source for BOTH the iframe render and the print
+// base href, so they stay in lockstep for pre-`previewUrl` artifacts.
+const previewBaseUrl = computed(() => data.value?.previewUrl ?? htmlArtifactPreviewUrl(filePath.value));
+
 const frameSrc = computed(() => {
-  const base = data.value?.previewUrl ?? htmlArtifactPreviewUrl(filePath.value);
+  const base = previewBaseUrl.value;
   if (!base) return null;
   return previewVersion.value > 0 ? `${base}?v=${previewVersion.value}` : base;
 });
@@ -234,7 +237,9 @@ function printableBaseHrefDir(previewUrlValue: string): string {
 }
 
 async function printToPdf() {
-  const url = data.value?.previewUrl;
+  // Same fallback source as `frameSrc` — print must work for legacy results
+  // that have no persisted `previewUrl`, exactly like the iframe render.
+  const url = previewBaseUrl.value;
   if (!url) return;
   const baseHrefDir = printableBaseHrefDir(url);
   const sourceHtml = await fetchSource();
