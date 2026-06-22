@@ -681,6 +681,10 @@ in the collection's view-mode selector.
 - It is sandboxed: inline scripts + a CDN allowlist only, and `fetch` is
   limited to the collection's own data endpoint (no third-party calls).
 - Least privilege: declare `["read"]` unless the view edits records.
+- It can stay **live**: call `window.__MC_VIEW.onChange(reload)` and the view
+  re-fetches whenever the records change — the assistant editing them in chat,
+  another tab, a feed refresh, or an auto-spawned record (like the built-in
+  views). One line; no polling.
 
 The host holds **zero** view-specific code — the view is data, like the rest of
 the collection. Full authoring contract (the `window.__MC_VIEW` shape, the

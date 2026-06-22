@@ -720,7 +720,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from "vue";
+import { computed, nextTick, onUnmounted, ref, watch } from "vue";
 import { useCollectionI18n } from "../lang";
 import CollectionRecordModal from "./CollectionRecordModal.vue";
 import CollectionCalendarView from "./CollectionCalendarView.vue";
@@ -1282,6 +1282,33 @@ async function loadCollection(slug: string): Promise<void> {
     maybeOpenCalendarForSelected();
   }
   maybeAutoRefreshFeed(slug);
+}
+
+/** Refresh records + schema IN PLACE for a live (pub/sub-driven) update,
+ *  preserving the user's browsing state — unlike `loadCollection`, which is the
+ *  route-change path and resets it. Specifically: does NOT null `collection`
+ *  (so the layout and an active custom-view iframe don't remount), keeps
+ *  `searchQuery` / `openDay` / `sortState`, and shows no loading spinner; the
+ *  open detail (`viewing`) is re-resolved against the fresh records by id, so it
+ *  follows an edited record and closes only if the record was deleted. A failed
+ *  fetch is a no-op (keep the current data) — a transient blip shouldn't blank a
+ *  view the user is reading. */
+async function refreshItemsInPlace(slug: string): Promise<void> {
+  const result = await cui.fetchCollectionDetail(slug);
+  // Bail if the fetch failed or the user switched collections mid-flight.
+  if (!result.ok || activeSlug.value !== slug) return;
+  collection.value = result.data.collection;
+  items.value = result.data.items;
+  dataIssues.value = result.data.issues ?? [];
+  enumOriginallyEmpty.value = snapshotEmptyEnums(result.data.collection.schema, result.data.items);
+  await render.loadLinkedCollections(result.data.collection.schema, slug);
+  if (activeSlug.value !== slug) return; // re-check after the await
+  // Keep an open detail modal pointed at the fresh record object (or close it
+  // if the record is now gone) — `viewing` holds a stale reference otherwise.
+  if (viewing.value) {
+    const openId = String(viewing.value[result.data.collection.schema.primaryKey] ?? "");
+    viewing.value = findItemById(openId) ?? null;
+  }
 }
 
 // First-open auto-refresh: when a feed view opens with no records yet
@@ -2041,6 +2068,71 @@ watch(
   },
   { immediate: true },
 );
+
+// ── Live updates ──
+// Refetch when the server reports a record change for the active collection —
+// agent writes (the common case: a record added/updated mid-chat), UI writes
+// from another tab/window, feed refreshes, and host-driven `spawn` successors
+// all ride the host's collection-change channel. `subscribeChanges` is an
+// OPTIONAL host capability: a host without a pub/sub transport omits it and the
+// view simply keeps its existing manual-refresh behaviour.
+//
+// Debounced so a bulk write (N rows) collapses to one refetch, and DEFERRED
+// (not dropped) while an inline/create edit is unsaved so a live refetch never
+// clobbers the user's draft. A change that lands mid-edit sets a pending flag
+// that the `editing` watch below flushes once the edit ends — whether it ends
+// by save or cancel — so a cancelled edit doesn't leave the view stale.
+const LIVE_REFRESH_DEBOUNCE_MS = 150;
+let changeUnsub: (() => void) | null = null;
+let liveRefreshTimer: ReturnType<typeof setTimeout> | undefined;
+let pendingRemoteRefresh = false;
+
+function clearLiveRefreshTimer(): void {
+  if (liveRefreshTimer !== undefined) {
+    clearTimeout(liveRefreshTimer);
+    liveRefreshTimer = undefined;
+  }
+}
+
+function onRemoteChange(slug: string): void {
+  clearLiveRefreshTimer();
+  liveRefreshTimer = setTimeout(() => {
+    liveRefreshTimer = undefined;
+    if (editing.value) {
+      pendingRemoteRefresh = true; // defer past the edit, don't drop it
+      return;
+    }
+    if (activeSlug.value === slug) void refreshItemsInPlace(slug);
+  }, LIVE_REFRESH_DEBOUNCE_MS);
+}
+
+// Flush a remote change that arrived mid-edit once the edit ends (save or
+// cancel). The save path refetches on its own, but cancel has no other refresh
+// path — without this, a cancelled edit would strand the deferred update.
+watch(editing, (current) => {
+  if (current || !pendingRemoteRefresh) return;
+  pendingRemoteRefresh = false;
+  if (activeSlug.value) void refreshItemsInPlace(activeSlug.value);
+});
+
+watch(
+  activeSlug,
+  (slug) => {
+    changeUnsub?.();
+    changeUnsub = null;
+    clearLiveRefreshTimer();
+    if (slug && cui.subscribeChanges) {
+      changeUnsub = cui.subscribeChanges(slug, () => onRemoteChange(slug));
+    }
+  },
+  { immediate: true },
+);
+
+onUnmounted(() => {
+  changeUnsub?.();
+  changeUnsub = null;
+  clearLiveRefreshTimer();
+});
 
 // Embedded mode: report view/anchor changes so the chat card persists them
 // in `viewState` (alongside `selected`). Standalone mode: persist the view
