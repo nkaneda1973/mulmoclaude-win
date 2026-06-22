@@ -375,11 +375,22 @@ function fieldDrivenMapCoversValues(schema: FieldDrivenSchemaView): boolean {
 // resolve an interval, silently halting the recurrence. Hard error, not a warn
 // (see plan §6) — authoring a field-driven spawn without propagating its driver
 // is almost always a mistake.
+//
+// `set` writes a FIXED value, so it must itself be a key of `map` (else the
+// successor is born with an unresolvable driver and `resolveEvery` skips it —
+// the exact silent-halt §4.5 exists to prevent). `carry` copies the source's
+// own value, which — for a record that matched the spawn — is one of the
+// enum's values, all of which `map` covers by §4.2; so a carried driver is
+// always resolvable and needs no value check here.
 function fieldDrivenFromFieldCarried(schema: FieldDrivenSchemaView): boolean {
   const driven = fieldDrivenSpawnEvery(schema);
   if (!driven) return true;
   const { carry, set } = schema.spawn ?? {};
-  if (set && Object.prototype.hasOwnProperty.call(set, driven.fromField)) return true;
+  if (set && Object.prototype.hasOwnProperty.call(set, driven.fromField)) {
+    const raw = set[driven.fromField];
+    if (raw === undefined || raw === null || raw === "") return false;
+    return Object.prototype.hasOwnProperty.call(driven.map, String(raw));
+  }
   return (carry ?? []).includes(driven.fromField);
 }
 
@@ -598,7 +609,8 @@ export const CollectionSchemaZ = z
   // onto the successor, or the next spawn in the chain can't resolve an
   // interval and the recurrence silently halts.
   .refine((schema) => fieldDrivenFromFieldCarried(schema), {
-    message: "`spawn.every.fromField` must appear in `spawn.carry` (or be written by `spawn.set`) so the successor keeps its recurrence interval",
+    message:
+      "`spawn.every.fromField` must appear in `spawn.carry`, or be written by `spawn.set` to a value present in `spawn.every.map`, so the successor keeps a resolvable recurrence interval",
     path: ["spawn"],
   })
   // `calendarField` must name a real `date`/`datetime` field — the calendar

@@ -1135,6 +1135,44 @@ describe("discoverCollections — field-driven spawn.every validation", () => {
     assert.equal((await listCollections()).length, 1);
   });
 
+  it("rejects when `set` writes fromField to a value not present in the map", async () => {
+    // `yearly` isn't a map key, so the successor would be born with an
+    // unresolvable driver and the chain would silently halt after one step.
+    writeSkill(
+      "test-freq-set-unmapped",
+      freqSchema(undefined, {
+        spawn: {
+          when: { field: "status", in: ["paid"] },
+          every: {
+            fromField: "frequency",
+            map: { daily: { unit: "day", interval: 1 }, weekly: { unit: "week", interval: 1 }, monthly: { unit: "month", interval: 1, dayOfMonth: 1 } },
+          },
+          carry: ["amount"],
+          set: { status: "pending", frequency: "yearly" },
+        },
+      }),
+    );
+    assert.equal((await listCollections()).length, 0);
+  });
+
+  it("rejects when `set` writes fromField to an empty value", async () => {
+    writeSkill(
+      "test-freq-set-empty",
+      freqSchema(undefined, {
+        spawn: {
+          when: { field: "status", in: ["paid"] },
+          every: {
+            fromField: "frequency",
+            map: { daily: { unit: "day", interval: 1 }, weekly: { unit: "week", interval: 1 }, monthly: { unit: "month", interval: 1, dayOfMonth: 1 } },
+          },
+          carry: ["amount"],
+          set: { status: "pending", frequency: "" },
+        },
+      }),
+    );
+    assert.equal((await listCollections()).length, 0);
+  });
+
   it("rejects an `every` carrying BOTH unit and fromField (strict union)", async () => {
     writeSkill("test-freq-both", freqSchema({ unit: "month", interval: 1, fromField: "frequency", map: { daily: { unit: "day", interval: 1 } } }));
     assert.equal((await listCollections()).length, 0);

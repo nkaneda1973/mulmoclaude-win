@@ -9,7 +9,7 @@ declaratively by an `enum` field on each record.
 
 ## Hard constraint: zero domain-specific host code
 
-Same discipline as every collections primitive. The host learns one new
+Same discipline as every collection primitive. The host learns one new
 generic concept — "the recurrence interval may be selected per-record by an
 `enum` field's value, via a declared map" — and holds no frequency / rent /
 bill / domain literals. All meaning lives in `schema.json` and the records.
@@ -151,6 +151,14 @@ Added alongside the existing `spawn` refines in `CollectionSchemaZ`
    error, not a warning. If the successor loses its frequency, the next
    `spawn` along the chain silently halts, which defeats the whole point of
    "fully automatic". Reject the schema rather than warn. (See §6.)
+   When satisfied via `set`, the written value must itself be a **key of
+   `map`** (and non-empty): `set` writes a fixed value, so an unmapped one
+   (`set: { frequency: "yearly" }`) would birth the successor with an
+   unresolvable driver — `resolveEvery` returns null on its next completion
+   and the chain halts, the exact failure this rule prevents. A `carry`ed
+   driver needs no value check: it copies the source's own value, which —
+   for a record that matched the spawn — is one of the enum's values, all of
+   which `map` covers by §4.2, so it is always resolvable.
 
 These checks are unaffected by — and do not affect — the existing
 `spawnSuccessorStartsInert` guard (`spawn.ts:294-308`) or the runtime

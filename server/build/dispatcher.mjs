@@ -14908,7 +14908,11 @@ function fieldDrivenFromFieldCarried(schema) {
   const driven = fieldDrivenSpawnEvery(schema);
   if (!driven) return true;
   const { carry, set: set2 } = schema.spawn ?? {};
-  if (set2 && Object.prototype.hasOwnProperty.call(set2, driven.fromField)) return true;
+  if (set2 && Object.prototype.hasOwnProperty.call(set2, driven.fromField)) {
+    const raw = set2[driven.fromField];
+    if (raw === void 0 || raw === null || raw === "") return false;
+    return Object.prototype.hasOwnProperty.call(driven.map, String(raw));
+  }
   return (carry ?? []).includes(driven.fromField);
 }
 var IngestSchemaZ = external_exports.object({
@@ -14994,7 +14998,7 @@ var CollectionSchemaZ = external_exports.object({
   message: "`spawn.every.map` keys must exactly cover the `values` of the `enum` named by `fromField` (no missing or extra keys)",
   path: ["spawn"]
 }).refine((schema) => fieldDrivenFromFieldCarried(schema), {
-  message: "`spawn.every.fromField` must appear in `spawn.carry` (or be written by `spawn.set`) so the successor keeps its recurrence interval",
+  message: "`spawn.every.fromField` must appear in `spawn.carry`, or be written by `spawn.set` to a value present in `spawn.every.map`, so the successor keeps a resolvable recurrence interval",
   path: ["spawn"]
 }).refine((schema) => schema.calendarField === void 0 || isDateLike(schema.fields[schema.calendarField]?.type), {
   message: "schema `calendarField` must name a top-level `date` or `datetime` field declared in `fields`",
