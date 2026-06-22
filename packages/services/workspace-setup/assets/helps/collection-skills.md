@@ -50,7 +50,7 @@ data/<name>/items/             ← the records (separate from the skill dir)
   silently fail validation and make the collection vanish from the UI. It writes
   the canonical `data/skills/<slug>/schema.json` and mirrors it for you — same
   destination as authoring, just validated. (Creating a *new* collection still
-  means Writing `SKILL.md` + `schema.json` under `data/skills/<slug>/`, since
+  means writing `SKILL.md` + `schema.json` under `data/skills/<slug>/`, since
   there's nothing to `getSchema` yet.)
 - **Do NOT use the `mc-` prefix** for skills you create. `mc-*` is reserved for
   the bundled presets (`mc-cooking-coach`, `mc-library`, `mc-wiki-*`,

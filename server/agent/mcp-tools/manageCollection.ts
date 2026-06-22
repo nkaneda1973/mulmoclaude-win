@@ -36,6 +36,7 @@ import path from "node:path";
 import {
   COMPUTED_TYPES,
   CollectionSchemaZ,
+  acceptParsedSchema,
   enrichItems,
   listItems,
   loadCollection,
@@ -63,7 +64,7 @@ const SCHEMA_FILE = "schema.json";
 /** The collection-authoring reference, served by the `schemaDocs` action. */
 const SCHEMA_DOCS_FILE = "collection-skills.md";
 /** Cap the rejected-schema issue list so a deeply-broken schema can't flood the result. */
-const MAX_SCHEMA_ISSUES = 20;
+export const MAX_SCHEMA_ISSUES = 20;
 
 /** Workspace-targeting overrides, threaded to every collections call.
  *  Production: `{}` (live workspace). Tests: a tmpdir + empty user
@@ -285,7 +286,8 @@ async function handleSchemaDocs(deps: ManageCollectionDeps): Promise<string> {
 async function handleGetSchema(slug: string, deps: ManageCollectionDeps): Promise<string> {
   const collection = await loadCollection(slug, deps);
   if (!collection) return unknownCollection(slug);
-  const candidates = [path.join(dataSkillDir(resolveBase(deps), slug), SCHEMA_FILE), path.join(collection.skillDir, SCHEMA_FILE)];
+  // Path from the discovered (sanitized) slug, never the raw arg.
+  const candidates = [path.join(dataSkillDir(resolveBase(deps), collection.slug), SCHEMA_FILE), path.join(collection.skillDir, SCHEMA_FILE)];
   for (const candidate of candidates) {
     try {
       return await readFile(candidate, "utf-8");
@@ -311,11 +313,11 @@ function schemaEditRefusal(collection: LoadedCollection, slug: string): string |
 /** Turn a CollectionSchemaZ failure into a short, actionable list the
  *  agent can fix, pointing back at the field reference. */
 function formatSchemaIssues(issues: readonly { path: PropertyKey[]; message: string }[]): string {
-  const lines = issues
-    .slice(0, MAX_SCHEMA_ISSUES)
-    .map((issue) => `- ${issue.path.map(String).join(".") || "(root)"}: ${defangForPrompt(issue.message)}`)
-    .join("\n");
-  return `manageCollection: schema rejected — fix and retry (call schemaDocs for the field reference):\n${lines}`;
+  const shown = issues.slice(0, MAX_SCHEMA_ISSUES);
+  const lines = shown.map((issue) => `- ${issue.path.map(String).join(".") || "(root)"}: ${defangForPrompt(issue.message)}`).join("\n");
+  const omitted = issues.length - shown.length;
+  const more = omitted > 0 ? `\n- …and ${omitted} more issue(s); fix these first and retry.` : "";
+  return `manageCollection: schema rejected — fix and retry (call schemaDocs for the field reference):\n${lines}${more}`;
 }
 
 /** Best-effort post-write refresh. Discovery re-reads schema.json from
@@ -359,8 +361,15 @@ async function handlePutSchema(slug: string, schemaArg: unknown, deps: ManageCol
   if (refusal) return refusal;
   const parsed = CollectionSchemaZ.safeParse(schemaArg);
   if (!parsed.success) return formatSchemaIssues(parsed.error.issues);
-  await writeAndMirrorSchema(slug, parsed.data, deps);
-  return JSON.stringify({ collection: slug, written: true });
+  // Run the SAME post-Zod gates discovery applies, so a write can't pass
+  // here yet be silently skipped on the next load (hiding the collection).
+  const acceptance = acceptParsedSchema(parsed.data, { source: collection.source, workspaceRoot: resolveBase(deps) });
+  if (!acceptance.ok) {
+    return `manageCollection: schema rejected — ${acceptance.reason} (call schemaDocs for the field reference). It passes basic validation but discovery would skip it, hiding the collection.`;
+  }
+  // Path from the discovered (sanitized) slug, never the raw arg.
+  await writeAndMirrorSchema(collection.slug, parsed.data, deps);
+  return JSON.stringify({ collection: collection.slug, written: true });
 }
 
 export function makeManageCollectionTool(deps: ManageCollectionDeps = {}) {

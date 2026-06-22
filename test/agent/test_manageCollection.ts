@@ -13,7 +13,7 @@ import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { makeManageCollectionTool, MAX_UNSELECTIVE_ITEMS } from "../../server/agent/mcp-tools/manageCollection.js";
+import { makeManageCollectionTool, MAX_UNSELECTIVE_ITEMS, MAX_SCHEMA_ISSUES } from "../../server/agent/mcp-tools/manageCollection.js";
 import { mcpTools } from "../../server/agent/mcp-tools/index.js";
 
 let workdir: string;
@@ -368,5 +368,37 @@ describe("manageCollection — putSchema", () => {
 
   it("refuses an unknown collection with a create hint", async () => {
     assert.match(await putRun({ action: "putSchema", slug: "ghost", schema: quotesSchema }), /create it by writing SKILL\.md/);
+  });
+
+  // Post-Zod gates discovery applies — a schema that passes CollectionSchemaZ
+  // but fails one of these would write cleanly yet vanish on next discovery.
+  const noStagingWrite = () => assert.ok(!existsSync(path.join(workdir, "data/skills/stock-quotes/schema.json")), "no staging write on rejection");
+
+  it("rejects a primaryKey that is not a declared field", async () => {
+    const bad = { ...quotesSchema, primaryKey: "ghostkey" };
+    assert.match(await putRun({ action: "putSchema", slug: "stock-quotes", schema: bad }), /not one of the declared fields/);
+    noStagingWrite();
+  });
+
+  it("rejects a primaryKey field not flagged primary: true", async () => {
+    const bad = { ...quotesSchema, fields: { ...quotesSchema.fields, symbol: { type: "string", label: "Symbol", required: true } } };
+    assert.match(await putRun({ action: "putSchema", slug: "stock-quotes", schema: bad }), /must be flagged `primary: true`/);
+    noStagingWrite();
+  });
+
+  it("rejects a dataPath that escapes the workspace", async () => {
+    const bad = { ...quotesSchema, dataPath: "../../etc/evil" };
+    assert.match(await putRun({ action: "putSchema", slug: "stock-quotes", schema: bad }), /escapes the workspace/);
+    noStagingWrite();
+  });
+
+  it("caps the issue list and flags how many were omitted", async () => {
+    const fields: Record<string, unknown> = {};
+    for (let i = 0; i < MAX_SCHEMA_ISSUES + 5; i++) fields[`f${i}`] = { type: "not-a-real-type", label: `F${i}` };
+    const msg = await putRun({ action: "putSchema", slug: "stock-quotes", schema: { ...quotesSchema, fields } });
+    const bullets = msg.split("\n").filter((line) => line.startsWith("- "));
+    const issueBullets = bullets.filter((line) => !line.includes("…and"));
+    assert.equal(issueBullets.length, MAX_SCHEMA_ISSUES, "issue bullets capped at MAX_SCHEMA_ISSUES");
+    assert.match(msg, /…and \d+ more issue\(s\)/);
   });
 });
