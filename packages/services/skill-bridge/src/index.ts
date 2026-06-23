@@ -20,7 +20,14 @@
 // PostToolUse path and triggers its own config refresh afterward.
 import path from "node:path";
 import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
-import { isSafeActionTemplatePath } from "@mulmoclaude/collection-plugin/server";
+// Import from the dedicated subpath (not `/server`) so the dispatcher
+// bundle this gets folded into doesn't drag in collection-plugin's
+// schema chunk just to use a 30-line pure path-safety helper. The
+// `./server/templatePath` entry is a tiny standalone build of
+// `src/server/templatePath.ts` — zero deps, no schema graph — so
+// dispatcher.mjs becomes stable across unrelated dep version drifts
+// (see the cache-churn fallout in PR #1745 / #1746).
+import { isSafeActionTemplatePath } from "@mulmoclaude/collection-plugin/server/templatePath";
 
 const DATA_SKILLS_DIR = path.join("data", "skills");
 const CLAUDE_SKILLS_DIR = path.join(".claude", "skills");

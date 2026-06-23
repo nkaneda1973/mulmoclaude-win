@@ -19,7 +19,19 @@ export default defineConfig({
   plugins: [vue(), tailwindcss()],
   build: {
     lib: {
-      entry: { index: "src/index.ts", server: "src/server/index.ts", vue: "src/vue/index.ts" },
+      // `server/templatePath` is a dedicated tiny entry exposing the
+      // pure path-safety helpers (no zod / no schema graph), so the
+      // hook dispatcher bundle can import `isSafeActionTemplatePath`
+      // without pulling the whole `./server` graph (and its
+      // schema-*.js chunk whose content-hash drifts with unrelated
+      // dep bumps — see the dispatcher.mjs cache-churn saga in
+      // PR #1741 / #1745 / #1746).
+      entry: {
+        index: "src/index.ts",
+        server: "src/server/index.ts",
+        "server/templatePath": "src/server/templatePath.ts",
+        vue: "src/vue/index.ts",
+      },
       formats: ["es", "cjs"],
       fileName: (format, entryName) => `${entryName}.${format === "es" ? "js" : "cjs"}`,
     },
