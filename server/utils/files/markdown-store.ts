@@ -4,6 +4,7 @@ import { workspacePath } from "../../workspace/workspace.js";
 import { WORKSPACE_DIRS } from "../../workspace/paths.js";
 import { writeFileAtomic } from "./atomic.js";
 import { buildArtifactPathRandom } from "./naming.js";
+import { makePathValidator } from "./path-validator.js";
 
 // Random-id suffix prevents collisions between concurrent writers sharing a prefix; #764 sharded under YYYY/MM.
 export async function saveMarkdown(content: string, prefix: string): Promise<string> {
@@ -24,11 +25,4 @@ export async function overwriteMarkdown(relativePath: string, content: string): 
 }
 
 // Strict — overwriteMarkdown's path.join doesn't normalize traversal, so this gate is the primary defence.
-export function isMarkdownPath(value: string): boolean {
-  if (!value.startsWith(`${WORKSPACE_DIRS.markdowns}/`)) return false;
-  if (!value.endsWith(".md")) return false;
-  const normalized = path.posix.normalize(value);
-  if (normalized !== value) return false;
-  if (normalized.includes("..")) return false;
-  return true;
-}
+export const isMarkdownPath = makePathValidator({ prefix: WORKSPACE_DIRS.markdowns, ext: ".md" });
