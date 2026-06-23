@@ -66,7 +66,19 @@ jobs:
           key: win-node-modules-${{ matrix.node-version }}-${{ hashFiles('yarn.lock') }}
           restore-keys: |
             win-node-modules-${{ matrix.node-version }}-
+      # Skip puppeteer's postinstall chrome download. Two transitive
+      # puppeteer copies (mulmocast/node_modules/puppeteer and
+      # mulmocast-vision/node_modules/puppeteer) race to download the
+      # same chrome version into ~/.cache/puppeteer/chrome. On Windows
+      # the second unzip hits EBUSY trying to unlink the zip held by
+      # the first process, which kills the install (#1741 follow-up).
+      # The Windows lint_test pipeline never launches puppeteer
+      # (no PDF or e2e steps run here), so skipping the download is
+      # safe — the launcher would only need chrome when the user
+      # actually exports a PDF.
       - run: yarn install --frozen-lockfile --network-timeout 120000
+        env:
+          PUPPETEER_SKIP_DOWNLOAD: "1"
       # Cache the output of `yarn build:packages` keyed on the source
       # files it consumes. The 25 @mulmobridge/* workspaces all run tsc
       # serially / pairwise — the slowest non-install step on Windows.
