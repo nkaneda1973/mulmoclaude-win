@@ -50,6 +50,15 @@ export interface CollectionRendering {
   derivedDisplay: (field: FieldSpec, computedValue: unknown, record: CollectionItem | null) => string;
 }
 
+// `<input type="number">` defaults to step="1", which makes the browser
+// reject any decimal value (e.g. 0.1) as invalid. Emit step="any" for
+// numeric fields so fractional values can be entered and saved.
+export function stepForFieldType(type: FieldType): string | undefined {
+  if (type === "money") return "0.01";
+  if (type === "number") return "any";
+  return undefined;
+}
+
 export function useCollectionRendering(collection: Ref<CollectionDetail | null>, locale: Ref<string>): CollectionRendering {
   const refCache = ref<RefCache>({});
   const refRecordCache = ref<RefRecordCache>({});
@@ -279,14 +288,7 @@ export function useCollectionRendering(collection: Ref<CollectionDetail | null>,
     return "text";
   }
 
-  // `<input type="number">` defaults to step="1", which makes the browser
-  // reject any decimal value (e.g. 0.1) as invalid. Emit step="any" for
-  // numeric fields so fractional values can be entered and saved.
-  function stepFor(type: FieldType): string | undefined {
-    if (type === "money") return "0.01";
-    if (type === "number") return "any";
-    return undefined;
-  }
+  const stepFor = stepForFieldType;
 
   // The derive loop itself lives in `utils/collections/deriveAll.ts`,
   // shared with the server's manageCollection enrichment so both sides
