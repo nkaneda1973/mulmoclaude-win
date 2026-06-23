@@ -1,4 +1,7 @@
 import "dotenv/config";
+// Wire @mulmoclaude/collection-plugin/server to this host's workspace + logger
+// before any module that touches collection storage loads.
+import "./workspace/collections/configure.js";
 import express, { Request, Response, NextFunction } from "express";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -32,6 +35,12 @@ import skillsRoutes from "./api/routes/skills.js";
 import collectionsRoutes from "./api/routes/collections.js";
 import { startCollectionWatchers } from "./workspace/collections/watcher.js";
 import runtimePluginRoutes from "./api/routes/runtime-plugin.js";
+// Side-effect: registers the built-in "markdown" dispatch handler so the
+// markdown View's useRuntime().dispatch({ kind }) resolves (task #6).
+import "./plugins/markdown-builtin.js";
+// Side-effect: registers the built-in "html" dispatch handler so the
+// presentHtml View's useRuntime().dispatch({ kind }) resolves (phase 2).
+import "./plugins/html-builtin.js";
 import { loadRuntimePlugins } from "./plugins/runtime-loader.js";
 import { evaluateDevPluginGate, loadDevPlugins, parseDevPluginsEnv } from "./plugins/dev-loader.js";
 import { watchDevPlugins } from "./plugins/dev-watcher.js";
@@ -57,6 +66,7 @@ import { readSessionJsonl } from "./utils/files/session-io.js";
 import { onSessionEvent, initSessionStore } from "./events/session-store/index.js";
 import { initFileChangePublisher } from "./events/file-change.js";
 import { initAccountingEventPublisher } from "./accounting/eventPublisher.js";
+import { initCollectionChangePublisher } from "./events/collection-change.js";
 import { getRole, loadAllRoles } from "./workspace/roles.js";
 import { discoverSkills } from "./workspace/skills/index.js";
 import { WORKSPACE_PATHS } from "./workspace/paths.js";
@@ -1071,6 +1081,7 @@ async function startRuntimeServices(httpServer: ReturnType<typeof app.listen>, p
   // boot already sees a live publisher.
   initFileChangePublisher(pubsub);
   initAccountingEventPublisher(pubsub);
+  initCollectionChangePublisher(pubsub);
 
   // --- Scheduler (Phase 1 of #357) ---
   // Register system tasks with persistence + catch-up. The journal
