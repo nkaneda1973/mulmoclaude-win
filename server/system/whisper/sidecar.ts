@@ -143,19 +143,36 @@ async function startSidecar(model: WhisperModelName): Promise<Sidecar> {
 /** Get a running sidecar for `model`, spawning one (or replacing a
  *  sidecar bound to a different model) as needed. Concurrent callers
  *  share one in-flight start. */
-async function ensureSidecar(model: WhisperModelName): Promise<Sidecar> {
-  if (sidecar && sidecar.model === model && !sidecar.proc.killed) return sidecar;
-  // Reuse an in-flight start only when it's for the SAME model; if a
-  // different model is starting, let it settle first, then replace it.
-  if (starting && starting.model === model) return starting.promise;
-  if (starting) await starting.promise.catch(() => undefined);
-  if (sidecar && sidecar.model === model && !sidecar.proc.killed) return sidecar;
-  if (sidecar && sidecar.model !== model) stopWhisperSidecar();
+// Spawn a sidecar and record it as the in-flight start. Module-scoped
+// (not a loop closure) so it doesn't trip no-loop-func. Only ever one
+// start is in flight at a time (ensureSidecar serializes), so clearing
+// `starting` unconditionally on settle is safe.
+function beginStart(model: WhisperModelName): Promise<Sidecar> {
   const promise = startSidecar(model).finally(() => {
     starting = null;
   });
   starting = { model, promise };
   return promise;
+}
+
+async function ensureSidecar(model: WhisperModelName): Promise<Sidecar> {
+  // Loop so that after awaiting an in-flight start for a DIFFERENT model
+  // we re-evaluate from the top. The decision-to-spawn path (beginStart)
+  // has no await, so the first waiter to reach it sets `starting`
+  // synchronously and any sibling waiter then sees it on the next
+  // iteration — no two callers spawn duplicate sidecars for the same model.
+  for (;;) {
+    if (sidecar && sidecar.model === model && !sidecar.proc.killed) return sidecar;
+    // Reuse an in-flight start only when it's for the SAME model.
+    if (starting && starting.model === model) return starting.promise;
+    // A different model is starting — let it settle, then re-evaluate.
+    if (starting) {
+      await starting.promise.catch(() => undefined);
+      continue;
+    }
+    if (sidecar && sidecar.model !== model) stopWhisperSidecar();
+    return beginStart(model);
+  }
 }
 
 /** Pre-spawn the sidecar so the first real transcription doesn't pay the
