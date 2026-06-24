@@ -210,15 +210,26 @@ watch(
 // Auto-starts when armed and it becomes the user's turn; pauses when
 // the agent starts running; drops the intent if the mic can't start
 // (permission denied) so it doesn't retry every turn.
+function wantsToListen(): boolean {
+  return voiceSessionOn.value && voiceAvailable.value && !props.isRunning;
+}
+
 watch([voiceSessionOn, () => props.isRunning, voiceAvailable], () => {
-  const shouldListen = voiceSessionOn.value && voiceAvailable.value && !props.isRunning;
-  if (shouldListen && !voiceListening.value) {
+  if (wantsToListen() && !voiceListening.value) {
     startVoice()
       .then((ok) => {
-        if (!ok) voiceSessionOn.value = false;
+        if (!ok) {
+          voiceSessionOn.value = false;
+          return;
+        }
+        // `startVoice()` awaits mic permission; the state may have flipped
+        // (session switch / toggled off / agent started) while we waited.
+        // The watcher won't re-fire for that, so re-check here and stop a
+        // start that's now stale rather than record in the wrong state.
+        if (!wantsToListen()) stopVoice();
       })
       .catch(() => undefined);
-  } else if (!shouldListen && voiceListening.value) {
+  } else if (!wantsToListen() && voiceListening.value) {
     stopVoice();
   }
 });
