@@ -177,7 +177,9 @@ export function createVoiceCapture(transport: VoiceCaptureTransport, language: (
       if (text.length === 0) callbacks.onEmpty?.();
       else callbacks.onTranscript(text);
     } catch (err) {
-      callbacks.onError?.(toMessage(err));
+      // Generation-guard the failure path too: a send rejected after stop()/
+      // session change belongs to a session the user already left.
+      if (gen === generation) callbacks.onError?.(toMessage(err));
     }
   }
 

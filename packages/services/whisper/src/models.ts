@@ -31,7 +31,10 @@ export type WhisperModelName = keyof typeof WHISPER_MODELS;
 export const DEFAULT_WHISPER_MODEL: WhisperModelName = "large-v3-turbo";
 
 export function isWhisperModelName(value: unknown): value is WhisperModelName {
-  return typeof value === "string" && value in WHISPER_MODELS;
+  // Own-property check — `in` would accept inherited keys like "toString",
+  // which then crash the `WHISPER_MODELS[name]` lookups instead of falling
+  // back to the default.
+  return typeof value === "string" && Object.prototype.hasOwnProperty.call(WHISPER_MODELS, value);
 }
 
 /** Resolve a possibly-unset / unknown model name to a valid one. */

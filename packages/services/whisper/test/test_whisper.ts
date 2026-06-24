@@ -12,6 +12,10 @@ describe("whisper model registry", () => {
     assert.equal(isWhisperModelName("nonsense"), false);
     assert.equal(isWhisperModelName(42), false);
     assert.equal(isWhisperModelName(undefined), false);
+    // Inherited Object keys must NOT count as model names.
+    assert.equal(isWhisperModelName("toString"), false);
+    assert.equal(isWhisperModelName("constructor"), false);
+    assert.equal(resolveModelName("toString"), DEFAULT_WHISPER_MODEL);
   });
 
   it("resolves unknown / missing names to the default", () => {

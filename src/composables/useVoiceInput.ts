@@ -70,7 +70,11 @@ export function useVoiceInput(opts: UseVoiceInputOptions): UseVoiceInput {
   };
 
   const capture = createVoiceCapture(transport, () => localeToWhisperLanguage(opts.locale()), {
-    onTranscript: opts.onTranscript,
+    onTranscript: (text) => {
+      // A successful segment clears any prior transient error.
+      error.value = null;
+      opts.onTranscript(text);
+    },
     onEmpty: opts.onEmpty,
     onError: (message) => {
       error.value = message;
@@ -82,6 +86,14 @@ export function useVoiceInput(opts: UseVoiceInputOptions): UseVoiceInput {
     },
   });
 
+  // Reset the error at the start of each attempt (restores the pre-extraction
+  // behavior) so a stale "permission-denied"/transport error doesn't persist
+  // after a later successful start.
+  async function start(): Promise<boolean> {
+    error.value = null;
+    return capture.start();
+  }
+
   onScopeDispose(() => capture.dispose());
 
   return {
@@ -90,7 +102,7 @@ export function useVoiceInput(opts: UseVoiceInputOptions): UseVoiceInput {
     transcribing,
     error,
     refreshAvailability: capture.refreshAvailability,
-    start: capture.start,
+    start,
     stop: capture.stop,
   };
 }

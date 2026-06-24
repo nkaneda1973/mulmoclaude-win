@@ -110,18 +110,31 @@ function parseInferenceText(data: unknown): string {
 export function createSidecar(modelsDir: string, serverBinary = "whisper-server", logger: WhisperLogger = NOOP_LOGGER): Sidecar {
   let sidecar: ActiveSidecar | null = null;
   let starting: { model: WhisperModelName; promise: Promise<ActiveSidecar> } | null = null;
+  // The child of an in-flight start (before it's published as `sidecar`), plus a
+  // token that `shutdown()` bumps to cancel a start that's still booting — so
+  // shutdown can't return with a child that then publishes itself afterwards.
+  let startingProc: ChildProcess | null = null;
+  let startToken = 0;
 
   function shutdown(): void {
-    if (!sidecar) return;
-    sidecar.proc.kill();
-    sidecar = null;
+    startToken += 1;
+    if (startingProc) {
+      startingProc.kill();
+      startingProc = null;
+    }
+    if (sidecar) {
+      sidecar.proc.kill();
+      sidecar = null;
+    }
   }
 
   async function startSidecar(model: WhisperModelName): Promise<ActiveSidecar> {
+    const token = ++startToken;
     const port = await findFreePort();
     const args = ["--model", modelFilePath(modelsDir, model), "--host", HOST, "--port", String(port)];
     logger.info("sidecar: spawning", { model, port });
     const proc = spawn(serverBinary, args, { stdio: ["ignore", "ignore", "pipe"] });
+    startingProc = proc;
     const stderrTail = { text: "" };
     drainStderr(proc, stderrTail);
     // Permanent error listener — a missing one would let a process 'error'
@@ -136,6 +149,15 @@ export function createSidecar(modelsDir: string, serverBinary = "whisper-server"
     } catch (err) {
       proc.kill();
       throw new Error(`whisper-server failed to start: ${errorMessage(err)} — stderr: ${stderrTail.text.slice(-500)}`);
+    } finally {
+      if (startingProc === proc) startingProc = null;
+    }
+    // shutdown() (or a newer start) ran while we were booting — discard this
+    // child instead of publishing a sidecar after shutdown returned.
+    // eslint-disable-next-line security/detect-possible-timing-attacks -- in-memory start-cancellation token, not an auth compare
+    if (token !== startToken) {
+      proc.kill();
+      throw new Error("whisper-server start cancelled");
     }
     sidecar = { port, proc, model };
     logger.info("sidecar: ready", { model, port });
