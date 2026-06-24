@@ -44,6 +44,7 @@
     "@mulmoclaude/scheduler": "^0.1.0",
     "@mulmoclaude/skill-bridge": "^0.1.0",
     "@mulmoclaude/spotify-plugin": "^0.1.0",
+    "@mulmoclaude/whisper": "^0.1.0",
     "@mulmoclaude/workspace-setup": "^0.1.0",
     "@mulmoclaude/x-plugin": "^0.1.1",
     "@receptron/task-scheduler": "^0.1.0",
