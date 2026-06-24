@@ -78,7 +78,7 @@ order (first hit wins, all subsequent steps skipped):
 If none of those hit, throw an `Error` whose message lists every path
 probed plus install instructions:
 
-```
+```text
 claude CLI binary not found. Tried:
   - %APPDATA%\npm\node_modules\@anthropic-ai\claude-code\bin\claude.exe
   - %LOCALAPPDATA%\Yarn\config\global\node_modules\…

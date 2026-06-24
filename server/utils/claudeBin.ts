@@ -34,6 +34,21 @@ const PACKAGE_REL_PATH = winPath.join("@anthropic-ai", "claude-code", "bin", "cl
 const PARENT_WALK_DEPTH = 4;
 const INSTALL_HINT = "Install with: npm install -g @anthropic-ai/claude-code";
 
+// Typed "claude CLI is not on this machine" error. Consumers across
+// the codebase (journal, memory, chat-index, translation) use
+// `err instanceof ClaudeCliNotFoundError` to self-disable for the
+// rest of the process lifetime instead of retrying with a generic
+// ENOENT. Lives here (not in `archivist-cli.ts`) so the synchronous
+// throw from `claudeBinPath()` produces the same typed contract as
+// the existing async ENOENT detection at every spawn site —
+// archivist-cli re-exports for backward compatibility.
+export class ClaudeCliNotFoundError extends Error {
+  constructor(message?: string) {
+    super(message ?? "`claude` CLI is not available on PATH");
+    this.name = "ClaudeCliNotFoundError";
+  }
+}
+
 export interface ResolveOptions {
   /** Defaults to `process.platform`. */
   readonly platform?: typeof process.platform;
@@ -77,7 +92,7 @@ export function claudeBinPath(options: ResolveOptions = {}): string {
     return resolved.path;
   }
   cachedBin = null;
-  throw new Error(formatNotFoundError(options));
+  throw new ClaudeCliNotFoundError(formatNotFoundError(options));
 }
 
 interface Resolved {
@@ -177,23 +192,36 @@ function* walkUpForPackage(options: ResolveOptions, startDir: string): Generator
 function* pnpmGlobalCandidates(options: ResolveOptions, dir: string): Generator<string> {
   const readdirSync = options.readdirSync ?? nodeReaddirSync;
   const globalDir = winPath.join(dir, "global");
-  let entries: ReturnType<typeof nodeReaddirSync>;
+  let result: unknown;
   try {
-    entries = readdirSync(globalDir);
+    result = readdirSync(globalDir);
   } catch {
     return;
   }
-  for (const entry of entries) {
-    const name = typeof entry === "string" ? entry : entry.name;
-    yield winPath.join(globalDir, name, "node_modules", PACKAGE_REL_PATH);
+  // `readdirSync`'s overload union (`string[] | Buffer[] | Dirent[]`)
+  // can't be narrowed by the default invocation alone; filter for the
+  // string case we care about so the helper stays robust even if a
+  // caller (test mock or alternate fs adapter) hands back a different
+  // shape.
+  if (!Array.isArray(result)) return;
+  for (const entry of result) {
+    if (typeof entry !== "string") continue;
+    yield winPath.join(globalDir, entry, "node_modules", PACKAGE_REL_PATH);
   }
 }
 
+// Probe helper for the small `where claude.cmd` / `npm config get
+// prefix` lookups during resolution. `shell: true` on Windows so the
+// `.cmd` shim for `npm` resolves cleanly (same CVE-2024-27980 reason
+// we're avoiding for the agent calls — but these probes are fixed,
+// short commands well below the cmd.exe 8191-char limit, so the
+// shell wrap is safe here).
 function runSpawnSync(options: ResolveOptions, command: string, args: readonly string[]): string | null {
   const spawnSync = options.spawnSync ?? nodeSpawnSync;
+  const useShell = (options.platform ?? process.platform) === "win32";
   let result: SpawnSyncReturns<string>;
   try {
-    result = spawnSync(command, args, { encoding: "utf8" });
+    result = spawnSync(command, args, { encoding: "utf8", shell: useShell });
   } catch {
     return null;
   }

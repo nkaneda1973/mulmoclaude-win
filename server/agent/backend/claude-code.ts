@@ -188,7 +188,24 @@ async function* runClaudeAgent(input: AgentInput): AsyncGenerator<AgentEvent> {
     effortLevel: input.effortLevel,
   });
 
-  const proc = spawnClaude(input.useDocker, input.workspacePath, cliArgs, input.sessionId);
+  // spawnClaude can throw synchronously when `claudeBinPath()` fails
+  // to locate `claude.exe` on Windows — surface that through the same
+  // AgentEvent error channel as the post-spawn "error" event so the
+  // server stays alive (#1364) and the user sees the actionable
+  // "install with npm install -g …" hint.
+  let proc: ReturnType<typeof spawnClaude>;
+  try {
+    proc = spawnClaude(input.useDocker, input.workspacePath, cliArgs, input.sessionId);
+  } catch (err) {
+    const target = input.useDocker ? "docker" : "claude";
+    const message = err instanceof Error ? err.message : String(err);
+    log.error("agent", `failed to resolve ${target} binary`, { error: message });
+    yield {
+      type: EVENT_TYPES.error,
+      message: `Failed to spawn ${target}: ${message}`,
+    };
+    return;
+  }
 
   // Wait for the kernel to confirm the spawn before piping anything
   // into stdin. Without this guard, a missing `claude` (or `docker`)

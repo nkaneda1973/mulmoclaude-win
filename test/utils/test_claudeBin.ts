@@ -7,7 +7,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import type { SpawnSyncReturns } from "node:child_process";
 import path from "node:path";
-import { claudeBinPath, type ResolveOptions } from "../../server/utils/claudeBin.js";
+import { claudeBinPath, ClaudeCliNotFoundError, type ResolveOptions } from "../../server/utils/claudeBin.js";
 
 // All probed paths in claudeBin.ts use `path.win32`, so tests must
 // compose / normalise expected paths the same way to compare equal
@@ -146,6 +146,12 @@ describe("claudeBinPath — Windows resolution", () => {
     assert.throws(
       () => claudeBinPath(opts),
       (err: Error) => {
+        // Must be the typed error consumers across journal / memory /
+        // chat-index / translation pattern-match on with
+        // `err instanceof ClaudeCliNotFoundError` — a generic Error
+        // here would bypass each subsystem's self-disable latch and
+        // they'd keep retrying instead.
+        assert.ok(err instanceof ClaudeCliNotFoundError, `expected ClaudeCliNotFoundError, got ${err.name}`);
         assert.match(err.message, /claude CLI binary not found/);
         assert.match(err.message, /Install with: npm install -g @anthropic-ai\/claude-code/);
         assert.match(err.message, /AppData\\Roaming\\npm/);

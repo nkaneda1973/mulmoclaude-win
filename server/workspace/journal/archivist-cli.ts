@@ -2,19 +2,19 @@
 
 import { spawn } from "node:child_process";
 import { CLI_SUBPROCESS_TIMEOUT_MS } from "../../utils/time.js";
-import { claudeBinPath } from "../../utils/claudeBin.js";
+import { claudeBinPath, ClaudeCliNotFoundError } from "../../utils/claudeBin.js";
 
 export type Summarize = (systemPrompt: string, userPrompt: string) => Promise<string>;
 
 const CLI_TIMEOUT_MS = CLI_SUBPROCESS_TIMEOUT_MS;
 
-// Subsystem-neutral message: chat-index / sources also catch this and would otherwise log a misleading "journal disabled".
-export class ClaudeCliNotFoundError extends Error {
-  constructor() {
-    super("`claude` CLI is not available on PATH");
-    this.name = "ClaudeCliNotFoundError";
-  }
-}
+// Re-exported so the dozen-plus consumers across journal/memory/chat-
+// index/translation that already import `ClaudeCliNotFoundError` from
+// this module keep working without a code mod. The canonical home is
+// `server/utils/claudeBin.ts` (where `claudeBinPath()` throws it on a
+// failed Windows probe), this re-export preserves the existing
+// import path and dependency direction.
+export { ClaudeCliNotFoundError };
 
 export class ClaudeCliFailedError extends Error {
   readonly exitCode: number | null;
