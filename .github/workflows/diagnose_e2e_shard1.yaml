@@ -1,0 +1,89 @@
+name: diagnose e2e shard 1 (PR #1776 bisect)
+
+# Lightweight diagnostic workflow to bisect the e2e (1) regression
+# observed on PR #1776. Runs only the failing tests + uploads
+# playwright trace on first failure for offline inspection.
+#
+# Triggers only on push to diagnose/* branches so it doesn't run on
+# main or normal PRs. Single ubuntu × node 22 cell — no matrix.
+#
+# Failing tests captured from PR #1776 e2e (1) job 83312340742 +
+# rerun 83316249341:
+#   - accounting-detail-and-shortcuts.spec.ts
+#   - accounting-flow.spec.ts
+#   - accounting-isolation.spec.ts
+#   - chat-flow.spec.ts
+#   - chatinput-attach.spec.ts
+#   - collection-calendar.spec.ts
+#   - collection-image-field.spec.ts
+#   - files-path-url.spec.ts
+
+on:
+  push:
+    branches:
+      - 'diagnose/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: diagnose-e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  diagnose_e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Use Node.js 22.x
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22.x
+          cache: yarn
+      - run: yarn install --frozen-lockfile --network-timeout 120000
+      - name: Cache packages/dist
+        id: pkg-dist-cache
+        uses: actions/cache@v5
+        with:
+          path: |
+            packages/*/dist
+            packages/bridges/*/dist
+            packages/plugins/*/dist
+            packages/services/*/dist
+          key: pkg-dist-${{ runner.os }}-22.x-${{ hashFiles('packages/*/src/**', 'packages/*/tsconfig.json', 'packages/*/package.json', 'packages/bridges/*/src/**', 'packages/bridges/*/tsconfig.json', 'packages/bridges/*/package.json', 'packages/plugins/*/src/**', 'packages/plugins/*/tsconfig.json', 'packages/plugins/*/package.json', 'packages/services/*/src/**', 'packages/services/*/tsconfig.json', 'packages/services/*/package.json', 'config/tsconfig.packages.json', 'yarn.lock') }}
+      - name: Build internal packages
+        if: steps.pkg-dist-cache.outputs.cache-hit != 'true'
+        run: yarn build:packages
+      - name: Install Playwright browsers (chromium only)
+        run: npx playwright install chromium --with-deps
+      - name: Run targeted failing e2e tests
+        # Run with --trace=on so every test produces a trace.zip for
+        # offline inspection, and --workers=2 to approximate CI shard
+        # parallelism without going wide.
+        run: |
+          npx playwright test --config e2e/playwright.config.ts \
+            --workers=2 \
+            --trace=on \
+            --retries=0 \
+            e2e/tests/accounting-detail-and-shortcuts.spec.ts \
+            e2e/tests/accounting-flow.spec.ts \
+            e2e/tests/accounting-isolation.spec.ts \
+            e2e/tests/chat-flow.spec.ts \
+            e2e/tests/chatinput-attach.spec.ts \
+            e2e/tests/collection-calendar.spec.ts \
+            e2e/tests/collection-image-field.spec.ts \
+            e2e/tests/files-path-url.spec.ts
+      - name: Upload Playwright trace + results on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: diagnose-e2e-trace
+          path: |
+            test-results/
+            playwright-report/
+          retention-days: 7
+          if-no-files-found: warn
