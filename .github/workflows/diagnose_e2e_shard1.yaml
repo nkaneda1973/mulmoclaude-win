@@ -60,23 +60,15 @@ jobs:
         run: yarn build:packages
       - name: Install Playwright browsers (chromium only)
         run: npx playwright install chromium --with-deps
-      - name: Run targeted failing e2e tests
-        # Run with --trace=on so every test produces a trace.zip for
-        # offline inspection, and --workers=2 to approximate CI shard
-        # parallelism without going wide.
+      - name: Run e2e shard 1/2 (matches main CI exactly)
+        # Mirror main CI's `e2e (1)` job: full shard 1/2 with default
+        # workers (Playwright config decides). --trace=on so every test
+        # produces a trace.zip for offline inspection on failure.
         run: |
           npx playwright test --config e2e/playwright.config.ts \
-            --workers=2 \
+            --shard=1/2 \
             --trace=on \
-            --retries=0 \
-            e2e/tests/accounting-detail-and-shortcuts.spec.ts \
-            e2e/tests/accounting-flow.spec.ts \
-            e2e/tests/accounting-isolation.spec.ts \
-            e2e/tests/chat-flow.spec.ts \
-            e2e/tests/chatinput-attach.spec.ts \
-            e2e/tests/collection-calendar.spec.ts \
-            e2e/tests/collection-image-field.spec.ts \
-            e2e/tests/files-path-url.spec.ts
+            --retries=0
       - name: Upload Playwright trace + results on failure
         if: failure()
         uses: actions/upload-artifact@v7
