@@ -123,14 +123,9 @@ The script runs **four tiers in order**:
 
 Tiers 3 and 4 are auto-discovered by `scripts/build-workspaces.mjs`. Tiers 1 and 2 stay explicit in `package.json` because their dep-graph order can't be globbed.
 
-**Adding a new bridge or runtime plugin: just create the workspace directory — no `package.json` edit needed.** Selection rules are strict:
+**Adding a new bridge: just create `packages/bridges/<name>/` with name `@mulmobridge/<name>` and `scripts.build`** — auto-discovery in tier 3 picks it up, no root `package.json` edit needed. Non-bridge `@mulmobridge/*` (like `mock-server`) MUST be added to the explicit tier-1 / tier-2 enumeration; same for any `@receptron/*` or core package other workspaces depend on.
 
-- **Bridge**: lives at `packages/bridges/<name>/`, name `@mulmobridge/<name>`, has `scripts.build`
-- **Runtime plugin**: lives at `packages/plugins/<name>-plugin/`, name `@mulmoclaude/<name>-plugin`, has `scripts.build`
-
-If a workspace doesn't fit either pattern — e.g. a `@receptron/*` package, or a non-bridge `@mulmobridge/*` like `mock-server` — **MUST add it to the explicit tier-1 / tier-2 enumeration in `package.json`**; auto-discovery won't pick it up. Same goes for any new top-level core package that other workspaces depend on.
-
-NEVER name a non-runtime-plugin package `@mulmoclaude/foo-plugin` (e.g. a helper library); the build driver will try to run its `build` script in tier 4, after every consumer has already been built. Pick a different name (`@mulmoclaude/foo`, `@mulmoclaude/foo-helpers`, …) or move it to tier 2.
+For **runtime plugins** + the `@mulmoclaude/foo-plugin` naming trap, see [`docs/plugin-development.md`](docs/plugin-development.md#build-orchestration-rules-plugin-relevant-subset).
 
 The yarn 4 smoke workflow (`yarn4_smoke`) verifies the chain still works under yarn 4. Both tiers' driver only spawns `yarn workspace <name> run build` — identical syntax in yarn 1 and 4 — so portability is preserved.
 
@@ -173,40 +168,9 @@ artifacts/       ← charts/, documents/, html/, images/, spreadsheets/
 
 ## Plugin Development
 
-Full reference: [`docs/developer.md`](docs/developer.md#plugin-development) (built-in) / [`docs/plugin-runtime.md`](docs/plugin-runtime.md) (runtime / npm-package plugins)
+When creating or editing a plugin → **[`docs/plugin-development.md`](docs/plugin-development.md)**. It covers: the plugin-vs-host boundary, built-in vs runtime choice, the 6-plugin-local + 3-host-barrel checklist, scaffold CLI sync (`packages/create-mulmoclaude-plugin`), plugin-aware host aggregators (`API_ROUTES` / `TOOL_NAMES` / `WORKSPACE_DIRS` / `PUBSUB_CHANNELS`), and the "extract shared code into `@mulmoclaude/core`" pattern.
 
-**Plugin-vs-host boundary (always apply).** Per-feature integrations (Spotify / GitHub / Apple Music / weather / bookmarks / …) live in `packages/plugins/<name>-plugin/` as **runtime plugins**. Host code (`server/`, `src/plugins/`, `src/config/`) only gets **generic infrastructure that benefits multiple plugins** — never provider-specific code. Examples of generic host infra: the `/api/plugins/runtime/:pkg/dispatch` route, the asset-mount route, the `/api/plugins/runtime/:pkg/oauth/callback` route (#1162). A new "Spotify route" or "GitHub route" in `server/api/routes/` is a smell — re-think whether the work belongs in the plugin package and whether the host's infra needs a generic extension instead.
-
-**Plugin owns its identity** (built-in path). Each built-in plugin declares its `toolName`, `apiRoutes`, `workspaceDirs`, and `staticChannels` in its own `src/plugins/<name>/meta.ts`. Host aggregators (`API_ROUTES`, `TOOL_NAMES`, `WORKSPACE_DIRS`, `PUBSUB_CHANNELS`) auto-merge those contributions via `defineHostAggregate` — host code holds zero plugin-specific literals.
-
-Adding a built-in plugin touches **6 plugin-local files** and **3 host barrels**:
-
-- `src/plugins/<name>/meta.ts` — `definePluginMeta({ toolName, apiRoutesKey?, apiRoutes?, workspaceDirs?, staticChannels? })`
-- `src/plugins/<name>/definition.ts` — MCP `ToolDefinition`; derive `TOOL_NAME = META.toolName`, endpoint types from `typeof META.apiRoutes`
-- `src/plugins/<name>/index.ts` — `PluginRegistration` (View / Preview wrapped via `wrapWithScope(scope, …)`, executor calls `pluginEndpoints<E>(scope)`)
-- `src/plugins/<name>/View.vue` / `Preview.vue` — Vue surfaces; call `useRuntime()` from `gui-chat-protocol/vue` for the typed `endpoints` map
-- `src/plugins/metas.ts` — append the META to `BUILT_IN_PLUGIN_METAS`
-- `src/plugins/index.ts` — append the registration to `BUILT_IN_PLUGINS`
-- `src/plugins/server.ts` — append `{ def, endpoint }` to `BUILT_IN_SERVER_BINDINGS` (skip for GUI-only plugins like wiki)
-- `server/api/routes/<name>.ts` — Express route handlers (only when the plugin owns endpoints)
-- `src/main.ts` — entry in the host endpoint registry passed to `installHostContext({ endpoints })`
-
-Adding to a Role's `availablePlugins` (`src/config/roles.ts`) is separate — roles gate which plugins each chat sees, independent of plugin registration.
-
-Standalone routes (`/todos`, `/calendar`, …) and inline file previews (`FileContentRenderer` rendering `data/todos/todos.json`) must wrap the plugin component with `<PluginScopedRoot pkg-name :endpoints>` so descendant `useRuntime()` calls resolve. The plugin registry's `wrapWithScope` already covers chat-mounted variants.
-
-### Plugin scaffold sync (`packages/create-mulmoclaude-plugin`)
-
-The scaffold CLI (`npx create-mulmoclaude-plugin`) embeds `package.json` + `vite.config.ts` + `tsconfig.json` + ESLint config as **string literals** in `packages/create-mulmoclaude-plugin/src/template.ts`. Newly-generated plugins inherit those literals verbatim, so they DO NOT pick up version bumps you make to the in-tree plugins.
-
-When you bump a build-toolchain dep (`vite` / `typescript` / `vite-plugin-dts` / `@vitejs/plugin-vue` / `vue`) or change the build-config shape (e.g. dropping `rollupTypes: true` for a TS-major bump), apply the same change to `packages/create-mulmoclaude-plugin/src/template.ts` in the **same PR**:
-
-1. Update the `PACKAGE_JSON` template's `devDependencies` caret ranges to match `packages/plugins/bookmarks-plugin/package.json` (the canonical reference).
-2. If the build-config shape changed, mirror it into `VITE_CONFIG` (the multi-line string just below).
-3. Run `yarn workspace create-mulmoclaude-plugin run build` to regenerate the CLI's own dist.
-4. Optionally bump the CLI's own `version` and re-publish if external users will fetch via `npx`.
-
-If you forget step 1 / 2, generated plugins ship with stale toolchains and may hit the same issue you just fixed in the in-tree plugin (e.g. empty `.d.ts` from api-extractor + TS 6).
+Day-to-day code edits don't need that doc — the only plugin rule that applies broadly is the dependency direction (above): plugins MAY import from `@mulmoclaude/core` / leaf libs, MUST NOT import another `*-plugin`.
 
 ## Centralized Constants
 
