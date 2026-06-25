@@ -8,8 +8,8 @@
     <button
       class="relative h-8 w-8 flex items-center justify-center rounded border border-gray-300 transition-colors"
       :class="isChatActive ? 'bg-blue-50 text-blue-600' : 'bg-white text-gray-600 hover:bg-gray-50'"
-      :title="t('pluginLauncher.chat.label')"
-      :aria-label="t('pluginLauncher.chat.label')"
+      :title="chatAccessibleName"
+      :aria-label="chatAccessibleName"
       data-testid="plugin-launcher-chat"
       @click="emit('navigateChat')"
     >
@@ -113,6 +113,25 @@ const isChatActive = computed(() => route.name === PAGE_ROUTES.chat);
 
 const activeSessionCount = computed(() => props.activeSessionCount ?? 0);
 const unreadCount = computed(() => props.unreadCount ?? 0);
+
+// The Chat button is the only off-chat surface for the active/unread
+// session counts, so its accessible name must spell them out — a bare
+// "Chat" aria-label would override the badge text and leave screen
+// readers with no unread/running signal on /wiki, /files, etc. Reuses
+// the same localized plural strings as the badges. (No aria-live: a
+// polite region here would re-announce background count changes while
+// the user is reading another page; the name is announced when the
+// control is focused.)
+const chatAccessibleName = computed(() => {
+  const parts = [t("pluginLauncher.chat.label")];
+  if (activeSessionCount.value > 0) {
+    parts.push(t("sessionTabBar.activeSessions", activeSessionCount.value, { named: { count: activeSessionCount.value } }));
+  }
+  if (unreadCount.value > 0) {
+    parts.push(t("sessionTabBar.unreadReplies", unreadCount.value, { named: { count: unreadCount.value } }));
+  }
+  return parts.join(", ");
+});
 
 export type PluginLauncherKind = "view"; // Switch the canvas to a dedicated view mode
 

@@ -139,6 +139,9 @@ test.describe("session-history side-panel toggle", () => {
 
     // Expand to full-width, then navigate off chat via the Files button.
     await page.getByTestId("session-history-expand-off").click();
+    // Confirm the expand actually took effect — otherwise the test could
+    // pass even if the toggle broke, since it never reproduces the bug.
+    await expect(page.getByTestId("session-history-expand-on")).toBeVisible();
     await page.getByTestId("plugin-launcher-files").click();
     await page.waitForURL(/\/files(?:$|\?)/);
 
