@@ -339,7 +339,8 @@ import { EVENT_TYPES } from "./types/events";
 import { buildAgentRequestBody, postAgentRun } from "./utils/agent/request";
 import { resolvePastedAttachment } from "./utils/agent/pastedAttachment";
 import { applyAgentEvent, type AgentEventContext } from "./utils/agent/eventDispatch";
-import { pushErrorMessage, beginUserTurn, updateResult } from "./utils/session/sessionHelpers";
+import { pushErrorMessage, beginUserTurn, updateResult, applyToolResultToSession } from "./utils/session/sessionHelpers";
+import { parseCollectionSlashSeed, makeSyntheticCollectionResult } from "./utils/collections/presentSeed";
 import { roleName, roleIcon } from "./utils/role/icon";
 import { createEmptySession } from "./utils/session/sessionFactory";
 import { buildLoadedSession, parseSessionEntries } from "./utils/session/sessionEntries";
@@ -370,6 +371,7 @@ import ConfirmModal from "./components/ConfirmModal.vue";
 import { useNotifications } from "./composables/useNotifications";
 import { collectionNotifiedSeverities } from "./utils/collections/notifiedItems";
 import { installCollectionAppBindings } from "./composables/collections/uiHost";
+import type { CollectionsListResponse } from "@mulmoclaude/collection-plugin";
 import { useHealth } from "./composables/useHealth";
 import { useSessionHistory } from "./composables/useSessionHistory";
 import { useRightSidebar } from "./composables/useRightSidebar";
@@ -1106,6 +1108,35 @@ function startNewChat(message: string, roleId?: string): void {
   // is now handled inside createNewSession via the isChatPage check.
   createNewSession(roleId);
   void sendMessage(message);
+  void seedCollectionPresentation(message);
+}
+
+// A chat seeded from a collection view carries that collection's slash command
+// (`/<slug> …`). Present the collection in the canvas immediately — a
+// client-side stand-in for the presentCollection call the agent makes moments
+// later — so the user isn't staring at an empty canvas during the round trip.
+// The placeholder is reconciled away once the real tool result arrives
+// (reconcileSyntheticCollection in eventDispatch). No-op for non-collection
+// slash commands (e.g. /deep-research) and plain prose.
+async function seedCollectionPresentation(message: string): Promise<void> {
+  const seed = parseCollectionSlashSeed(message);
+  if (!seed) return;
+  const session = activeSession.value;
+  if (!session) return;
+  if (!(await isKnownCollectionSlug(seed.slug))) return;
+  // The active session can change while the collection-list fetch is in flight
+  // (user starts another chat); only seed the session we parsed for.
+  if (activeSession.value?.id !== session.id) return;
+  applyToolResultToSession(session, makeSyntheticCollectionResult(seed.slug, seed.itemId));
+}
+
+// Confirm `slug` names a real collection before seeding — otherwise a
+// non-collection slash command would flash a "not found" collection canvas. On
+// fetch failure we skip the optimistic card; the agent still presents it.
+async function isKnownCollectionSlug(slug: string): Promise<boolean> {
+  const result = await apiGet<CollectionsListResponse>(API_ROUTES.collections.list);
+  if (!result.ok) return false;
+  return result.data.collections.some((collection) => collection.slug === slug);
 }
 
 // Like startNewChat, but prefills the composer with `message` as an editable
