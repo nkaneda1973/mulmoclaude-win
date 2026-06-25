@@ -975,20 +975,20 @@
   dependencies:
     gui-chat-protocol "^0.3.3"
 
-"@gui-chat-plugin/mindmap@^0.5.0":
-  version "0.5.0"
-  resolved "https://npm.flatt.tech/@gui-chat-plugin/mindmap/-/mindmap-0.5.0.tgz#5eba74c8a79c9ecd98a95a4a9ae965711083322c"
-  integrity sha512-PN9pWQj5vO+uCJqp4iFTdU+Ph7gMzuI1InycMP91IxFZdfXMXl+YW+VafNLbj/aG4RRuHgZOzy86hoU8Np1eRQ==
+"@gui-chat-plugin/mindmap@^0.4.1":
+  version "0.4.1"
+  resolved "https://npm.flatt.tech/@gui-chat-plugin/mindmap/-/mindmap-0.4.1.tgz#547ed008e920d9b579f1f15bc8faeefbd0b9b5e4"
+  integrity sha512-802LzyPaQpFUZqjqVGQrH85emWIFdvt2hzJ31ZMUbfJOYaCWkAiW6eQysW4S2X7JqJ688Nd+8PcCKklXlOckyg==
   dependencies:
-    gui-chat-protocol "^0.4.0"
+    gui-chat-protocol "^0.3.3"
     jspdf "^4.0.0"
 
-"@gui-chat-plugin/present3d@^0.5.0":
-  version "0.5.0"
-  resolved "https://npm.flatt.tech/@gui-chat-plugin/present3d/-/present3d-0.5.0.tgz#0a041b07e83c9ac45fcc3e94458866fd545fee13"
-  integrity sha512-2hqW0gWUUXhz4hpz3xfWFSKlBgoQOIF/+zi+gacfgKIyyLNtpNL701fQYPLsB/K116CSkIC0pA9FhMwRDHrnrw==
+"@gui-chat-plugin/present3d@^0.4.1":
+  version "0.4.1"
+  resolved "https://npm.flatt.tech/@gui-chat-plugin/present3d/-/present3d-0.4.1.tgz#56e33a72b37f947c6b45d328b71d8e741b03a8b8"
+  integrity sha512-iSnCpzPXjmibtF/2SBHUvozruYgzSfTJ50Kb4tkDgPhx+g+B9pLD7pTIEHaiJNiJfdVfzK8Qf6K4DRBxBZn0RQ==
   dependencies:
-    gui-chat-protocol "^0.4.0"
+    gui-chat-protocol "^0.3.3"
     three "^0.184.0"
     three-bvh-csg "^0.0.18"
     three-mesh-bvh "0.9.10"
@@ -1508,12 +1508,12 @@
     "@mulmocast/deck" "^0.7.0"
     zod "^4.4.3"
 
-"@mulmochat-plugin/quiz@0.5.0":
-  version "0.5.0"
-  resolved "https://npm.flatt.tech/@mulmochat-plugin/quiz/-/quiz-0.5.0.tgz#25210d0a5cd126b0962468cce55ff2f6983b255c"
-  integrity sha512-uSIBmr1URk3PR6S/L8KxYaWyg21BbH0R0Y1wksRtHwwbnye1GM0qd53Ys/49+MJzSrArZ9CDoig1Nr+bn6gZPA==
+"@mulmochat-plugin/quiz@0.4.3":
+  version "0.4.3"
+  resolved "https://npm.flatt.tech/@mulmochat-plugin/quiz/-/quiz-0.4.3.tgz#8dedad10324e2a61fa7621698997d98ddbbfc362"
+  integrity sha512-HlLteHPifbuEksexMNp7WeRN328WgQHjXg8MbMiNYFW9vNLaY0r0fi83isyp3bQYM9wn+dvdz8dBTjbj4mINmg==
   dependencies:
-    gui-chat-protocol "^0.4.0"
+    gui-chat-protocol "^0.3.3"
 
 "@mulmochat-plugin/ui-image@^0.4.0":
   version "0.4.0"
