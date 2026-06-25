@@ -41,15 +41,18 @@ const REPO_ROOT = path.resolve(__dirname, "..");
 function parseArgs(argv) {
   const positional = [];
   let nameSuffix = "";
+  let first = [];
   for (const arg of argv) {
     if (arg.startsWith("--name-suffix=")) {
       nameSuffix = arg.slice("--name-suffix=".length);
+    } else if (arg.startsWith("--first=")) {
+      first = arg.slice("--first=".length).split(",").map((s) => s.trim()).filter(Boolean);
     } else {
       positional.push(arg);
     }
   }
   if (positional.length !== 2) {
-    console.error("usage: build-workspaces.mjs <relDir> <scope> [--name-suffix=<suffix>]");
+    console.error("usage: build-workspaces.mjs <relDir> <scope> [--name-suffix=<suffix>] [--first=<basename[,basename...]>]");
     process.exit(2);
   }
   const [relDir, scope] = positional;
@@ -57,7 +60,7 @@ function parseArgs(argv) {
     console.error(`[build-workspaces] scope must start with '@' (got: ${scope})`);
     process.exit(2);
   }
-  return { relDir, scope, nameSuffix };
+  return { relDir, scope, nameSuffix, first };
 }
 
 function findWorkspaces({ relDir, scope, nameSuffix }) {
@@ -153,7 +156,21 @@ async function main() {
     console.error(`[build-workspaces] no packages matching scope=${args.scope}` + (args.nameSuffix ? ` suffix=${args.nameSuffix}` : "") + ` under ${args.relDir}`);
     process.exit(1);
   }
-  console.log(`[build-workspaces] building ${workspaces.length} package(s) in parallel under ${args.relDir}: ${workspaces.join(", ")}`);
+
+  // `--first=<basename>` lets a caller pin a dep-providing package to build
+  // BEFORE the parallel batch (e.g. @mulmoclaude/notifier is imported by
+  // collection-watchers; full-parallel races and races lose the .d.ts type
+  // resolution on a cold tree). Match by the trailing path segment of the
+  // workspace name so the CLI surface doesn't need the full scope.
+  const firstSet = new Set(args.first);
+  const firstBatch = workspaces.filter((name) => firstSet.has(name.split("/").pop()));
+  const restBatch = workspaces.filter((name) => !firstSet.has(name.split("/").pop()));
+  for (const pinned of args.first) {
+    if (!firstBatch.some((name) => name.endsWith(`/${pinned}`))) {
+      console.error(`[build-workspaces] --first=${pinned} did not match any package under ${args.relDir}`);
+      process.exit(2);
+    }
+  }
 
   // If our own process is signalled (Ctrl-C in dev, CI timeout, etc.),
   // forward SIGTERM to every still-running build before exiting.
@@ -166,7 +183,14 @@ async function main() {
   }
 
   try {
-    await Promise.all(workspaces.map(runOne));
+    if (firstBatch.length > 0) {
+      console.log(`[build-workspaces] building ${firstBatch.length} pinned package(s) first under ${args.relDir}: ${firstBatch.join(", ")}`);
+      for (const name of firstBatch) await runOne(name);
+    }
+    if (restBatch.length > 0) {
+      console.log(`[build-workspaces] building ${restBatch.length} package(s) in parallel under ${args.relDir}: ${restBatch.join(", ")}`);
+      await Promise.all(restBatch.map(runOne));
+    }
   } catch (err) {
     console.error(`[build-workspaces] failed: ${err instanceof Error ? err.message : String(err)}`);
     // Match `concurrently --kill-others-on-fail`: terminate the
