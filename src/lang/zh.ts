@@ -333,7 +333,7 @@ const zhMessages = {
     viewCalendar: "日历",
     viewKanban: "看板",
     viewPickerLabel: "选择视图",
-    openFull: "打开完整视图",
+    openFull: "双击打开完整视图",
     dragHint: "拖动以重新排序",
     resizeHint: "拖动以调整高度",
   },

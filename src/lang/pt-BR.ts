@@ -337,7 +337,7 @@ const ptBRMessages = {
     viewCalendar: "Calendário",
     viewKanban: "Kanban",
     viewPickerLabel: "Escolher visualização",
-    openFull: "Abrir visualização completa",
+    openFull: "Clique duplo para abrir a visualização completa",
     dragHint: "Arraste para reordenar",
     resizeHint: "Arraste para redimensionar a altura",
   },

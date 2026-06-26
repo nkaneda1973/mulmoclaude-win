@@ -38,7 +38,7 @@
             type="button"
             class="flex items-center gap-1.5 min-w-0 flex-1 text-left text-sm font-semibold text-slate-700 hover:text-indigo-600"
             :title="t('dashboard.openFull')"
-            @click="openFull(tile.slug)"
+            @dblclick="openFull(tile.slug)"
           >
             <span class="material-symbols-outlined text-base flex-none">{{ metaFor(tile.slug)?.icon || "apps" }}</span>
             <span class="truncate">{{ metaFor(tile.slug)?.title || tile.slug }}</span>

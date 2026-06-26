@@ -339,7 +339,7 @@ const frMessages = {
     viewCalendar: "Calendrier",
     viewKanban: "Kanban",
     viewPickerLabel: "Choisir la vue",
-    openFull: "Ouvrir la vue complète",
+    openFull: "Double-cliquez pour ouvrir la vue complète",
     dragHint: "Glisser pour réorganiser",
     resizeHint: "Glisser pour redimensionner",
   },

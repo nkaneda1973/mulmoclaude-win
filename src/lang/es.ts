@@ -345,7 +345,7 @@ const esMessages = {
     viewCalendar: "Calendario",
     viewKanban: "Kanban",
     viewPickerLabel: "Elegir vista",
-    openFull: "Abrir vista completa",
+    openFull: "Doble clic para abrir la vista completa",
     dragHint: "Arrastra para reordenar",
     resizeHint: "Arrastra para cambiar el tamaño",
   },

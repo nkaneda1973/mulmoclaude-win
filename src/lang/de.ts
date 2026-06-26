@@ -343,7 +343,7 @@ const deMessages = {
     viewCalendar: "Kalender",
     viewKanban: "Kanban",
     viewPickerLabel: "Ansicht wählen",
-    openFull: "Vollansicht öffnen",
+    openFull: "Zum Öffnen der Vollansicht doppelklicken",
     dragHint: "Zum Neuordnen ziehen",
     resizeHint: "Zum Ändern der Höhe ziehen",
   },

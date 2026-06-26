@@ -358,7 +358,7 @@ const enMessages = {
     viewCalendar: "Calendar",
     viewKanban: "Kanban",
     viewPickerLabel: "Choose view",
-    openFull: "Open full view",
+    openFull: "Double-click to open full view",
     dragHint: "Drag to reorder",
     resizeHint: "Drag to resize",
   },

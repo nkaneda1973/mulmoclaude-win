@@ -341,7 +341,7 @@ const koMessages = {
     viewCalendar: "캘린더",
     viewKanban: "칸반",
     viewPickerLabel: "보기 선택",
-    openFull: "전체 보기 열기",
+    openFull: "더블클릭하여 전체 보기 열기",
     dragHint: "드래그하여 순서 변경",
     resizeHint: "드래그하여 높이 조절",
   },

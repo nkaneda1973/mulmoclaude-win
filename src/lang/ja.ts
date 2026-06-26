@@ -341,7 +341,7 @@ const jaMessages = {
     viewCalendar: "カレンダー",
     viewKanban: "カンバン",
     viewPickerLabel: "表示を選択",
-    openFull: "全体表示を開く",
+    openFull: "ダブルクリックで全体表示を開く",
     dragHint: "ドラッグして並べ替え",
     resizeHint: "ドラッグして高さを変更",
   },
