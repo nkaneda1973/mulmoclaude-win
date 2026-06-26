@@ -111,10 +111,9 @@ async function writeBundleFiles(targetDir: string, bundle: Map<string, string>, 
   }
 }
 
-async function materializeSeed(workspaceRoot: string, localSlug: string, bundle: Map<string, string>): Promise<{ written: number; skipped: boolean }> {
+async function materializeSeed(dataDir: string, bundle: Map<string, string>): Promise<{ written: number; skipped: boolean }> {
   const seedEntries = [...bundle].filter(([rel]) => rel.startsWith(SEED_PREFIX));
   if (seedEntries.length === 0) return { written: 0, skipped: false };
-  const dataDir = path.join(workspaceRoot, ...normalizedDataPath(localSlug).split("/"));
   if (!(await isEmptyOrAbsentDir(dataDir))) return { written: 0, skipped: true };
   await mkdir(dataDir, { recursive: true });
   let written = 0;
@@ -143,13 +142,20 @@ export async function writeImportedCollection(params: {
   const validated = validateAndNormalize(bundle, entry.slug, workspaceRoot);
   if ("error" in validated) return { ok: false, status: STATUS_UNPROCESSABLE, error: validated.error };
 
+  // Pre-flight the data dir: a non-directory at the dataPath would make mkdir throw
+  // EEXIST mid-import (a generic 500). Reject deterministically before any write.
+  const dataDir = path.join(workspaceRoot, ...normalizedDataPath(entry.slug).split("/"));
+  if ((await statType(dataDir)) === "other") {
+    return { ok: false, status: STATUS_CONFLICT, error: `data path for slug '${entry.slug}' exists and is not a directory` };
+  }
+
   // Clear any prior install so a re-import truly replaces the bundle — files that
   // disappeared from the manifest must not linger. Records live in dataPath (a
   // separate dir) and are untouched.
   await rm(target.targetDir, { recursive: true, force: true });
   await mkdir(target.targetDir, { recursive: true });
   await writeBundleFiles(target.targetDir, bundle, validated.schema);
-  const seed = await materializeSeed(workspaceRoot, entry.slug, bundle);
+  const seed = await materializeSeed(dataDir, bundle);
   const origin: ImportOrigin = { registry, author: entry.author, slug: entry.slug, version: entry.version, contentSha: entry.contentSha, importedAt: nowIso };
   await writeFileAtomic(path.join(target.targetDir, ORIGIN_FILE), `${JSON.stringify(origin, null, 2)}\n`);
   return { ok: true, localSlug: entry.slug, updated: target.updated, seedWritten: seed.written, seedSkipped: seed.skipped };

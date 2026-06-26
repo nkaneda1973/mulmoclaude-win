@@ -128,4 +128,12 @@ describe("writeImportedCollection", () => {
     assert.equal(result.ok, false);
     if (!result.ok) assert.equal(result.status, 409);
   });
+
+  it("returns 409 when the data path exists as a non-directory file", async () => {
+    mkdirSync(path.join(wsRoot, "data", "collections", "movies"), { recursive: true });
+    writeFileSync(path.join(wsRoot, "data", "collections", "movies", "items"), "i am a file, not a directory");
+    const result = await writeImportedCollection({ registry: REGISTRY, entry, bundle: makeBundle(), workspaceRoot: wsRoot, nowIso: "t" });
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.equal(result.status, 409);
+  });
 });
