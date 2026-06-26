@@ -91,7 +91,10 @@ async function persist(next: LayoutSnapshot, previous: LayoutSnapshot): Promise<
     console.error("[useDashboard] persist failed", result.error);
     return false;
   }
-  apply({ tiles: result.data.tiles, rowHeights: result.data.rowHeights ?? [] });
+  // Adopt the server's canonical layout. If the response omits rowHeights
+  // (e.g. a version-skewed server), keep the heights we just sent rather
+  // than clearing them — otherwise a resize would visibly snap back.
+  apply({ tiles: result.data.tiles, rowHeights: result.data.rowHeights ?? next.rowHeights });
   loadError.value = null;
   return true;
 }
