@@ -35,9 +35,8 @@
             type="button"
             class="flex items-center gap-1.5 min-w-0 flex-1 text-left text-sm font-semibold text-slate-700 hover:text-indigo-600"
             :title="t('dashboard.openFull')"
+            @click="onTitleActivate($event, tile.slug)"
             @dblclick="openFull(tile.slug)"
-            @keydown.enter.prevent="openFull(tile.slug)"
-            @keydown.space.prevent="openFull(tile.slug)"
           >
             <span class="material-symbols-outlined text-base flex-none">{{ metaFor(tile.slug)?.icon || "apps" }}</span>
             <span class="truncate">{{ metaFor(tile.slug)?.title || tile.slug }}</span>
@@ -150,6 +149,15 @@ function onPickView(slug: string, event: Event): void {
 
 function openFull(slug: string): void {
   router.push({ name: PAGE_ROUTES.collections, params: { slug } }).catch(() => {});
+}
+
+// Keyboard (Enter/Space on a native <button>) and assistive-tech "activate"
+// both dispatch a click with detail 0, whereas a real mouse click has
+// detail >= 1. Act only on the former so keyboard/AT users can open the full
+// view, while a plain mouse single-click does NOT navigate — only the
+// double-click does (the requested pointer UX).
+function onTitleActivate(event: MouseEvent, slug: string): void {
+  if (event.detail === 0) openFull(slug);
 }
 
 // ── Drag-to-reorder via pointer events. Native HTML5 DnD conflicted with
