@@ -21,31 +21,37 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { env } from "../system/env.js";
 
+// `env.claudeConfigDir` / `env.claudeConfigJson` are captured at module load
+// from `process.env.CLAUDE_CONFIG_DIR` / `CLAUDE_CONFIG_JSON`. The `override`
+// parameter on each helper exists so tests can exercise the override path
+// without spawning a subprocess (production always passes nothing →
+// `env.X` wins, and the helper preserves identical behaviour).
+
 /** Absolute path to the user's Claude Code config directory.
  *
  *  Default: `<home>/.claude` (where `home` defaults to `os.homedir()`).
  *  Override with `CLAUDE_CONFIG_DIR` env var. The `home` parameter exists
  *  for tests that thread a fake home through callers like
  *  `buildDockerSpawnArgs`; production passes nothing and gets `homedir()`. */
-export function claudeConfigDir(home?: string): string {
-  return env.claudeConfigDir ?? join(home ?? homedir(), ".claude");
+export function claudeConfigDir(home?: string, override: string | undefined = env.claudeConfigDir): string {
+  return override ?? join(home ?? homedir(), ".claude");
 }
 
 /** Absolute path to the user's top-level Claude Code JSON config file.
  *
  *  Default: `<home>/.claude.json`. Override with `CLAUDE_CONFIG_JSON`. */
-export function claudeConfigJson(home?: string): string {
-  return env.claudeConfigJson ?? join(home ?? homedir(), ".claude.json");
+export function claudeConfigJson(home?: string, override: string | undefined = env.claudeConfigJson): string {
+  return override ?? join(home ?? homedir(), ".claude.json");
 }
 
 /** Absolute path to the user's Claude Code credentials file
  *  (`<claudeConfigDir>/.credentials.json`). */
-export function claudeCredentialsPath(home?: string): string {
-  return join(claudeConfigDir(home), ".credentials.json");
+export function claudeCredentialsPath(home?: string, dirOverride?: string): string {
+  return join(claudeConfigDir(home, dirOverride), ".credentials.json");
 }
 
 /** Absolute path to the user's Claude Code skills directory
  *  (`<claudeConfigDir>/skills`). */
-export function claudeSkillsDir(home?: string): string {
-  return join(claudeConfigDir(home), "skills");
+export function claudeSkillsDir(home?: string, dirOverride?: string): string {
+  return join(claudeConfigDir(home, dirOverride), "skills");
 }
