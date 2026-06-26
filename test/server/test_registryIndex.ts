@@ -119,6 +119,24 @@ describe("parseRegistryIndex", () => {
     if (!pathMismatch.ok) assert.match(pathMismatch.error, /\.path must equal/);
   });
 
+  it("rejects traversal/invalid author or slug even when id/path are internally consistent", () => {
+    const poisoned = (author: string, slug: string) => ({ ...validEntry(), author, slug, id: `${author}/${slug}`, path: `collections/${author}/${slug}` });
+    const cases: [string, string][] = [
+      ["..", "movies"],
+      ["a/b", "movies"],
+      ["isamu", ".."],
+      ["isamu", "a/b"],
+      ["isamu.", "movies"],
+      ["isamu", "mov.ies"],
+      ["isa\\mu", "movies"],
+      ["-isamu", "movies"],
+    ];
+    for (const [author, slug] of cases) {
+      const result = parseRegistryIndex({ ...validIndex(), collections: [poisoned(author, slug)] });
+      assert.equal(result.ok, false, `${author}/${slug} should be rejected`);
+    }
+  });
+
   it("accepts zero and positive integer counts", () => {
     const result = parseRegistryIndex({ ...validIndex(), collections: [{ ...validEntry(), fieldCount: 0, seedCount: 42 }] });
     assert.ok(result.ok);

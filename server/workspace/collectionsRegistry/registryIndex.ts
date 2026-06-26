@@ -64,9 +64,19 @@ const pickBoolean = (rec: Record<string, unknown>, key: string): boolean | undef
 
 const asStringArray = (value: unknown): string[] => (Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : []);
 
-// id/path must agree with author/slug, so a lookup by author+slug can never fetch
-// files from a different directory than requested (defense against a poisoned index).
-function consistencyError(entryId: string, author: string, slug: string, dirPath: string, index: number): string | null {
+// Identifier allowlists (mirror the registry's meta.schema.json). Crucially these
+// exclude `.`, `/`, `\`, and `..`, so a poisoned author/slug can never make
+// collectionFileUrl() escape the collections/<author>/<slug> subtree — even if the
+// entry is internally consistent. Bounded quantifiers (no ReDoS).
+const AUTHOR_RE = /^[A-Za-z0-9][A-Za-z0-9-]{0,38}$/;
+const SLUG_RE = /^[a-z0-9][a-z0-9-]{0,62}$/;
+
+// author/slug must be allowlisted identifiers, and id/path must agree with them, so a
+// lookup by author+slug can never fetch files from a different (or out-of-tree)
+// directory than requested (defense against a poisoned index).
+function identityError(entryId: string, author: string, slug: string, dirPath: string, index: number): string | null {
+  if (!AUTHOR_RE.test(author)) return `collections[${index}].author has an invalid format`;
+  if (!SLUG_RE.test(slug)) return `collections[${index}].slug has an invalid format`;
   if (entryId !== `${author}/${slug}`) return `collections[${index}].id must equal "${author}/${slug}"`;
   if (dirPath !== `collections/${author}/${slug}`) return `collections[${index}].path must equal "collections/${author}/${slug}"`;
   return null;
@@ -92,7 +102,7 @@ function parseEntry(value: unknown, index: number): RegistryCollectionEntry | st
   if (!entryId || !author || !slug || !title || !version || !path || !contentSha) {
     return `collections[${index}] is missing a required string field (id/author/slug/title/version/path/contentSha)`;
   }
-  const mismatch = consistencyError(entryId, author, slug, path, index);
+  const mismatch = identityError(entryId, author, slug, path, index);
   if (mismatch) return mismatch;
   const counts = validatedCounts(value, index);
   if (typeof counts === "string") return counts;

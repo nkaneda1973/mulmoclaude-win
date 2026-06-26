@@ -25,9 +25,12 @@ export function rawBaseUrl(): string {
 }
 
 /** Compose the raw URL for `<dirPath>/<relFile>`. `dirPath` is an index entry's
- *  repo-relative collection dir (e.g. `collections/isamu/movies`). */
+ *  repo-relative collection dir (e.g. `collections/isamu/movies`). Empty and
+ *  traversal (`.`/`..`) segments are dropped so the URL can never escape the base,
+ *  even if an upstream check is bypassed (the index parser already rejects such
+ *  identifiers — this is defense-in-depth). */
 export function collectionFileUrl(dirPath: string, relFile: string): string {
-  const segments = dirPath.split("/").filter((segment) => segment.length > 0);
+  const segments = dirPath.split("/").filter((segment) => segment.length > 0 && segment !== "." && segment !== "..");
   return `${rawBaseUrl()}/${segments.join("/")}/${relFile}`;
 }
 
