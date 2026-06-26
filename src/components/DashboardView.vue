@@ -1,5 +1,5 @@
 <template>
-  <div class="h-full overflow-auto p-4" data-testid="dashboard-view">
+  <div class="h-full overflow-auto p-4" :class="{ 'select-none': isResizing }" data-testid="dashboard-view">
     <!-- Empty state: no pinned collections yet. -->
     <div v-if="favoriteSlugs.length === 0" class="h-full flex flex-col items-center justify-center text-center text-slate-500 gap-2">
       <span class="material-icons text-4xl text-slate-300">dashboard</span>
@@ -197,12 +197,35 @@ function rowHeight(index: number): number {
   return stored && stored > 0 ? stored : DEFAULT_HEIGHT;
 }
 
-let resize: { row: number; startY: number; startHeight: number } | null = null;
+// True while a drag is in progress — disables text selection so the drag
+// doesn't accidentally select tile content.
+const isResizing = ref(false);
+
+interface ResizeState {
+  row: number;
+  startY: number;
+  startHeight: number;
+  handle: HTMLElement;
+  pointerId: number;
+}
+let resize: ResizeState | null = null;
+// Latest pointer Y, applied once per frame (rAF-coalesced) so a flood of
+// pointermove events can't thrash re-renders of the embedded views.
+let pendingY: number | null = null;
+let rafId = 0;
+
+function applyResize(): void {
+  rafId = 0;
+  if (!resize || pendingY === null) return;
+  const next = Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, resize.startHeight + (pendingY - resize.startY)));
+  liveRowHeights.value = { ...liveRowHeights.value, [resize.row]: next };
+}
 
 function onResizeMove(event: PointerEvent): void {
   if (!resize) return;
-  const next = Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, resize.startHeight + (event.clientY - resize.startY)));
-  liveRowHeights.value = { ...liveRowHeights.value, [resize.row]: next };
+  event.preventDefault();
+  pendingY = event.clientY;
+  if (!rafId) rafId = requestAnimationFrame(applyResize);
 }
 
 function clearLiveRow(row: number): void {
@@ -216,27 +239,48 @@ async function persistRowHeight(row: number, height: number): Promise<void> {
   clearLiveRow(row);
 }
 
-function onResizeEnd(): void {
+function teardownResize(): void {
   window.removeEventListener("pointermove", onResizeMove);
   window.removeEventListener("pointerup", onResizeEnd);
+  window.removeEventListener("pointercancel", onResizeEnd);
+  if (rafId) cancelAnimationFrame(rafId);
+  rafId = 0;
+  pendingY = null;
+  isResizing.value = false;
+}
+
+function onResizeEnd(): void {
+  teardownResize();
   if (!resize) return;
-  const { row } = resize;
+  const { row, handle, pointerId } = resize;
   resize = null;
+  try {
+    handle.releasePointerCapture(pointerId);
+  } catch {
+    // Capture may already be gone (pointercancel) — ignore.
+  }
   const height = liveRowHeights.value[row];
   if (height !== undefined) void persistRowHeight(row, height);
 }
 
 function onResizeStart(index: number, event: PointerEvent): void {
-  const row = rowOf(index);
-  resize = { row, startY: event.clientY, startHeight: rowHeight(index) };
+  const handle = event.currentTarget as HTMLElement;
+  // Pointer capture routes every subsequent move/up to the handle even
+  // when the cursor passes over the embedded view (incl. iframes), which
+  // is what made the drag drop events and feel unstable.
+  try {
+    handle.setPointerCapture(event.pointerId);
+  } catch {
+    // Pointer capture unsupported — fall back to plain window listeners.
+  }
+  resize = { row: rowOf(index), startY: event.clientY, startHeight: rowHeight(index), handle, pointerId: event.pointerId };
+  isResizing.value = true;
   window.addEventListener("pointermove", onResizeMove);
   window.addEventListener("pointerup", onResizeEnd);
+  window.addEventListener("pointercancel", onResizeEnd);
 }
 
-onBeforeUnmount(() => {
-  window.removeEventListener("pointermove", onResizeMove);
-  window.removeEventListener("pointerup", onResizeEnd);
-});
+onBeforeUnmount(teardownResize);
 
 // First load: fold favorites into the stored layout once both lists are
 // authoritatively loaded (so an empty pre-load list never prunes tiles).
