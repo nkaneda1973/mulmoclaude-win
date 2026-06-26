@@ -8,7 +8,7 @@
 // workspaceRoot/clock so it is unit-testable against a temp workspace with no
 // network; `performImport` is the thin glue that fetches and calls it.
 
-import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { acceptParsedSchema, CollectionSchemaZ, safeRecordId } from "@mulmoclaude/core/collection/server";
@@ -43,11 +43,11 @@ export type ImportResult =
   | { ok: true; localSlug: string; updated: boolean; seedWritten: number; seedSkipped: boolean }
   | { ok: false; status: number; error: string };
 
-async function isDir(target: string): Promise<boolean> {
+async function statType(target: string): Promise<"dir" | "other" | "absent"> {
   try {
-    return (await stat(target)).isDirectory();
+    return (await stat(target)).isDirectory() ? "dir" : "other";
   } catch {
-    return false;
+    return "absent";
   }
 }
 
@@ -75,7 +75,9 @@ type TargetResolution = { targetDir: string; updated: boolean } | { conflict: st
 
 async function resolveTarget(workspaceRoot: string, registry: string, entry: RegistryCollectionEntry): Promise<TargetResolution> {
   const targetDir = projectSkillDir(workspaceRoot, entry.slug);
-  if (!(await isDir(targetDir))) return { targetDir, updated: false };
+  const kind = await statType(targetDir);
+  if (kind === "absent") return { targetDir, updated: false };
+  if (kind === "other") return { conflict: `path for slug '${entry.slug}' exists and is not a directory` };
   if (originMatches(await readOrigin(targetDir), registry, entry.author, entry.slug)) return { targetDir, updated: true };
   return { conflict: `a different collection already occupies slug '${entry.slug}'` };
 }
@@ -141,6 +143,10 @@ export async function writeImportedCollection(params: {
   const validated = validateAndNormalize(bundle, entry.slug, workspaceRoot);
   if ("error" in validated) return { ok: false, status: STATUS_UNPROCESSABLE, error: validated.error };
 
+  // Clear any prior install so a re-import truly replaces the bundle — files that
+  // disappeared from the manifest must not linger. Records live in dataPath (a
+  // separate dir) and are untouched.
+  await rm(target.targetDir, { recursive: true, force: true });
   await mkdir(target.targetDir, { recursive: true });
   await writeBundleFiles(target.targetDir, bundle, validated.schema);
   const seed = await materializeSeed(workspaceRoot, entry.slug, bundle);

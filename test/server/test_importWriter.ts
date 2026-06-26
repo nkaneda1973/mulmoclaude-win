@@ -112,4 +112,20 @@ describe("writeImportedCollection", () => {
     assert.equal(result.ok, false);
     if (!result.ok) assert.equal(result.status, 422);
   });
+
+  it("re-import removes files that dropped out of the manifest", async () => {
+    await writeImportedCollection({ registry: REGISTRY, entry, bundle: makeBundle({ "templates/old.md": "old" }), workspaceRoot: wsRoot, nowIso: "t1" });
+    assert.ok(existsSync(path.join(skillDir(wsRoot), "templates", "old.md")));
+    await writeImportedCollection({ registry: REGISTRY, entry, bundle: makeBundle(), workspaceRoot: wsRoot, nowIso: "t2" });
+    assert.ok(!existsSync(path.join(skillDir(wsRoot), "templates", "old.md")), "stale file removed on re-import");
+    assert.ok(existsSync(path.join(skillDir(wsRoot), "SKILL.md")), "current bundle still installed");
+  });
+
+  it("returns 409 when the slug path exists as a non-directory file", async () => {
+    mkdirSync(path.dirname(skillDir(wsRoot)), { recursive: true });
+    writeFileSync(skillDir(wsRoot), "i am a file, not a directory");
+    const result = await writeImportedCollection({ registry: REGISTRY, entry, bundle: makeBundle(), workspaceRoot: wsRoot, nowIso: "t" });
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.equal(result.status, 409);
+  });
 });
