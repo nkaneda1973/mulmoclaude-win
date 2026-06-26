@@ -637,6 +637,15 @@ app.get(API_ROUTES.sandbox, (_req: Request, res: Response) => {
 // `app.use("/api", ...)` prefix was dropped when #289 part 1 moved
 // the `/api` literal into each `router.post(API_ROUTES.…)` call.
 app.use(agentRoutes);
+// Configure the accounting backend's host seams (workspace root +
+// logger) at module load — BEFORE app.listen — so a request landing in
+// the gap before startRuntimeServices runs can't hit an unconfigured
+// defaultWorkspaceRoot() and 500. Same rationale as the module-load
+// route registration noted above. (Pub/sub init stays in
+// startRuntimeServices, where the pubsub instance is created; a missed
+// fire-and-forget event in the boot window is the same accepted
+// tradeoff as the file-change / collection publishers.)
+configureAccountingServer({ workspaceRoot: workspacePath, logger: log });
 app.use(createAccountingRouter());
 app.use(photoLocationsRoutes);
 app.use(schedulerRoutes);
@@ -1096,9 +1105,8 @@ async function startRuntimeServices(httpServer: ReturnType<typeof app.listen>, p
   // Wired here (not at first publish) so the very first save after
   // boot already sees a live publisher.
   initFileChangePublisher(pubsub);
-  // Inject the accounting backend's host seams (workspace root + logger)
-  // and its pub/sub instance before any request hits the router.
-  configureAccountingServer({ workspaceRoot: workspacePath, logger: log });
+  // Accounting DI (workspace root + logger) is configured at module load
+  // near the route mount; only the pub/sub instance is wired here.
   initAccountingEventPublisher(pubsub);
   initCollectionChangePublisher(pubsub);
 

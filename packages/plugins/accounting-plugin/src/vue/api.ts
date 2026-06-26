@@ -9,7 +9,14 @@
 // host-injected (see hostContext.ts) so the package stays host-agnostic.
 
 import { hostApiCall as apiCall, type ApiResult } from "./hostContext";
-import { ACCOUNTING_ACTIONS, type SupportedCountryCode, type FiscalYearEnd, type TimeSeriesGranularity, type TimeSeriesMetric } from "../shared";
+import {
+  ACCOUNTING_ACTIONS,
+  ACCOUNTING_API,
+  type SupportedCountryCode,
+  type FiscalYearEnd,
+  type TimeSeriesGranularity,
+  type TimeSeriesMetric,
+} from "../shared";
 
 export type AccountType = "asset" | "liability" | "equity" | "income" | "expense";
 export type JournalEntryKind = "normal" | "opening" | "void" | "void-marker";
@@ -126,14 +133,10 @@ export interface Ledger {
 
 export type ReportPeriod = { kind: "month"; period: string } | { kind: "range"; from: string; to: string };
 
-// The single dispatch route this plugin owns. The host META declares
-// the same `{ apiNamespace: "accounting", dispatch: { method: "POST",
-// path: "" } }`; we inline the resolved values here because the package
-// can't import the host-side META (it stays host-side for the
-// plugin-barrel codegen). The route is the stable contract between this
-// client and the package's own `./server` surface.
-const DISPATCH_URL = "/api/accounting";
-const DISPATCH_METHOD = "POST";
+// The single dispatch route this plugin owns — shared with the server
+// router via `ACCOUNTING_API` so the two can't drift.
+const DISPATCH_URL = ACCOUNTING_API.dispatch.path;
+const DISPATCH_METHOD = ACCOUNTING_API.dispatch.method;
 
 function call<T>(action: string, args: Record<string, unknown> = {}): Promise<ApiResult<T>> {
   return apiCall<T>(DISPATCH_URL, { method: DISPATCH_METHOD, body: { action, ...args } });

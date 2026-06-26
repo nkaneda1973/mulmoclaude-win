@@ -32,7 +32,7 @@ import {
   voidEntry,
 } from "./service.js";
 import type { BookSummary } from "./types.js";
-import { ACCOUNTING_ACTIONS } from "../shared";
+import { ACCOUNTING_ACTIONS, ACCOUNTING_API } from "../shared";
 import { log } from "./context.js";
 import { asyncHandler } from "./http.js";
 
@@ -343,7 +343,7 @@ async function dispatch(body: AccountingActionBody): Promise<unknown> {
 export function createAccountingRouter(): Router {
   const router = Router();
   router.post(
-    "/api/accounting",
+    ACCOUNTING_API.dispatch.path,
     asyncHandler<Request<object, unknown, AccountingActionBody>, Response<unknown | AccountingErrorResponse>>(
       "accounting",
       "accounting dispatch failed",
