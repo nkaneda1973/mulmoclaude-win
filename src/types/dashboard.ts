@@ -22,13 +22,16 @@ export interface DashboardTile {
    *  dependency on the collection-plugin's Vue layer; validated against
    *  the live schema at render time. Absent ⇒ the tile's default view. */
   viewMode?: string;
-  /** The tile's view-area height in pixels (drag-resized, per tile).
-   *  Absent ⇒ the default height. */
-  height?: number;
 }
 
 /** On-disk shape of `config/dashboard.json`. Object wrapper (not a bare
  *  array) so the schema can grow without a migration. */
 export interface DashboardFile {
   tiles: DashboardTile[];
+  /** View-area height (px) per grid row, indexed by row (the grid packs
+   *  2 tiles per row). The height belongs to the SLOT, not the tiles in
+   *  it: two side-by-side tiles share their row's height, and the height
+   *  stays with the row position when tiles are reordered. A `0` (or a
+   *  missing index) means the row uses the default height. */
+  rowHeights?: number[];
 }

@@ -4,7 +4,7 @@ import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync, mkdirSy
 import path from "node:path";
 import { tmpdir } from "node:os";
 import { WORKSPACE_FILES } from "../../../../server/workspace/paths.js";
-import { normalizeDashboard, readDashboard, writeDashboard } from "../../../../server/utils/files/dashboard-io.js";
+import { normalizeDashboard, normalizeRowHeights, readDashboard, writeDashboard } from "../../../../server/utils/files/dashboard-io.js";
 import type { DashboardTile } from "../../../../src/types/dashboard.js";
 
 function makeWorkspace(): string {
@@ -29,19 +29,19 @@ describe("dashboard-io — read", () => {
   });
   after(() => rmDir(root));
 
-  it("returns [] when the file is missing", async () => {
-    assert.deepEqual(await readDashboard(root), []);
+  it("returns an empty layout when the file is missing", async () => {
+    assert.deepEqual(await readDashboard(root), { tiles: [], rowHeights: [] });
   });
 
-  it("returns [] on malformed JSON", async () => {
+  it("returns an empty layout on malformed JSON", async () => {
     mkdirSync(path.dirname(filePath(root)), { recursive: true });
     writeFileSync(filePath(root), "{ not json");
-    assert.deepEqual(await readDashboard(root), []);
+    assert.deepEqual(await readDashboard(root), { tiles: [], rowHeights: [] });
   });
 
-  it("reads back what was written", async () => {
-    await writeDashboard([sample], root);
-    assert.deepEqual(await readDashboard(root), [sample]);
+  it("reads back what was written (tiles + rowHeights)", async () => {
+    await writeDashboard({ tiles: [sample], rowHeights: [400, 0, 250] }, root);
+    assert.deepEqual(await readDashboard(root), { tiles: [sample], rowHeights: [400, 0, 250] });
   });
 });
 
@@ -53,19 +53,19 @@ describe("dashboard-io — write", () => {
   after(() => rmDir(root));
 
   it("persists the object-wrapped shape with a trailing newline", async () => {
-    await writeDashboard([sample], root);
+    await writeDashboard({ tiles: [sample], rowHeights: [400] }, root);
     const raw = readFileSync(filePath(root), "utf-8");
     assert.equal(raw.endsWith("\n"), true);
-    assert.deepEqual(JSON.parse(raw), { tiles: [sample] });
+    assert.deepEqual(JSON.parse(raw), { tiles: [sample], rowHeights: [400] });
   });
 
-  it("dedupes on slug, keeping the first occurrence", async () => {
-    const written = await writeDashboard([sample, { slug: "invoices", viewMode: "table" }, { slug: "contacts" }], root);
-    assert.deepEqual(written, [sample, { slug: "contacts" }]);
+  it("dedupes tiles on slug, keeping the first occurrence", async () => {
+    const written = await writeDashboard({ tiles: [sample, { slug: "invoices", viewMode: "table" }, { slug: "contacts" }] }, root);
+    assert.deepEqual(written, { tiles: [sample, { slug: "contacts" }], rowHeights: [] });
   });
 });
 
-describe("normalizeDashboard — validation", () => {
+describe("normalizeDashboard — tile validation", () => {
   it("drops non-array input", () => {
     assert.deepEqual(normalizeDashboard(null), []);
     assert.deepEqual(normalizeDashboard({ foo: 1 }), []);
@@ -90,17 +90,20 @@ describe("normalizeDashboard — validation", () => {
       [{ slug: "a" }, { slug: "b" }, { slug: "c", viewMode: "custom:year" }],
     );
   });
+});
 
-  it("keeps height only when a positive finite number", () => {
-    assert.deepEqual(
-      normalizeDashboard([
-        { slug: "a", height: 420 },
-        { slug: "b", height: 0 },
-        { slug: "c", height: -5 },
-        { slug: "d", height: "tall" },
-        { slug: "e", height: Number.NaN },
-      ]),
-      [{ slug: "a", height: 420 }, { slug: "b" }, { slug: "c" }, { slug: "d" }, { slug: "e" }],
-    );
+describe("normalizeRowHeights — validation", () => {
+  it("drops non-array input", () => {
+    assert.deepEqual(normalizeRowHeights(null), []);
+    assert.deepEqual(normalizeRowHeights({ foo: 1 }), []);
+  });
+
+  it("coerces invalid / non-positive entries to 0 (default sentinel)", () => {
+    assert.deepEqual(normalizeRowHeights([420, 0, -5, "tall", Number.NaN, 300]), [420, 0, 0, 0, 0, 300]);
+  });
+
+  it("trims trailing zeros so the stored array stays compact", () => {
+    assert.deepEqual(normalizeRowHeights([400, 0, 250, 0, 0]), [400, 0, 250]);
+    assert.deepEqual(normalizeRowHeights([0, 0, 0]), []);
   });
 });

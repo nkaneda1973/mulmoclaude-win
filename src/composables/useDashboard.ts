@@ -1,9 +1,9 @@
-// Client store for the dashboard layout (per-tile view mode + tile
-// order for the favorites grid). Singleton module state shared across
-// consumers, mirroring `useShortcuts`: persistence is server-side
-// (`config/dashboard.json` via PUT /api/dashboard); the client owns the
-// full array and replaces it wholesale. Mutations are optimistic with
-// rollback on failure and serialised so overlapping replace-all PUTs
+// Client store for the dashboard layout (tile order + per-tile view mode,
+// and per-row view-area heights for the favorites grid). Singleton module
+// state shared across consumers, mirroring `useShortcuts`: persistence is
+// server-side (`config/dashboard.json` via PUT /api/dashboard); the client
+// owns the full layout and replaces it wholesale. Mutations are optimistic
+// with rollback on failure and serialised so overlapping replace-all PUTs
 // never land out of order.
 //
 // Membership (which collections appear) is NOT owned here — it derives
@@ -11,6 +11,9 @@
 // folds a fresh favorite-slug list into the stored layout: it appends
 // newly-favorited collections and prunes ones that were unpinned, while
 // preserving the user's dashboard order and per-tile view modes.
+//
+// Row heights are POSITIONAL: indexed by grid row (2 tiles/row), they stay
+// with the slot when tiles are reordered, never with a specific tile.
 
 import { computed, ref, type ComputedRef } from "vue";
 import { API_ROUTES } from "../config/apiRoutes";
@@ -18,8 +21,9 @@ import { apiGet, apiPut } from "../utils/api";
 import type { DashboardTile } from "../types/dashboard";
 
 const tiles = ref<DashboardTile[]>([]);
+const rowHeights = ref<number[]>([]);
 const loadError = ref<string | null>(null);
-/** True only after a GET has authoritatively populated `tiles`. Until
+/** True only after a GET has authoritatively populated the layout. Until
  *  then, mutations refuse to persist — a replace-all PUT built on the
  *  empty default would clobber an existing `dashboard.json`. */
 const loaded = ref(false);
@@ -27,6 +31,22 @@ let loadPromise: Promise<void> | null = null;
 
 interface DashboardResponse {
   tiles: DashboardTile[];
+  rowHeights?: number[];
+}
+
+/** Snapshot of the mutable layout, for optimistic rollback. */
+interface LayoutSnapshot {
+  tiles: DashboardTile[];
+  rowHeights: number[];
+}
+
+function snapshot(): LayoutSnapshot {
+  return { tiles: tiles.value, rowHeights: rowHeights.value };
+}
+
+function apply(layout: LayoutSnapshot): void {
+  tiles.value = layout.tiles;
+  rowHeights.value = layout.rowHeights;
 }
 
 /** Load once per session (deduped). A FAILED load is not cached so the
@@ -41,7 +61,7 @@ async function load(force = false): Promise<void> {
       return;
     }
     loadError.value = null;
-    tiles.value = result.data.tiles;
+    apply({ tiles: result.data.tiles, rowHeights: result.data.rowHeights ?? [] });
     loaded.value = true;
   })();
   return loadPromise;
@@ -60,28 +80,29 @@ function enqueue<T>(task: () => Promise<T>): Promise<T> {
   return run;
 }
 
-/** Persist the given list, rolling the local ref back to `previous` on
- *  failure. Returns true on success. Call only from inside `enqueue`. */
-async function persist(next: DashboardTile[], previous: DashboardTile[]): Promise<boolean> {
-  tiles.value = next;
-  const result = await apiPut<DashboardResponse>(API_ROUTES.dashboard, { tiles: next });
+/** Persist the given layout, rolling back to `previous` on failure.
+ *  Returns true on success. Call only from inside `enqueue`. */
+async function persist(next: LayoutSnapshot, previous: LayoutSnapshot): Promise<boolean> {
+  apply(next);
+  const result = await apiPut<DashboardResponse>(API_ROUTES.dashboard, { tiles: next.tiles, rowHeights: next.rowHeights });
   if (!result.ok) {
-    tiles.value = previous;
+    apply(previous);
     loadError.value = result.error;
     console.error("[useDashboard] persist failed", result.error);
     return false;
   }
-  tiles.value = result.data.tiles;
+  apply({ tiles: result.data.tiles, rowHeights: result.data.rowHeights ?? [] });
   loadError.value = null;
   return true;
 }
 
-/** Replace the full ordered tile list (used by drag-to-reorder). */
+/** Replace the full ordered tile list (used by drag-to-reorder). Row
+ *  heights are positional, so they stay put. */
 function setTiles(next: DashboardTile[]): Promise<boolean> {
   return enqueue(async () => {
     await load();
-    if (!loaded.value) return false; // never overwrite an unread list
-    return persist(next, tiles.value);
+    if (!loaded.value) return false; // never overwrite an unread layout
+    return persist({ tiles: next, rowHeights: rowHeights.value }, snapshot());
   });
 }
 
@@ -92,8 +113,8 @@ function setViewMode(slug: string, viewMode: string | null): Promise<boolean> {
     await load();
     if (!loaded.value) return false;
     if (!tiles.value.some((tile) => tile.slug === slug)) return true;
-    const previous = tiles.value;
-    const next = previous.map((tile) => {
+    const previous = snapshot();
+    const next = previous.tiles.map((tile) => {
       if (tile.slug !== slug) return tile;
       if (viewMode === null) {
         const { viewMode: __drop, ...rest } = tile;
@@ -101,19 +122,22 @@ function setViewMode(slug: string, viewMode: string | null): Promise<boolean> {
       }
       return { ...tile, viewMode };
     });
-    return persist(next, previous);
+    return persist({ tiles: next, rowHeights: previous.rowHeights }, previous);
   });
 }
 
-/** Set one tile's view-area height (px). No-op if the slug isn't a tile. */
-function setHeight(slug: string, height: number): Promise<boolean> {
+/** Set one grid row's view-area height (px), indexed by row. Pads with
+ *  `0` (default) for any earlier untouched rows. */
+function setRowHeight(row: number, height: number): Promise<boolean> {
   return enqueue(async () => {
     await load();
     if (!loaded.value) return false;
-    if (!tiles.value.some((tile) => tile.slug === slug)) return true;
-    const previous = tiles.value;
-    const next = previous.map((tile) => (tile.slug === slug ? { ...tile, height } : tile));
-    return persist(next, previous);
+    if (row < 0) return true;
+    const previous = snapshot();
+    const next = [...previous.rowHeights];
+    while (next.length <= row) next.push(0);
+    next[row] = height;
+    return persist({ tiles: previous.tiles, rowHeights: next }, previous);
   });
 }
 
@@ -125,34 +149,36 @@ function setHeight(slug: string, height: number): Promise<boolean> {
 function reconcile(favoriteSlugs: string[]): Promise<void> {
   return enqueue(async () => {
     await load();
-    if (!loaded.value) return; // never overwrite an unread list
+    if (!loaded.value) return; // never overwrite an unread layout
     const favoriteSet = new Set(favoriteSlugs);
     const kept = tiles.value.filter((tile) => favoriteSet.has(tile.slug));
     const keptSlugs = new Set(kept.map((tile) => tile.slug));
     const appended = favoriteSlugs.filter((slug) => !keptSlugs.has(slug)).map((slug) => ({ slug }) as DashboardTile);
     const next = [...kept, ...appended];
     const drifted = next.length !== tiles.value.length || next.some((tile, i) => tile.slug !== tiles.value[i]?.slug);
-    if (drifted) await persist(next, tiles.value);
+    if (drifted) await persist({ tiles: next, rowHeights: rowHeights.value }, snapshot());
   });
 }
 
 export function useDashboard(): {
   tiles: ComputedRef<DashboardTile[]>;
+  rowHeights: ComputedRef<number[]>;
   loadError: ComputedRef<string | null>;
   load: (force?: boolean) => Promise<void>;
   setTiles: (next: DashboardTile[]) => Promise<boolean>;
   setViewMode: (slug: string, viewMode: string | null) => Promise<boolean>;
-  setHeight: (slug: string, height: number) => Promise<boolean>;
+  setRowHeight: (row: number, height: number) => Promise<boolean>;
   reconcile: (favoriteSlugs: string[]) => Promise<void>;
 } {
   void load();
   return {
     tiles: computed(() => tiles.value),
+    rowHeights: computed(() => rowHeights.value),
     loadError: computed(() => loadError.value),
     load,
     setTiles,
     setViewMode,
-    setHeight,
+    setRowHeight,
     reconcile,
   };
 }

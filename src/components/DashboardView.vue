@@ -8,9 +8,9 @@
     </div>
 
     <!-- Two-column grid of favorite collections. Each tile shows a live
-         embedded CollectionView in the tile's chosen view mode. Grid rows
-         stretch (default), so two tiles side by side share the height of
-         the taller one; each tile's set height acts as its minimum. -->
+         embedded CollectionView in the tile's chosen view mode. Height is
+         per grid ROW (both side-by-side tiles share it), set via the
+         resize handle and stored positionally in the layout. -->
     <div v-else class="grid gap-4 sm:grid-cols-2" data-testid="dashboard-grid">
       <section
         v-for="(tile, index) in tiles"
@@ -54,10 +54,10 @@
           </select>
         </header>
         <!-- Live embedded view. `:key` remounts the view when the mode
-             changes so the new initial view takes effect. The tile's set
-             height is the body's MIN height; `flex-1` lets it grow to fill
-             when a taller sibling stretches the row. -->
-        <div class="flex-1 overflow-auto" :style="{ minHeight: `${bodyHeight(tile)}px` }">
+             changes so the new initial view takes effect. Height is the
+             grid ROW's height (shared by both side-by-side tiles), set via
+             the resize handle below. -->
+        <div class="overflow-auto" :style="{ height: `${rowHeight(index)}px` }">
           <CollectionView
             :key="`${tile.slug}:${effectiveView(tile)}`"
             :slug="tile.slug"
@@ -67,13 +67,13 @@
             hide-search
           />
         </div>
-        <!-- Resize handle: drag vertically to set this tile's height. -->
+        <!-- Resize handle: drag vertically to set this row's height. -->
         <div
           class="h-2 flex-none cursor-row-resize bg-slate-100 hover:bg-indigo-200 transition-colors flex items-center justify-center"
           :title="t('dashboard.resizeHint')"
           :aria-label="t('dashboard.resizeHint')"
           :data-testid="`dashboard-tile-resize-${tile.slug}`"
-          @pointerdown.prevent="onResizeStart(tile, $event)"
+          @pointerdown.prevent="onResizeStart(index, $event)"
         >
           <span class="h-0.5 w-8 rounded-full bg-slate-300"></span>
         </div>
@@ -99,7 +99,7 @@ const { t } = useI18n();
 const router = useRouter();
 
 const { shortcuts, load: loadShortcuts } = useShortcuts();
-const { tiles, load: loadDashboard, reconcile, setTiles, setViewMode, setHeight } = useDashboard();
+const { tiles, rowHeights, load: loadDashboard, reconcile, setTiles, setViewMode, setRowHeight } = useDashboard();
 
 // Favorites = pinned COLLECTION shortcuts (feeds are excluded — the
 // dashboard is a collections surface). The cached title/icon ride along
@@ -176,49 +176,59 @@ function onDrop(target: number): void {
   void setTiles(next);
 }
 
-// ── Per-tile drag-to-resize (height stored on the tile, independent) ──
+// ── Drag-to-resize, per grid ROW (height is positional, not per tile) ──
+const COLUMNS = 2; // matches the `sm:grid-cols-2` layout
 const DEFAULT_HEIGHT = 320;
 const MIN_HEIGHT = 160;
 const MAX_HEIGHT = 900;
 
-// Live height during a drag (smooth, not yet persisted), keyed by slug.
-const liveHeights = ref<Record<string, number>>({});
-
-function bodyHeight(tile: DashboardTile): number {
-  return liveHeights.value[tile.slug] ?? tile.height ?? DEFAULT_HEIGHT;
+function rowOf(index: number): number {
+  return Math.floor(index / COLUMNS);
 }
 
-let resize: { slug: string; startY: number; startHeight: number } | null = null;
+// Live height during a drag (smooth, not yet persisted), keyed by row.
+const liveRowHeights = ref<Record<number, number>>({});
+
+function rowHeight(index: number): number {
+  const row = rowOf(index);
+  const live = liveRowHeights.value[row];
+  if (live !== undefined) return live;
+  const stored = rowHeights.value[row];
+  return stored && stored > 0 ? stored : DEFAULT_HEIGHT;
+}
+
+let resize: { row: number; startY: number; startHeight: number } | null = null;
 
 function onResizeMove(event: PointerEvent): void {
   if (!resize) return;
   const next = Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, resize.startHeight + (event.clientY - resize.startY)));
-  liveHeights.value = { ...liveHeights.value, [resize.slug]: next };
+  liveRowHeights.value = { ...liveRowHeights.value, [resize.row]: next };
 }
 
-function clearLiveHeight(slug: string): void {
-  liveHeights.value = Object.fromEntries(Object.entries(liveHeights.value).filter(([key]) => key !== slug));
+function clearLiveRow(row: number): void {
+  liveRowHeights.value = Object.fromEntries(Object.entries(liveRowHeights.value).filter(([key]) => Number(key) !== row));
 }
 
 // Persist the final height, then drop the live override so the stored
 // value (now identical) takes over without a flash.
-async function persistHeight(slug: string, height: number): Promise<void> {
-  await setHeight(slug, Math.round(height));
-  clearLiveHeight(slug);
+async function persistRowHeight(row: number, height: number): Promise<void> {
+  await setRowHeight(row, Math.round(height));
+  clearLiveRow(row);
 }
 
 function onResizeEnd(): void {
   window.removeEventListener("pointermove", onResizeMove);
   window.removeEventListener("pointerup", onResizeEnd);
   if (!resize) return;
-  const { slug } = resize;
+  const { row } = resize;
   resize = null;
-  const height = liveHeights.value[slug];
-  if (height !== undefined) void persistHeight(slug, height);
+  const height = liveRowHeights.value[row];
+  if (height !== undefined) void persistRowHeight(row, height);
 }
 
-function onResizeStart(tile: DashboardTile, event: PointerEvent): void {
-  resize = { slug: tile.slug, startY: event.clientY, startHeight: bodyHeight(tile) };
+function onResizeStart(index: number, event: PointerEvent): void {
+  const row = rowOf(index);
+  resize = { row, startY: event.clientY, startHeight: rowHeight(index) };
   window.addEventListener("pointermove", onResizeMove);
   window.addEventListener("pointerup", onResizeEnd);
 }

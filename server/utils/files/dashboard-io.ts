@@ -1,7 +1,7 @@
-// Domain IO for `config/dashboard.json` — the dashboard layout (per-tile
-// view mode + tile order for the favorites grid). Follows the `*-io.ts`
-// pattern: all writes go through `writeFileAtomic`; a missing file reads
-// as `[]`.
+// Domain IO for `config/dashboard.json` — the dashboard layout (tile
+// order + per-tile view mode, and per-row view-area heights for the
+// favorites grid). Follows the `*-io.ts` pattern: all writes go through
+// `writeFileAtomic`; a missing file reads as an empty layout.
 
 import path from "node:path";
 import { WORKSPACE_FILES, workspacePath } from "../../workspace/paths.js";
@@ -23,36 +23,48 @@ export function normalizeDashboard(input: unknown): DashboardTile[] {
   for (const raw of input) {
     if (typeof raw !== "object" || raw === null) continue;
     const candidate = raw as Record<string, unknown>;
-    const { slug, viewMode, height } = candidate;
+    const { slug, viewMode } = candidate;
     if (typeof slug !== "string" || slug.length === 0) continue;
     if (out.some((existing) => existing.slug === slug)) continue;
     const tile: DashboardTile = { slug };
     if (typeof viewMode === "string" && viewMode.length > 0) tile.viewMode = viewMode;
-    if (typeof height === "number" && Number.isFinite(height) && height > 0) tile.height = height;
     out.push(tile);
   }
   return out;
 }
 
-/** Read the dashboard tiles. Missing / unreadable / malformed file
- *  → `[]` (never throws on absent state). */
-export async function readDashboard(workspaceRoot?: string): Promise<DashboardTile[]> {
+/** Coerce arbitrary JSON into a clean per-row height array: each entry is
+ *  a positive finite number or `0` (meaning "default"), and trailing
+ *  zeros are trimmed so the stored array stays compact. Pure, no IO. */
+export function normalizeRowHeights(input: unknown): number[] {
+  if (!Array.isArray(input)) return [];
+  const coerced = input.map((value) => (typeof value === "number" && Number.isFinite(value) && value > 0 ? value : 0));
+  let end = coerced.length;
+  while (end > 0 && coerced[end - 1] === 0) end--;
+  return coerced.slice(0, end);
+}
+
+/** Read the dashboard layout. Missing / unreadable / malformed file
+ *  → an empty layout (never throws on absent state). */
+export async function readDashboard(workspaceRoot?: string): Promise<DashboardFile> {
   const text = await readTextSafe(dashboardFilePath(workspaceRoot));
-  if (text === null) return [];
+  if (text === null) return { tiles: [], rowHeights: [] };
   try {
     const parsed = JSON.parse(text) as Partial<DashboardFile>;
-    return normalizeDashboard(parsed?.tiles);
+    return { tiles: normalizeDashboard(parsed?.tiles), rowHeights: normalizeRowHeights(parsed?.rowHeights) };
   } catch {
-    return [];
+    return { tiles: [], rowHeights: [] };
   }
 }
 
-/** Replace the full tile list. Normalises (validate + dedupe) before
- *  writing so the on-disk file is always clean. Returns the written list
- *  so callers can echo the canonical result. */
-export async function writeDashboard(tiles: unknown, workspaceRoot?: string): Promise<DashboardTile[]> {
-  const clean = normalizeDashboard(tiles);
-  const payload: DashboardFile = { tiles: clean };
+/** Replace the full layout. Normalises (validate + dedupe + trim) before
+ *  writing so the on-disk file is always clean. Returns the written
+ *  layout so callers can echo the canonical result. */
+export async function writeDashboard(input: { tiles?: unknown; rowHeights?: unknown }, workspaceRoot?: string): Promise<DashboardFile> {
+  const payload: DashboardFile = {
+    tiles: normalizeDashboard(input.tiles),
+    rowHeights: normalizeRowHeights(input.rowHeights),
+  };
   await writeFileAtomic(dashboardFilePath(workspaceRoot), `${JSON.stringify(payload, null, 2)}\n`);
-  return clean;
+  return payload;
 }

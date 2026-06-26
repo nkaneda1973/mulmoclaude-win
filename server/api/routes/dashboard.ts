@@ -11,7 +11,7 @@
 
 import { Router, Request, Response } from "express";
 import { API_ROUTES } from "../../../src/config/apiRoutes.js";
-import type { DashboardTile } from "../../../src/types/dashboard.js";
+import type { DashboardFile } from "../../../src/types/dashboard.js";
 import { readDashboard, writeDashboard } from "../../utils/files/dashboard-io.js";
 import { errorMessage } from "../../utils/errors.js";
 import { badRequest, serverError } from "../../utils/httpError.js";
@@ -19,13 +19,11 @@ import { log } from "../../system/logger/index.js";
 
 const router = Router();
 
-interface DashboardResponse {
-  tiles: DashboardTile[];
-}
+type DashboardResponse = DashboardFile;
 
 router.get(API_ROUTES.dashboard, async (_req: Request, res: Response<DashboardResponse>) => {
   try {
-    res.json({ tiles: await readDashboard() });
+    res.json(await readDashboard());
   } catch (err) {
     log.warn("dashboard", "read failed", { error: errorMessage(err) });
     serverError(res, errorMessage(err));
@@ -33,14 +31,13 @@ router.get(API_ROUTES.dashboard, async (_req: Request, res: Response<DashboardRe
 });
 
 router.put(API_ROUTES.dashboard, async (req: Request, res: Response<DashboardResponse>) => {
-  const incoming = req.body?.tiles;
-  if (!Array.isArray(incoming)) {
-    badRequest(res, "Request body must be { tiles: DashboardTile[] }");
+  const { tiles, rowHeights } = req.body ?? {};
+  if (!Array.isArray(tiles)) {
+    badRequest(res, "Request body must be { tiles: DashboardTile[], rowHeights?: number[] }");
     return;
   }
   try {
-    const tiles = await writeDashboard(incoming);
-    res.json({ tiles });
+    res.json(await writeDashboard({ tiles, rowHeights }));
   } catch (err) {
     log.warn("dashboard", "write failed", { error: errorMessage(err) });
     serverError(res, errorMessage(err));
