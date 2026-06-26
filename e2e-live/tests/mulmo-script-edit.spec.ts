@@ -88,7 +88,16 @@ test.describe("mulmoScript edit (real workspace)", () => {
       // even with the View-side refresh removed.
       await page.getByTestId("plugin-launcher-wiki").click();
       await page.waitForURL(/\/wiki/);
-      await page.getByTestId(`session-tab-${sessionId}`).click();
+      // SessionTabBar is mounted at the app shell, but the active-session
+      // list refreshes via SSE on route swap — on slow CI runners the
+      // tab for `sessionId` can take a beat to (re-)appear after the chat
+      // → wiki navigation. Without an explicit visibility wait,
+      // `locator.click` races the tab-list render and times out at
+      // actionTimeout (~60 s). Wait for the tab first; once it's
+      // visible the click is deterministic.
+      const sessionTab = page.getByTestId(`session-tab-${sessionId}`);
+      await expect(sessionTab).toBeVisible({ timeout: ONE_MINUTE_MS });
+      await sessionTab.click();
       await page.waitForURL(new RegExp(`/chat/${sessionId}$`));
       await expect(page.getByTestId("mulmo-script-generate-movie-button").first()).toBeVisible({ timeout: ONE_MINUTE_MS });
 
