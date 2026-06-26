@@ -15,11 +15,18 @@
 // Browser-safe: no Vue imports, no server-only imports.
 
 /** Channel factory for per-book event streams. Subscribers:
- *  `useAccountingChannel(bookId)`. Publisher:
- *  `server/accounting/eventPublisher.ts`. */
+ *  `useAccountingChannel(bookId)`. Publisher: the package's server
+ *  surface `eventPublisher`. */
 export function bookChannel(bookId: string): string {
   return `accounting:${bookId}`;
 }
+
+/** Book-list-level channel — a book was created / deleted. Subscribers
+ *  refetch the BookSwitcher dropdown. Mirrors the host META's
+ *  `staticChannels.accountingBooks` literal (kept in sync by value;
+ *  the host META stays the codegen-discoverable source for the
+ *  aggregator merge). */
+export const ACCOUNTING_BOOKS_CHANNEL = "accounting:books";
 
 /** Event kinds that ride `bookChannel(bookId)`. Single source of
  *  truth for both publishers (server/accounting) and subscribers

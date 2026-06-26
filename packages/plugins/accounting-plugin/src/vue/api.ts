@@ -2,20 +2,14 @@
 // names and the response shapes so the View / sub-components don't
 // repeat the cast at every call site.
 //
-// Every helper returns `ApiResult<T>` (the shared discriminated union
-// from src/utils/api.ts) — callers pattern-match on `.ok`. There is
-// no separate error-throwing path; all surfaces (network, HTTP, app
-// validation) flow through the same shape.
+// Every helper returns `ApiResult<T>` (the discriminated union mirrored
+// in hostContext.ts) — callers pattern-match on `.ok`. There is no
+// separate error-throwing path; all surfaces (network, HTTP, app
+// validation) flow through the same shape. The actual network client is
+// host-injected (see hostContext.ts) so the package stays host-agnostic.
 
-import { apiCall, type ApiResult } from "../../utils/api";
-import { META } from "./meta";
-import {
-  ACCOUNTING_ACTIONS,
-  type SupportedCountryCode,
-  type FiscalYearEnd,
-  type TimeSeriesGranularity,
-  type TimeSeriesMetric,
-} from "@mulmoclaude/accounting-plugin/shared";
+import { hostApiCall as apiCall, type ApiResult } from "./hostContext";
+import { ACCOUNTING_ACTIONS, type SupportedCountryCode, type FiscalYearEnd, type TimeSeriesGranularity, type TimeSeriesMetric } from "../shared";
 
 export type AccountType = "asset" | "liability" | "equity" | "income" | "expense";
 export type JournalEntryKind = "normal" | "opening" | "void" | "void-marker";
@@ -132,12 +126,14 @@ export interface Ledger {
 
 export type ReportPeriod = { kind: "month"; period: string } | { kind: "range"; from: string; to: string };
 
-// `META.apiRoutes.dispatch.path` is `""` and `META.apiNamespace` is
-// `"accounting"`, so the URL composes to `/api/accounting`. Resolved
-// inline rather than via the host `pluginEndpoints` registry — this
-// file is plugin-internal and the META is the single source of truth.
-const DISPATCH_URL = `/api/${META.apiNamespace}${META.apiRoutes.dispatch.path}`;
-const DISPATCH_METHOD = META.apiRoutes.dispatch.method;
+// The single dispatch route this plugin owns. The host META declares
+// the same `{ apiNamespace: "accounting", dispatch: { method: "POST",
+// path: "" } }`; we inline the resolved values here because the package
+// can't import the host-side META (it stays host-side for the
+// plugin-barrel codegen). The route is the stable contract between this
+// client and the package's own `./server` surface.
+const DISPATCH_URL = "/api/accounting";
+const DISPATCH_METHOD = "POST";
 
 function call<T>(action: string, args: Record<string, unknown> = {}): Promise<ApiResult<T>> {
   return apiCall<T>(DISPATCH_URL, { method: DISPATCH_METHOD, body: { action, ...args } });

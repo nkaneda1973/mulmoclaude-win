@@ -9,7 +9,14 @@
       "import": "./dist/shared.js",
       "require": "./dist/shared.cjs",
       "default": "./dist/shared.js"
-    }
+    },
+    "./vue": {
+      "types": "./dist/vue/index.d.ts",
+      "import": "./dist/vue.js",
+      "require": "./dist/vue.cjs",
+      "default": "./dist/vue.js"
+    },
+    "./style.css": "./dist/style.css"
   },
   "files": [
     "dist"

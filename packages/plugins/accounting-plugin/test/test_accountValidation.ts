@@ -8,9 +8,9 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { validateAccountDraft, validateCodeField, validateNameField } from "../../../src/plugins/accounting/components/accountValidation.ts";
-import type { Account } from "../../../src/plugins/accounting/api.ts";
-import type { AccountDraft } from "../../../src/plugins/accounting/components/accountDraft.ts";
+import { validateAccountDraft, validateCodeField, validateNameField } from "../src/vue/components/accountValidation.ts";
+import type { Account } from "../src/vue/api.ts";
+import type { AccountDraft } from "../src/vue/components/accountDraft.ts";
 
 const EXISTING: readonly Account[] = [
   { code: "1000", name: "Cash", type: "asset" },

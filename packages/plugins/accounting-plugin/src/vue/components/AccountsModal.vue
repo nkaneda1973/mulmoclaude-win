@@ -73,7 +73,7 @@ import AccountEditor from "./AccountEditor.vue";
 import type { AccountDraft } from "./accountDraft";
 import { validateAccountDraft, type AccountValidationError } from "./accountValidation";
 import { suggestNextCode } from "./accountNumbering";
-import { errorMessage } from "../../../utils/errors";
+import { errorMessage } from "../../shared/errors";
 
 const { t } = useI18n();
 

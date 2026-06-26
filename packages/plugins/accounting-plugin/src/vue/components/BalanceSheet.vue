@@ -82,7 +82,7 @@ import {
   lastMonthOfPreviousQuarterString,
   localMonthString,
   previousMonthString,
-} from "@mulmoclaude/accounting-plugin/shared";
+} from "../../shared";
 import { useLatestRequest } from "./useLatestRequest";
 
 const { t } = useI18n();

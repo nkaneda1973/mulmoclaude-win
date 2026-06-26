@@ -12,20 +12,23 @@
 // `onPayload` is an optional fine-grained hook for callers that want to
 // inspect the event kind (e.g. show a "rebuilding…" indicator on
 // `kind: "snapshots-rebuilding"`).
+//
+// The raw pub/sub transport is host-injected via `hostSubscribe`
+// (see hostContext.ts) — the channel NAMES come from this package's
+// own `./shared` so publisher and subscriber stay in lockstep.
 
 import { ref, watch, onUnmounted, type Ref } from "vue";
-import { usePubSub } from "./usePubSub";
-import { accountingBookChannel, PUBSUB_CHANNELS, type AccountingBookChannelPayload } from "../config/pubsubChannels";
+import { bookChannel, ACCOUNTING_BOOKS_CHANNEL, type BookChannelPayload } from "../shared";
+import { hostSubscribe } from "./hostContext";
 
 export interface UseAccountingChannelReturn {
-  /** Bumps on every accountingBookChannel event for the current
-   *  bookId. Resets to 0 when bookId changes. */
+  /** Bumps on every per-book event for the current bookId. Resets to
+   *  0 when bookId changes. */
   version: Ref<number>;
 }
 
-export function useAccountingChannel(bookId: Ref<string | null>, onPayload?: (payload: AccountingBookChannelPayload) => void): UseAccountingChannelReturn {
+export function useAccountingChannel(bookId: Ref<string | null>, onPayload?: (payload: BookChannelPayload) => void): UseAccountingChannelReturn {
   const version = ref(0);
-  const { subscribe } = usePubSub();
   let unsubscribe: (() => void) | null = null;
 
   function bind(nextBookId: string | null): void {
@@ -33,8 +36,8 @@ export function useAccountingChannel(bookId: Ref<string | null>, onPayload?: (pa
     unsubscribe = null;
     version.value = 0;
     if (!nextBookId) return;
-    unsubscribe = subscribe(accountingBookChannel(nextBookId), (data) => {
-      const event = data as AccountingBookChannelPayload;
+    unsubscribe = hostSubscribe(bookChannel(nextBookId), (data) => {
+      const event = data as BookChannelPayload;
       version.value += 1;
       onPayload?.(event);
     });
@@ -52,7 +55,6 @@ export function useAccountingChannel(bookId: Ref<string | null>, onPayload?: (pa
  *  BookSwitcher.vue to refetch the dropdown contents when a sibling
  *  tab adds / deletes a book. */
 export function useAccountingBooksChannel(onChange: () => void): void {
-  const { subscribe } = usePubSub();
-  const unsubscribe = subscribe(PUBSUB_CHANNELS.accountingBooks, onChange);
+  const unsubscribe = hostSubscribe(ACCOUNTING_BOOKS_CHANNEL, onChange);
   onUnmounted(() => unsubscribe());
 }

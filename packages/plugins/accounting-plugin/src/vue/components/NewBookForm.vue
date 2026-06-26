@@ -73,7 +73,7 @@ import {
   DEFAULT_FISCAL_YEAR_END,
   FISCAL_YEAR_ENDS,
   type FiscalYearEnd,
-} from "@mulmoclaude/accounting-plugin/shared";
+} from "../../shared";
 
 const { t, locale } = useI18n();
 

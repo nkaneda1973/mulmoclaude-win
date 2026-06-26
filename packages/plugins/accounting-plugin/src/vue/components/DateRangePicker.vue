@@ -59,7 +59,7 @@ import {
   type DateRange,
   type FiscalYearEnd,
   localDateString,
-} from "@mulmoclaude/accounting-plugin/shared";
+} from "../../shared";
 
 const { t } = useI18n();
 

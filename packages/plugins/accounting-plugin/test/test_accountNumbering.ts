@@ -7,7 +7,7 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { isTaxAccountCode } from "../../../src/plugins/accounting/components/accountNumbering.ts";
+import { isTaxAccountCode } from "../src/vue/components/accountNumbering.ts";
 
 describe("isTaxAccountCode", () => {
   it("recognizes 14xx asset codes (input-tax current assets)", () => {

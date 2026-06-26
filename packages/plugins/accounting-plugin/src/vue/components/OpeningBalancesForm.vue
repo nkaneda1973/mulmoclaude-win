@@ -94,10 +94,10 @@
 import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { getOpeningBalances, setOpeningBalances, type Account, type JournalEntry, type JournalLine } from "../api";
-import { formatAmount, inputStepFor, localDateString } from "@mulmoclaude/accounting-plugin/shared";
+import { formatAmount, inputStepFor, localDateString } from "../../shared";
 import { useLatestRequest } from "./useLatestRequest";
 import AccountsModal from "./AccountsModal.vue";
-import { errorMessage } from "../../../utils/errors";
+import { errorMessage } from "../../shared/errors";
 
 const { t } = useI18n();
 

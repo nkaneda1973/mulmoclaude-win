@@ -201,18 +201,11 @@
 import { computed, nextTick, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { getJournalEntries, voidEntry, type Account, type JournalEntry, type JournalEntryKind, type JournalLine } from "../api";
-import {
-  formatAmount,
-  currentFiscalYearRange,
-  resolveFiscalYearEnd,
-  type DateRange,
-  type FiscalYearEnd,
-  type SupportedCountryCode,
-} from "@mulmoclaude/accounting-plugin/shared";
+import { formatAmount, currentFiscalYearRange, resolveFiscalYearEnd, type DateRange, type FiscalYearEnd, type SupportedCountryCode } from "../../shared";
 import { useLatestRequest } from "./useLatestRequest";
 import DateRangePicker from "./DateRangePicker.vue";
 import JournalEntryForm from "./JournalEntryForm.vue";
-import { errorMessage } from "../../../utils/errors";
+import { errorMessage } from "../../shared/errors";
 
 const { t } = useI18n();
 
