@@ -280,6 +280,13 @@ const HOST_API_ROUTES = {
     viewDelete: "/api/collections/:slug/views/:viewId",
   },
 
+  // Curated collection registry (receptron/mulmoclaude-collections). The host
+  // server-fetches the published index.json (GitHub Pages) and proxies it to the
+  // /collections Discover tab — the upstream URL is never exposed to the client.
+  collectionsRegistry: {
+    list: "/api/collections-registry",
+  },
+
   // `scheduler` group migrated to META — see `src/plugins/scheduler/automationsMeta.ts`.
   // Auto-merged via `apiNamespace: "scheduler"`.
 
