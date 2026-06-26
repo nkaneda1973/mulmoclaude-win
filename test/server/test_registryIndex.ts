@@ -100,6 +100,22 @@ describe("parseRegistryIndex", () => {
     assert.equal(entry.icon, "");
   });
 
+  it("rejects negative or fractional count fields", () => {
+    for (const bad of [-1, 1.5, -0.5]) {
+      const fieldBad = parseRegistryIndex({ ...validIndex(), collections: [{ ...validEntry(), fieldCount: bad }] });
+      assert.equal(fieldBad.ok, false, `fieldCount ${bad}`);
+      const seedBad = parseRegistryIndex({ ...validIndex(), collections: [{ ...validEntry(), seedCount: bad }] });
+      assert.equal(seedBad.ok, false, `seedCount ${bad}`);
+    }
+  });
+
+  it("accepts zero and positive integer counts", () => {
+    const result = parseRegistryIndex({ ...validIndex(), collections: [{ ...validEntry(), fieldCount: 0, seedCount: 42 }] });
+    assert.ok(result.ok);
+    assert.equal(result.index.collections[0].fieldCount, 0);
+    assert.equal(result.index.collections[0].seedCount, 42);
+  });
+
   it("drops non-string members from tags/views", () => {
     const entry = { ...validEntry(), tags: ["ok", 1, null, "two"], views: [true, "v"] };
     const result = parseRegistryIndex({ ...validIndex(), collections: [entry] });

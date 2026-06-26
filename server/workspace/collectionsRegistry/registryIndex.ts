@@ -48,10 +48,14 @@ const pickString = (rec: Record<string, unknown>, key: string): string | undefin
   return typeof value === "string" && value.length > 0 ? value : undefined;
 };
 
-const pickNumber = (rec: Record<string, unknown>, key: string): number | undefined => {
+// Count fields (fieldCount/seedCount) must be non-negative integers. A present
+// but negative/fractional value is rejected rather than served to the UI; an
+// absent value defaults to 0.
+function validatedCount(rec: Record<string, unknown>, key: string): number | "invalid" {
   const value = rec[key];
-  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
-};
+  if (value === undefined) return 0;
+  return typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : "invalid";
+}
 
 const pickBoolean = (rec: Record<string, unknown>, key: string): boolean | undefined => {
   const value = rec[key];
@@ -72,6 +76,10 @@ function parseEntry(value: unknown, index: number): RegistryCollectionEntry | st
   if (!entryId || !author || !slug || !title || !version || !path || !contentSha) {
     return `collections[${index}] is missing a required string field (id/author/slug/title/version/path/contentSha)`;
   }
+  const fieldCount = validatedCount(value, "fieldCount");
+  const seedCount = validatedCount(value, "seedCount");
+  if (fieldCount === "invalid") return `collections[${index}].fieldCount must be a non-negative integer`;
+  if (seedCount === "invalid") return `collections[${index}].seedCount must be a non-negative integer`;
   return {
     id: entryId,
     author,
@@ -85,8 +93,8 @@ function parseEntry(value: unknown, index: number): RegistryCollectionEntry | st
     license: pickString(value, "license") ?? "",
     tags: asStringArray(value.tags),
     views: asStringArray(value.views),
-    fieldCount: pickNumber(value, "fieldCount") ?? 0,
-    seedCount: pickNumber(value, "seedCount") ?? 0,
+    fieldCount,
+    seedCount,
     hasSeed: pickBoolean(value, "hasSeed") ?? false,
     screenshot: pickString(value, "screenshot"),
   };
