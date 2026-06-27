@@ -93,4 +93,16 @@ describe("writeCollectionExport", () => {
     assert.equal(result.ok, false);
     if (!result.ok) assert.equal(result.status, 400);
   });
+
+  it("rejects a skillDir that escapes the workspace", async () => {
+    const outsideDir = mkdtempSync(path.join(tmpdir(), "mc-export-outside-"));
+    try {
+      const result = await writeCollectionExport({ workspaceRoot: wsRoot, skillDir: outsideDir, dataDir: dataDir(), meta, includeSeed: false });
+      assert.equal(result.ok, false);
+      if (!result.ok) assert.equal(result.status, 400);
+      assert.ok(!existsSync(outDir()), "nothing written when a path escapes the workspace");
+    } finally {
+      rmSync(outsideDir, { recursive: true, force: true });
+    }
+  });
 });

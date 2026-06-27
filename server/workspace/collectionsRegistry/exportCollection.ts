@@ -84,17 +84,28 @@ async function exportSeed(dataDir: string, outDir: string): Promise<{ count: num
   let count = 0;
   let skipped = 0;
   for (const name of names) {
-    const text = await readFile(path.join(dataDir, name), "utf-8");
+    const base = path.basename(name);
+    const text = await readFile(path.join(dataDir, base), "utf-8");
     if (hasSecret(text)) {
-      warnings.push(`skipped ${name}: contains a possible credential`);
+      warnings.push(`skipped ${base}: contains a possible credential`);
       skipped += 1;
       continue;
     }
-    if (EMAIL_RE.test(text)) warnings.push(`${name}: contains a possible email/PII (kept — your responsibility)`);
-    await writeFile(path.join(seedDir, name), text, "utf-8");
+    if (EMAIL_RE.test(text)) warnings.push(`${base}: contains a possible email/PII (kept — your responsibility)`);
+    await writeFile(path.join(seedDir, base), text, "utf-8");
     count += 1;
   }
   return { count, skipped, warnings };
+}
+
+// Resolve `segments` under `root` and return the absolute path only when it stays
+// inside `root` — a containment barrier for the user-derived author/slug and the
+// collection dirs, on top of the AUTHOR_RE/SLUG_RE format checks. `..` or an
+// absolute escape resolves outside `root` and yields null (rejected upstream).
+function resolveWithin(root: string, ...segments: string[]): string | null {
+  const resolvedRoot = path.resolve(root);
+  const target = path.resolve(resolvedRoot, ...segments);
+  return target === resolvedRoot || target.startsWith(resolvedRoot + path.sep) ? target : null;
 }
 
 export async function writeCollectionExport(params: {
@@ -108,15 +119,23 @@ export async function writeCollectionExport(params: {
   if (!AUTHOR_RE.test(meta.author)) return { ok: false, status: STATUS_BAD_REQUEST, error: `author '${meta.author}' is not a valid GitHub login` };
   if (!SLUG_RE.test(meta.slug)) return { ok: false, status: STATUS_BAD_REQUEST, error: `slug '${meta.slug}' is invalid` };
 
-  const outRel = `${EXPORT_BASE}/${meta.author}/${meta.slug}`;
-  const outDir = path.join(workspaceRoot, ...outRel.split("/"));
+  const wsRoot = path.resolve(workspaceRoot);
+  const exportRoot = path.join(wsRoot, ...EXPORT_BASE.split("/"));
+  const outDir = resolveWithin(exportRoot, meta.author, meta.slug);
+  const safeSkillDir = resolveWithin(wsRoot, skillDir);
+  const safeDataDir = resolveWithin(wsRoot, dataDir);
+  if (!outDir || !safeSkillDir || !safeDataDir) {
+    return { ok: false, status: STATUS_BAD_REQUEST, error: "resolved path escapes the workspace" };
+  }
+
   await rm(outDir, { recursive: true, force: true });
   await mkdir(outDir, { recursive: true });
 
-  const bundleCount = await copyBundle(skillDir, outDir);
-  const seed = includeSeed ? await exportSeed(dataDir, outDir) : { count: 0, skipped: 0, warnings: [] };
+  const bundleCount = await copyBundle(safeSkillDir, outDir);
+  const seed = includeSeed ? await exportSeed(safeDataDir, outDir) : { count: 0, skipped: 0, warnings: [] };
   const metaOut = { ...meta, ...(seed.count > 0 ? { dataConsent: true } : {}) };
   await writeFile(path.join(outDir, "meta.json"), `${JSON.stringify(metaOut, null, 2)}\n`, "utf-8");
   log.info("collections-registry", "exported collection", { slug: meta.slug, author: meta.author, seedCount: seed.count });
+  const outRel = path.relative(wsRoot, outDir).split(path.sep).join("/");
   return { ok: true, outputPath: outRel, fileCount: bundleCount + 1, seedCount: seed.count, seedSkipped: seed.skipped, warnings: seed.warnings };
 }
