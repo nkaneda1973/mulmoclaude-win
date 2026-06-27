@@ -5,7 +5,7 @@ import "./workspace/collections/configure.js";
 import express, { Request, Response, NextFunction } from "express";
 import path from "path";
 import { fileURLToPath } from "url";
-import agentRoutes, { startChat } from "./api/routes/agent.js";
+import agentRoutes, { startChat, spawnSystemWorker } from "./api/routes/agent.js";
 import { createAccountingRouter, initAccountingEventPublisher, configureAccountingServer } from "@mulmoclaude/accounting-plugin/server";
 import photoLocationsRoutes from "./api/routes/photo-locations.js";
 import schedulerRoutes from "./api/routes/scheduler.js";
@@ -93,7 +93,7 @@ import { cpus, loadavg } from "os";
 import { isDockerAvailable, ensureSandboxImage } from "./system/docker.js";
 import { maybeRunJournal } from "./workspace/journal/index.js";
 import { backfillAllSessions } from "./workspace/chat-index/index.js";
-import { refreshDue as refreshDueFeeds } from "./workspace/feeds/index.js";
+import { refreshDue as refreshDueFeeds, setAgentWorkerRunner } from "./workspace/feeds/index.js";
 import { createPubSub } from "./events/pub-sub/index.js";
 import { PUBSUB_CHANNELS } from "../src/config/pubsubChannels.js";
 import { createTaskManager } from "./events/task-manager/index.js";
@@ -1135,8 +1135,12 @@ async function startRuntimeServices(httpServer: ReturnType<typeof app.listen>, p
     },
     {
       id: "system:feed-refresh",
-      name: "Data-source feed refresh",
-      description: "Fetch declarative data-source feeds (RSS / JSON) into their collections",
+      name: "Scheduled collection refresh",
+      // Drives ALL scheduled ingest now: declarative feeds (RSS / JSON) AND
+      // skill-backed collections with `ingest.kind: "agent"` (which dispatch a
+      // hidden worker rather than fetching). Id kept as `system:feed-refresh`
+      // so its scheduler-state row isn't orphaned by a rename.
+      description: "Refresh due collections — fetch declarative feeds + dispatch agent-ingest workers",
       schedule: { type: SCHEDULE_TYPES.interval, intervalMs: ONE_HOUR_MS },
       missedRunPolicy: MISSED_RUN_POLICIES.runOnce,
       run: () => refreshDueFeeds().then(() => {}),
@@ -1168,6 +1172,13 @@ async function startRuntimeServices(httpServer: ReturnType<typeof app.listen>, p
       task.schedule = { type: SCHEDULE_TYPES.daily, time: override.time };
     }
   }
+
+  // Wire the agent-ingest dispatcher's hidden-worker launcher (DI seam — keeps
+  // the feeds engine from importing the routes layer) BEFORE scheduler init:
+  // `initScheduler` runs catch-up, which can fire `system:feed-refresh` and
+  // dispatch agent ingest immediately. Wiring after would make those first
+  // refreshes fail with "worker runner not configured".
+  setAgentWorkerRunner(spawnSystemWorker);
 
   initScheduler(taskManager, systemTasks).catch((err) => {
     log.error("scheduler", "init failed (non-fatal)", {
