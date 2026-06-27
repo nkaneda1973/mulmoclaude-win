@@ -108,6 +108,16 @@ function resolveWithin(root: string, ...segments: string[]): string | null {
   return target === resolvedRoot || target.startsWith(resolvedRoot + path.sep) ? target : null;
 }
 
+// Required bundle files (SKILL.md, schema.json) must be present — exporting an
+// incomplete bundle would pass here but fail downstream registry curation.
+// Returns the first missing required file, or null when all are present.
+async function findMissingRequired(skillDir: string): Promise<string | null> {
+  for (const file of BUNDLE_FILES) {
+    if ((await pathKind(path.join(skillDir, file))) !== "file") return file;
+  }
+  return null;
+}
+
 export async function writeCollectionExport(params: {
   workspaceRoot: string;
   skillDir: string;
@@ -126,6 +136,11 @@ export async function writeCollectionExport(params: {
   const safeDataDir = resolveWithin(wsRoot, dataDir);
   if (!outDir || !safeSkillDir || !safeDataDir) {
     return { ok: false, status: STATUS_BAD_REQUEST, error: "resolved path escapes the workspace" };
+  }
+
+  const missing = await findMissingRequired(safeSkillDir);
+  if (missing) {
+    return { ok: false, status: STATUS_BAD_REQUEST, error: `required bundle file missing: ${missing}` };
   }
 
   await rm(outDir, { recursive: true, force: true });

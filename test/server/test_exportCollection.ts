@@ -105,4 +105,15 @@ describe("writeCollectionExport", () => {
       rmSync(outsideDir, { recursive: true, force: true });
     }
   });
+
+  it("hard-fails when a required bundle file (schema.json) is missing", async () => {
+    rmSync(path.join(skillDir(), "schema.json"));
+    const result = await writeCollectionExport({ workspaceRoot: wsRoot, skillDir: skillDir(), dataDir: dataDir(), meta, includeSeed: false });
+    assert.equal(result.ok, false);
+    if (!result.ok) {
+      assert.equal(result.status, 400);
+      assert.match(result.error, /required bundle file missing/);
+    }
+    assert.ok(!existsSync(outDir()), "no partial bundle written when a required file is missing");
+  });
 });
