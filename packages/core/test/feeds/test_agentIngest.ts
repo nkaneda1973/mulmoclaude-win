@@ -1,21 +1,13 @@
-import "../../../server/workspace/collections/configure.js"; // configure @mulmoclaude/core/collection host binding for tests
+// Importing for these named bindings also runs _setup's host-configuration side
+// effects (collection + feeds hosts), so no separate side-effect import is needed.
+import { setTestWorker, resetNotifierForTest } from "./_setup.ts";
 import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { refreshViaAgent, setAgentWorkerRunner, type AgentWorkerResult } from "../../../server/workspace/feeds/agentIngest.js";
-import { readFeedState } from "../../../server/workspace/feeds/state.js";
-import { _setFilePathsForTesting, initNotifier } from "../../../server/notifier/engine.js";
-import type { LoadedCollection } from "../../../server/workspace/collections/index.js";
-
-// The failure path publishes/clears a notifier bell — point the engine at temp
-// files and inject a no-op pub-sub so publish/clear don't throw in tests.
-function configureTempNotifier(): void {
-  const dir = mkdtempSync(path.join(tmpdir(), "agent-ingest-notifier-"));
-  _setFilePathsForTesting({ active: path.join(dir, "active.json"), history: path.join(dir, "history.json") });
-  initNotifier({ publish: () => {} });
-}
+import { refreshViaAgent, readFeedState, type AgentWorkerResult } from "../../src/feeds/server/index.ts";
+import type { LoadedCollection } from "../../src/collection/server/index.ts";
 
 // Hand-build a skill-backed collection with agent ingest. `withTemplate`
 // controls whether the on-disk template exists (the missing-template path).
@@ -44,7 +36,9 @@ function makeAgentCollection(root: string, slug: string, withTemplate: boolean):
 }
 
 beforeEach(() => {
-  configureTempNotifier();
+  // The failure path publishes/clears a notifier bell — point the engine at
+  // fresh temp files with a no-op pub-sub so publish/clear don't throw.
+  resetNotifierForTest();
 });
 
 describe("refreshViaAgent — dispatch", () => {
@@ -53,7 +47,7 @@ describe("refreshViaAgent — dispatch", () => {
     const collection = makeAgentCollection(root, "quotes-ok", true);
     let seenRole: string | null = null;
     let seenHidden: boolean | undefined;
-    setAgentWorkerRunner(async (args): Promise<AgentWorkerResult> => {
+    setTestWorker(async (args): Promise<AgentWorkerResult> => {
       seenRole = args.roleId;
       seenHidden = args.hidden;
       return { ok: true, chatId: "chat-1" };
@@ -74,7 +68,7 @@ describe("refreshViaAgent — dispatch", () => {
     const collection = makeAgentCollection(root, "quotes-manual", true);
     let seenHidden: boolean | undefined;
     let seenOnComplete: unknown = "unset";
-    setAgentWorkerRunner(async (args): Promise<AgentWorkerResult> => {
+    setTestWorker(async (args): Promise<AgentWorkerResult> => {
       seenHidden = args.hidden;
       seenOnComplete = args.onComplete;
       return { ok: true, chatId: "chat-manual" };
@@ -89,7 +83,7 @@ describe("refreshViaAgent — dispatch", () => {
   it("leaves state untouched and reports the error on a cap-miss", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "agent-ingest-"));
     const collection = makeAgentCollection(root, "quotes-cap", true);
-    setAgentWorkerRunner(async (): Promise<AgentWorkerResult> => ({ ok: false, error: "too many background sessions" }));
+    setTestWorker(async (): Promise<AgentWorkerResult> => ({ ok: false, error: "too many background sessions" }));
 
     const result = await refreshViaAgent(root, collection);
     assert.equal(result.dispatched, false);
@@ -103,7 +97,7 @@ describe("refreshViaAgent — dispatch", () => {
     const root = mkdtempSync(path.join(tmpdir(), "agent-ingest-"));
     const collection = makeAgentCollection(root, "quotes-notmpl", false);
     let launched = false;
-    setAgentWorkerRunner(async (): Promise<AgentWorkerResult> => {
+    setTestWorker(async (): Promise<AgentWorkerResult> => {
       launched = true;
       return { ok: true, chatId: "chat-x" };
     });
@@ -120,7 +114,7 @@ describe("refreshViaAgent — completion outcome", () => {
     const root = mkdtempSync(path.join(tmpdir(), "agent-ingest-"));
     const collection = makeAgentCollection(root, "quotes-outcome", true);
     let onComplete: ((o: { didError: boolean }) => void | Promise<void>) | undefined;
-    setAgentWorkerRunner(async (args): Promise<AgentWorkerResult> => {
+    setTestWorker(async (args): Promise<AgentWorkerResult> => {
       ({ onComplete } = args);
       return { ok: true, chatId: "chat-2" };
     });

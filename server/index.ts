@@ -93,7 +93,8 @@ import { cpus, loadavg } from "os";
 import { isDockerAvailable, ensureSandboxImage } from "./system/docker.js";
 import { maybeRunJournal } from "./workspace/journal/index.js";
 import { backfillAllSessions } from "./workspace/chat-index/index.js";
-import { refreshDue as refreshDueFeeds, setAgentWorkerRunner } from "./workspace/feeds/index.js";
+import { refreshDue as refreshDueFeeds } from "@mulmoclaude/core/feeds/server";
+import { configureFeeds } from "./workspace/feeds/configure.js";
 import { createPubSub } from "./events/pub-sub/index.js";
 import { PUBSUB_CHANNELS } from "../src/config/pubsubChannels.js";
 import { createTaskManager } from "./events/task-manager/index.js";
@@ -647,6 +648,13 @@ app.use(agentRoutes);
 // fire-and-forget event in the boot window is the same accepted
 // tradeoff as the file-change / collection publishers.)
 configureAccountingServer({ workspaceRoot: workspacePath, logger: log });
+// Wire @mulmoclaude/core/feeds/server (workspace, logger, atomic writer, and the
+// agent-ingest worker launcher) at module load — BEFORE app.listen — for the same
+// reason as the accounting config above: a `POST /api/collections/:slug/refresh`
+// landing in the gap before startRuntimeServices runs must not hit an unconfigured
+// feeds host. `spawnSystemWorker` is injected here because workspace code must not
+// import the routes layer.
+configureFeeds(spawnSystemWorker);
 app.use(createAccountingRouter());
 app.use(photoLocationsRoutes);
 app.use(schedulerRoutes);
@@ -1173,13 +1181,9 @@ async function startRuntimeServices(httpServer: ReturnType<typeof app.listen>, p
     }
   }
 
-  // Wire the agent-ingest dispatcher's hidden-worker launcher (DI seam — keeps
-  // the feeds engine from importing the routes layer) BEFORE scheduler init:
-  // `initScheduler` runs catch-up, which can fire `system:feed-refresh` and
-  // dispatch agent ingest immediately. Wiring after would make those first
-  // refreshes fail with "worker runner not configured".
-  setAgentWorkerRunner(spawnSystemWorker);
-
+  // Feeds host is configured at module load (before app.listen) — see the
+  // `configureFeeds(spawnSystemWorker)` call beside the accounting config — so it
+  // is already wired by the time `initScheduler` catch-up can fire a feed refresh.
   initScheduler(taskManager, systemTasks).catch((err) => {
     log.error("scheduler", "init failed (non-fatal)", {
       error: String(err),
