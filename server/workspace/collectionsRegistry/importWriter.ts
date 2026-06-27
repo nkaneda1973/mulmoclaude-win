@@ -20,11 +20,12 @@
 // no network; `performImport` is the thin glue that fetches and calls it.
 
 import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
+import type { Dirent } from "node:fs";
 import path from "node:path";
 
 import { acceptParsedSchema, CollectionSchemaZ, isSafeActionTemplatePath, safeRecordId } from "@mulmoclaude/core/collection/server";
 import type { CollectionSchema } from "@mulmoclaude/core/collection";
-import { claudeSkillDir, dataSkillDir, mirrorSkillDelete, mirrorSkillWrite } from "@mulmoclaude/core/skill-bridge";
+import { claudeSkillDir, dataSkillDir, mirrorSkillWrite } from "@mulmoclaude/core/skill-bridge";
 
 import { log } from "../../system/logger/index.js";
 import { errorMessage } from "../../utils/errors.js";
@@ -128,11 +129,13 @@ async function findMatchingInstall(skillsDir: string, registry: string, entry: R
 //
 // A slug is "free" only when BOTH `data/skills/<slug>/` AND
 // `.claude/skills/<slug>/` are absent. The mirror check matters because
-// `mirrorToClaudeSkills` calls `mirrorSkillDelete(slug)` before writing — if
-// the user has a manually-installed Claude skill at `.claude/skills/<slug>/`
-// with no corresponding `data/skills/<slug>/` (e.g. installed by the Claude
-// CLI directly, or a legacy pre-refactor import we never migrated), picking
-// that slug would silently wipe their skill (CodeRabbit review on #1839).
+// `mirrorToClaudeSkills` overwrites the mirror dir's allowlisted files and
+// prunes anything else — if the user has a manually-installed Claude skill
+// at `.claude/skills/<slug>/` with no corresponding `data/skills/<slug>/`
+// (e.g. installed by the Claude CLI directly, or a legacy pre-refactor
+// import we never migrated), picking that slug would silently overwrite
+// their SKILL.md/schema.json and prune the rest of their files (CodeRabbit
+// review on #1839).
 async function resolveTarget(workspaceRoot: string, registry: string, entry: RegistryCollectionEntry): Promise<TargetResolution> {
   const skillsDir = path.dirname(dataSkillDir(workspaceRoot, entry.slug));
   const existing = await findMatchingInstall(skillsDir, registry, entry);
@@ -203,24 +206,64 @@ async function materializeSeed(dataDir: string, bundle: Map<string, string>): Pr
   return { written, skipped: false };
 }
 
+/** Compute the set of bundle-relative paths that should land in `.claude/skills/<slug>/`.
+ *  Matches the bridge allowlist exactly — SKILL.md, schema.json,
+ *  `templates/<safe>` — so anything else (seed, meta.json, views, README,
+ *  assets) stays source-side. */
+function bridgeAllowlistFiles(bundle: Map<string, string>): Set<string> {
+  const wanted = new Set<string>([SKILL_FILE, SCHEMA_FILE]);
+  for (const rel of bundle.keys()) {
+    if (rel === SKILL_FILE || rel === SCHEMA_FILE) continue;
+    if (rel.startsWith(SEED_PREFIX)) continue;
+    if (!isSafeActionTemplatePath(rel)) continue;
+    wanted.add(rel);
+  }
+  return wanted;
+}
+
+/** Recursively list every file under `root`, returned as forward-slash paths
+ *  relative to `root`. Empty list when `root` doesn't exist. Used to spot
+ *  mirror files left over from a previous install so we can prune them after
+ *  writing the new ones. */
+async function listFilesRecursive(root: string, prefix = ""): Promise<string[]> {
+  const dir = prefix ? path.join(root, ...prefix.split("/")) : root;
+  const entries: Dirent[] = await readdir(dir, { withFileTypes: true }).catch(() => [] as Dirent[]);
+  const out: string[] = [];
+  for (const entry of entries) {
+    const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
+    if (entry.isFile()) out.push(rel);
+    else if (entry.isDirectory()) out.push(...(await listFilesRecursive(root, rel)));
+  }
+  return out;
+}
+
 // Mirror the just-written `data/skills/<slug>/` into `.claude/skills/<slug>/`
 // using the shared bridge package — exactly the set of files an
 // agent-authored skill would mirror, no more (SKILL.md, schema.json,
 // templates/<safe>). `.origin.json` is host bookkeeping and stays only on the
-// data side. Drop the prior mirror first so a template removed in this
-// version doesn't linger from the previous install.
-function mirrorToClaudeSkills(workspaceRoot: string, localSlug: string, bundle: Map<string, string>): void {
-  mirrorSkillDelete(workspaceRoot, localSlug);
-  // SKILL.md + schema.json are required (the writer wouldn't have reached here
-  // without them); template paths come from the bundle, pre-filtered through
-  // the same safety predicate the schema validator uses.
-  mirrorSkillWrite(workspaceRoot, { slug: localSlug, relSegments: [SKILL_FILE] });
-  mirrorSkillWrite(workspaceRoot, { slug: localSlug, relSegments: [SCHEMA_FILE] });
-  for (const rel of bundle.keys()) {
-    if (rel === SKILL_FILE || rel === SCHEMA_FILE) continue;
-    if (rel.startsWith(SEED_PREFIX)) continue; // seed lives in dataPath, not the skill dir
-    if (!isSafeActionTemplatePath(rel)) continue; // matches bridge allowlist
+// data side.
+//
+// **Write-then-prune ordering** (Codex review on #1839): write the new
+// bundle's allowlisted files FIRST (each is a per-file tmp+rename, atomic),
+// THEN prune mirror files that aren't in the new bundle. A transient mirror
+// failure during the writes leaves the previous mirror's files in place —
+// agent discovery keeps working with the prior state instead of finding an
+// empty `.claude/skills/<slug>/`. The prune step is best-effort: a failure
+// there leaves harmless stale leftovers but doesn't break the new install.
+// Compare with the old `mirrorSkillDelete`-first ordering, which could
+// silently leave an empty mirror if a subsequent write threw.
+async function mirrorToClaudeSkills(workspaceRoot: string, localSlug: string, bundle: Map<string, string>): Promise<void> {
+  const wanted = bridgeAllowlistFiles(bundle);
+  // 1. Write the new set first (overwrites existing via tmp+rename).
+  for (const rel of wanted) {
     mirrorSkillWrite(workspaceRoot, { slug: localSlug, relSegments: rel.split("/") });
+  }
+  // 2. Prune files that exist in the mirror but aren't in the new bundle.
+  const mirrorRoot = claudeSkillDir(workspaceRoot, localSlug);
+  const existing = await listFilesRecursive(mirrorRoot);
+  for (const rel of existing) {
+    if (wanted.has(rel)) continue;
+    await rm(path.join(mirrorRoot, ...rel.split("/")), { force: true }).catch(() => undefined);
   }
 }
 
@@ -278,13 +321,16 @@ export async function writeImportedCollection(params: {
 
   // Replicate the new `data/skills/<slug>/` set into `.claude/skills/<slug>/`
   // via the shared bridge package — same allowlist + tmp+rename semantics the
-  // hook uses for agent-authored writes. A mirror failure here is logged but
-  // doesn't undo the data-side write (the user can fix it by retriggering the
-  // mirror — same as for any other mirror failure).
+  // hook uses for agent-authored writes. Write-then-prune ordering inside
+  // mirrorToClaudeSkills means a transient failure here can't leave the mirror
+  // empty (Codex review on #1839); the worst case is a half-written mirror
+  // where the new install's SKILL.md/schema.json may not have updated, but the
+  // prior install remains accessible to the agent until the next mirror
+  // attempt. Logged-not-thrown matches the hook's posture for agent writes.
   try {
-    mirrorToClaudeSkills(workspaceRoot, localSlug, bundle);
+    await mirrorToClaudeSkills(workspaceRoot, localSlug, bundle);
   } catch (err) {
-    log.warn("collections-registry", "mirror to .claude/skills/ failed (data/skills write succeeded)", {
+    log.warn("collections-registry", "mirror to .claude/skills/ failed (data/skills write succeeded; prior mirror left intact)", {
       localSlug,
       error: errorMessage(err),
     });

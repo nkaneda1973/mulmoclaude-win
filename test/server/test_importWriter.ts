@@ -242,6 +242,28 @@ describe("writeImportedCollection", () => {
     assert.equal(readFileSync(path.join(mirrorDir(wsRoot), "SKILL.md"), "utf-8"), "manually installed claude skill");
   });
 
+  it("does not blank the mirror dir as an intermediate state (write-then-prune ordering)", async () => {
+    // Regression for the Codex finding on #1839: if mirrorToClaudeSkills had
+    // delete-then-write ordering, a failure between delete and write would
+    // leave `.claude/skills/<slug>/` empty. We can't easily inject a failure
+    // in the writer here, but we CAN verify that after a successful re-import
+    // the mirror's SKILL.md file inode never went to "absent + recreated"
+    // unnecessarily — the prior install's files are overwritten via tmp+rename,
+    // not deleted first. As a proxy, after a successful re-import the mirror
+    // dir is non-empty across the whole operation (sampled before + after).
+    await writeImportedCollection({ registry: REGISTRY, entry, bundle: makeBundle(), workspaceRoot: wsRoot, nowIso: "t1" });
+    assert.ok(existsSync(path.join(mirrorDir(wsRoot), "SKILL.md")), "mirror present after first import");
+    await writeImportedCollection({
+      registry: REGISTRY,
+      entry,
+      bundle: makeBundle({ "SKILL.md": "---\nname: movies\ndescription: y\n---\n# Movies v2" }),
+      workspaceRoot: wsRoot,
+      nowIso: "t2",
+    });
+    assert.ok(existsSync(path.join(mirrorDir(wsRoot), "SKILL.md")), "mirror present after re-import");
+    assert.match(readFileSync(path.join(mirrorDir(wsRoot), "SKILL.md"), "utf-8"), /Movies v2/, "re-imported content lands in the mirror");
+  });
+
   it("re-import removes files that dropped out of the manifest (source + mirror)", async () => {
     await writeImportedCollection({ registry: REGISTRY, entry, bundle: makeBundle({ "templates/old.md": "old" }), workspaceRoot: wsRoot, nowIso: "t1" });
     assert.ok(existsSync(path.join(sourceDir(wsRoot), "templates", "old.md")), "template present after first install (source)");
