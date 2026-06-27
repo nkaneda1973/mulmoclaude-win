@@ -19,6 +19,9 @@ const frMessages: CollectionMessages = {
       updated: "Mise à jour",
       open: "Ouvrir",
     },
+    contribute: "Contribuer",
+    contributePrompt:
+      'Help me contribute my "{title}" collection (slug: {slug}) to the MulmoClaude collection registry (receptron/mulmoclaude-collections). First read `config/helps/collection-skills.md` for the contribution bundle layout. Ask me for my GitHub username (meta.author must equal it) and whether to include my records as sample seed data (skip anything containing secrets). Then build the `collections/<author>/{slug}/` bundle (SKILL.md, schema.json, meta.json, optional seed/items), copy it into a clone of the registry under `github/`, run `node scripts/build-index.mjs` and `node scripts/validate.mjs`, and open a PR once I confirm.',
     addCollectionLabel: "Collection",
     addCollectionPrompt:
       "Aide-moi à créer une nouvelle collection. Lis d'abord `config/helps/collection-skills.md` pour les conventions des collections basées sur un schéma. Utilise ensuite l'outil `presentForm` (n'utilise pas AskUserQuestion) pour me demander quel type de données je veux suivre, et crée le schema.json et le SKILL.md à partir de mes réponses.",

@@ -19,6 +19,9 @@ const zhMessages: CollectionMessages = {
       updated: "已更新",
       open: "打开",
     },
+    contribute: "贡献",
+    contributePrompt:
+      'Help me contribute my "{title}" collection (slug: {slug}) to the MulmoClaude collection registry (receptron/mulmoclaude-collections). First read `config/helps/collection-skills.md` for the contribution bundle layout. Ask me for my GitHub username (meta.author must equal it) and whether to include my records as sample seed data (skip anything containing secrets). Then build the `collections/<author>/{slug}/` bundle (SKILL.md, schema.json, meta.json, optional seed/items), copy it into a clone of the registry under `github/`, run `node scripts/build-index.mjs` and `node scripts/validate.mjs`, and open a PR once I confirm.',
     addCollectionLabel: "集合",
     addCollectionPrompt:
       "帮我创建一个新的集合。请先阅读 `config/helps/collection-skills.md` 了解基于 schema 的集合约定。然后使用 `presentForm` 工具（不要使用 AskUserQuestion）询问我想跟踪哪种数据，并根据我的回答编写 schema.json 和 SKILL.md。",

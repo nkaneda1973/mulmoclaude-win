@@ -19,6 +19,9 @@ const koMessages: CollectionMessages = {
       updated: "업데이트됨",
       open: "열기",
     },
+    contribute: "기여",
+    contributePrompt:
+      'Help me contribute my "{title}" collection (slug: {slug}) to the MulmoClaude collection registry (receptron/mulmoclaude-collections). First read `config/helps/collection-skills.md` for the contribution bundle layout. Ask me for my GitHub username (meta.author must equal it) and whether to include my records as sample seed data (skip anything containing secrets). Then build the `collections/<author>/{slug}/` bundle (SKILL.md, schema.json, meta.json, optional seed/items), copy it into a clone of the registry under `github/`, run `node scripts/build-index.mjs` and `node scripts/validate.mjs`, and open a PR once I confirm.',
     addCollectionLabel: "컬렉션",
     addCollectionPrompt:
       "새 컬렉션을 만들고 싶어요. 먼저 `config/helps/collection-skills.md`를 읽고 스키마 기반 컬렉션 규칙을 확인하세요. 그런 다음 `presentForm` 도구를 사용해(AskUserQuestion은 사용하지 말고) 어떤 데이터를 관리하고 싶은지 물어보고, 제 답변을 바탕으로 schema.json과 SKILL.md를 작성해 주세요.",
