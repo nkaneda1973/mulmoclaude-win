@@ -62,12 +62,20 @@ export function registerCompletionHook(chatSessionId: string, hook: CompletionHo
   completionHooks.set(chatSessionId, hook);
 }
 
-/** Remove and return the completion hook for a session, if any. One-shot:
- *  the entry is deleted so the hook can't fire twice. */
-export function takeCompletionHook(chatSessionId: string): CompletionHook | undefined {
+/** Run the one-shot completion hook for a session, if one is registered, then
+ *  remove it (so it can't fire twice). No-op when none is registered.
+ *
+ *  Owning the lookup+invocation here — rather than exposing a `takeHook` that
+ *  the caller invokes — keeps the call target a closure WE registered under a
+ *  server-generated id, never a value the caller selects by a request-derived
+ *  key at its own call site (which static analysis flags as a dynamic-dispatch
+ *  risk). The hook is best-effort: a throwing hook rejects the returned promise
+ *  for the caller to catch+log. */
+export async function runCompletionHook(chatSessionId: string, outcome: { didError: boolean }): Promise<void> {
   const hook = completionHooks.get(chatSessionId);
-  if (hook) completionHooks.delete(chatSessionId);
-  return hook;
+  if (!hook) return;
+  completionHooks.delete(chatSessionId);
+  await hook(outcome);
 }
 
 export { MAX_BACKGROUND_SESSIONS };

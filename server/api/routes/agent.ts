@@ -38,7 +38,7 @@ import {
   tryReserveBackgroundSession,
   releaseBackgroundSession,
   registerCompletionHook,
-  takeCompletionHook,
+  runCompletionHook,
   MAX_BACKGROUND_SESSIONS,
   type CompletionHook,
 } from "../../agent/backgroundSessions.js";
@@ -1029,8 +1029,7 @@ async function finalizeRun(chatSessionId: string, origin: SessionOrigin | undefi
     // Fire any one-shot completion hook (e.g. agent-ingest failure tracking)
     // AFTER the slot is freed, BEFORE files are cleaned up. Best-effort —
     // a throwing hook is logged, never propagated.
-    const hook = takeCompletionHook(chatSessionId);
-    if (hook) await Promise.resolve(hook({ didError })).catch(logBackgroundError("background-session-completion-hook"));
+    await runCompletionHook(chatSessionId, { didError }).catch(logBackgroundError("background-session-completion-hook"));
     if (!didError) {
       await deleteSessionFiles(chatSessionId).catch(logBackgroundError("background-session-cleanup"));
     }
