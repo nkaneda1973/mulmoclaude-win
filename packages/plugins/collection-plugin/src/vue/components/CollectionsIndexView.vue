@@ -169,8 +169,30 @@ function startCreateCollectionChat(): void {
   cui.startChat(t("collectionsView.addCollectionPrompt"), cui.generalRoleId);
 }
 
+// Defence against prompt injection via collection metadata. CodeRabbit
+// flagged title + slug as untrusted data interpolated straight into an
+// agent instruction that can drive git / gh. The slug is already
+// constrained to [a-z0-9-]+ at the schema layer, but title is free-
+// form and a crafted value (newlines, angle brackets, structural
+// characters) could plausibly steer the agent off the contribute path
+// into something unintended. Strip the structural attack surface — ASCII
+// control chars and angle brackets — before they reach the prompt.
+// The remaining plain text still travels to the agent, but without
+// markers it can use to fabricate the appearance of a new instruction
+// block or escape the surrounding context.
+/* eslint-disable no-control-regex -- intentional: we strip ASCII control chars from untrusted user input */
+function sanitizeForPrompt(value: string): string {
+  return value
+    .replace(/[\x00-\x1f\x7f]/g, " ")
+    .replace(/[<>]/g, "")
+    .trim();
+}
+/* eslint-enable no-control-regex */
+
 function startContributeChat(collection: CollectionSummary): void {
-  cui.startChat(t("collectionsView.contributePrompt", { title: collection.title, slug: collection.slug }), cui.generalRoleId);
+  const title = sanitizeForPrompt(collection.title);
+  const slug = sanitizeForPrompt(collection.slug);
+  cui.startChat(t("collectionsView.contributePrompt", { title, slug }), cui.generalRoleId);
 }
 
 onMounted(loadCollections);
