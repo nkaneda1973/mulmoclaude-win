@@ -8,7 +8,7 @@
 // workspaceRoot/clock so it is unit-testable against a temp workspace with no
 // network; `performImport` is the thin glue that fetches and calls it.
 
-import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { acceptParsedSchema, CollectionSchemaZ, safeRecordId } from "@mulmoclaude/core/collection/server";
@@ -149,15 +149,22 @@ export async function writeImportedCollection(params: {
     return { ok: false, status: STATUS_CONFLICT, error: `data path for slug '${entry.slug}' exists and is not a directory` };
   }
 
-  // Clear any prior install so a re-import truly replaces the bundle — files that
-  // disappeared from the manifest must not linger. Records live in dataPath (a
-  // separate dir) and are untouched.
-  await rm(target.targetDir, { recursive: true, force: true });
-  await mkdir(target.targetDir, { recursive: true });
-  await writeBundleFiles(target.targetDir, bundle, validated.schema);
-  const seed = await materializeSeed(dataDir, bundle);
+  // Stage the full replacement (bundle + origin) in a hidden sibling dir, then swap
+  // it in with a single rename. So a mid-write failure never destroys the prior
+  // install (it's untouched until the swap) and never leaves an origin-less partial
+  // dir that a later retry would misclassify as a foreign-collection 409. The
+  // re-import also truly replaces the bundle (files dropped from the manifest are
+  // gone after the swap). Records live in dataPath (a separate dir) and are untouched.
+  const staging = path.join(path.dirname(target.targetDir), `.importing-${entry.slug}`);
+  await rm(staging, { recursive: true, force: true });
+  await mkdir(staging, { recursive: true });
+  await writeBundleFiles(staging, bundle, validated.schema);
   const origin: ImportOrigin = { registry, author: entry.author, slug: entry.slug, version: entry.version, contentSha: entry.contentSha, importedAt: nowIso };
-  await writeFileAtomic(path.join(target.targetDir, ORIGIN_FILE), `${JSON.stringify(origin, null, 2)}\n`);
+  await writeFileAtomic(path.join(staging, ORIGIN_FILE), `${JSON.stringify(origin, null, 2)}\n`);
+  await rm(target.targetDir, { recursive: true, force: true });
+  await rename(staging, target.targetDir);
+
+  const seed = await materializeSeed(dataDir, bundle);
   return { ok: true, localSlug: entry.slug, updated: target.updated, seedWritten: seed.written, seedSkipped: seed.skipped };
 }
 

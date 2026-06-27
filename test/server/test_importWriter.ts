@@ -136,4 +136,14 @@ describe("writeImportedCollection", () => {
     assert.equal(result.ok, false);
     if (!result.ok) assert.equal(result.status, 409);
   });
+
+  it("cleans a leftover staging dir from a prior failed import and still installs", async () => {
+    const staging = path.join(wsRoot, ".claude", "skills", ".importing-movies");
+    mkdirSync(staging, { recursive: true });
+    writeFileSync(path.join(staging, "junk.txt"), "leftover from a crashed import");
+    const result = await writeImportedCollection({ registry: REGISTRY, entry, bundle: makeBundle(), workspaceRoot: wsRoot, nowIso: "t" });
+    assert.ok(result.ok);
+    assert.ok(!existsSync(staging), "leftover staging dir removed");
+    assert.ok(existsSync(path.join(skillDir(wsRoot), "SKILL.md")));
+  });
 });
