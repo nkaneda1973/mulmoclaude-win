@@ -254,8 +254,13 @@ export async function readCustomViewHtml(
     if (resolved === null) continue;
     try {
       return await readFile(resolved, "utf-8");
-    } catch {
-      // missing in this base — try the next one
+    } catch (err) {
+      // Only the "file missing here" codes should trigger the fallback. A
+      // permission denial / disk error must propagate — silently falling back
+      // would mask a real failure as a stale-from-other-base success or a
+      // misleading 404 (CodeRabbit review on #1836).
+      const { code } = err as { code?: string };
+      if (code !== "ENOENT" && code !== "ENOTDIR") throw err;
     }
   }
   return null;
