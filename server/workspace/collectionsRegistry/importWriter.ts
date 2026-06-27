@@ -77,29 +77,48 @@ async function readOrigin(targetDir: string): Promise<unknown> {
 
 type TargetResolution = { targetDir: string; localSlug: string; updated: boolean } | { conflict: string };
 
-const MAX_SLUG_ATTEMPTS = 50;
+// Only bounds the fresh-slug search (a safety cap, far above any realistic number of
+// same-named collections — the first free slug is normally found in 1–2 iterations).
+// An EXISTING install is found via the directory scan below, not this loop, so updates
+// are never missed regardless of how high the rename suffix is.
+const MAX_SLUG_ATTEMPTS = 10000;
 
-// Pick the local install slug (rename-on-collision, R8): the registry slug, else
-// `<slug>-2`, `<slug>-3`, … An existing dir whose `.origin.json` matches this
-// registry collection is a re-import (update); a foreign dir or a non-directory at
-// the path is skipped to the next candidate, so a user's own same-named collection
-// is never clobbered and the import still succeeds under a free slug.
-async function resolveTarget(workspaceRoot: string, registry: string, entry: RegistryCollectionEntry): Promise<TargetResolution> {
-  // Scan all candidate slugs once: an existing install whose origin matches this
-  // registry collection is updated in place (even if an earlier slug is now free —
-  // otherwise a re-import would duplicate the install). Only when no matching install
-  // exists do we install fresh at the first free slug.
-  let firstFree: { targetDir: string; localSlug: string } | null = null;
-  for (let attempt = 0; attempt < MAX_SLUG_ATTEMPTS; attempt += 1) {
-    const localSlug = attempt === 0 ? entry.slug : `${entry.slug}-${attempt + 1}`;
-    const targetDir = projectSkillDir(workspaceRoot, localSlug);
-    const kind = await statType(targetDir);
-    if (kind === "dir" && originMatches(await readOrigin(targetDir), registry, entry.author, entry.slug)) {
-      return { targetDir, localSlug, updated: true };
-    }
-    if (kind === "absent" && firstFree === null) firstFree = { targetDir, localSlug };
+const renameCandidate = (slug: string, attempt: number): string => (attempt === 0 ? slug : `${slug}-${attempt + 1}`);
+
+// True when `name` is the registry slug or a `<slug>-<n>` rename of it.
+function isRenameOf(name: string, slug: string): boolean {
+  if (name === slug) return true;
+  if (!name.startsWith(`${slug}-`)) return false;
+  const suffix = name.slice(slug.length + 1);
+  return suffix.length > 0 && /^\d+$/.test(suffix);
+}
+
+// Find an existing install of this registry collection at ANY rename suffix by scanning
+// the active skills dir — independent of any candidate bound, so a re-import always
+// updates the existing install rather than duplicating it (even if an earlier slug freed up).
+async function findMatchingInstall(skillsDir: string, registry: string, entry: RegistryCollectionEntry): Promise<string | null> {
+  const names = await readdir(skillsDir).catch(() => [] as string[]);
+  for (const name of names) {
+    if (!isRenameOf(name, entry.slug)) continue;
+    const dir = path.join(skillsDir, name);
+    if ((await statType(dir)) === "dir" && originMatches(await readOrigin(dir), registry, entry.author, entry.slug)) return name;
   }
-  if (firstFree) return { ...firstFree, updated: false };
+  return null;
+}
+
+// Pick the local install slug (rename-on-collision, R8). First reuse an existing matching
+// install (update). Otherwise install fresh at the first free slug — the registry slug,
+// else `<slug>-2`, `-3`, … — never clobbering a user's own same-named collection.
+async function resolveTarget(workspaceRoot: string, registry: string, entry: RegistryCollectionEntry): Promise<TargetResolution> {
+  const skillsDir = path.dirname(projectSkillDir(workspaceRoot, entry.slug));
+  const existing = await findMatchingInstall(skillsDir, registry, entry);
+  if (existing) return { targetDir: projectSkillDir(workspaceRoot, existing), localSlug: existing, updated: true };
+  for (let attempt = 0; attempt < MAX_SLUG_ATTEMPTS; attempt += 1) {
+    const localSlug = renameCandidate(entry.slug, attempt);
+    if ((await statType(projectSkillDir(workspaceRoot, localSlug))) === "absent") {
+      return { targetDir: projectSkillDir(workspaceRoot, localSlug), localSlug, updated: false };
+    }
+  }
   return { conflict: `couldn't find an available slug for '${entry.slug}'` };
 }
 

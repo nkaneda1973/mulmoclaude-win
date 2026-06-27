@@ -140,6 +140,16 @@ describe("writeImportedCollection", () => {
     assert.ok(!existsSync(path.join(skillDir(wsRoot), ".origin.json")), "no duplicate fresh install at the freed slug");
   });
 
+  it("finds a free slug past several colliding installs", async () => {
+    for (const slug of ["movies", "movies-2", "movies-3"]) {
+      mkdirSync(skillDir(wsRoot, slug), { recursive: true });
+      writeFileSync(path.join(skillDir(wsRoot, slug), "SKILL.md"), "a foreign collection");
+    }
+    const result = await writeImportedCollection({ registry: REGISTRY, entry, bundle: makeBundle(), workspaceRoot: wsRoot, nowIso: "t" });
+    assert.ok(result.ok);
+    if (result.ok) assert.equal(result.localSlug, "movies-4");
+  });
+
   it("rejects an invalid schema with 422", async () => {
     const bundle = makeBundle({ "schema.json": JSON.stringify({ title: "x" }) });
     const result = await writeImportedCollection({ registry: REGISTRY, entry, bundle, workspaceRoot: wsRoot, nowIso: "t" });
