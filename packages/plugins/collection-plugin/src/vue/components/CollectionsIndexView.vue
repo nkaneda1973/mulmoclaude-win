@@ -173,13 +173,15 @@ function startCreateCollectionChat(): void {
 // flagged title + slug as untrusted data interpolated straight into an
 // agent instruction that can drive git / gh. The slug is already
 // constrained to [a-z0-9-]+ at the schema layer, but title is free-
-// form and a crafted value (newlines, angle brackets, structural
-// characters) could plausibly steer the agent off the contribute path
-// into something unintended. Strip the structural attack surface — ASCII
-// control chars and angle brackets — before they reach the prompt.
-// The remaining plain text still travels to the agent, but without
-// markers it can use to fabricate the appearance of a new instruction
-// block or escape the surrounding context.
+// form and a crafted value (newlines, angle brackets, Unicode line
+// separators) could plausibly steer the agent off the contribute path
+// into something unintended. Strip the structural attack surface
+// before the values reach the prompt template; plain text still
+// travels through, but without markers it can use to fabricate the
+// appearance of a new instruction line or escape the surrounding
+// context. Applied to the AGENT prompt only — the confirm dialog
+// below renders the untouched title so the user sees what they're
+// about to share.
 /* eslint-disable no-control-regex -- intentional: we strip ASCII control chars from untrusted user input */
 function sanitizeForPrompt(value: string): string {
   return (
@@ -199,7 +201,15 @@ function sanitizeForPrompt(value: string): string {
 }
 /* eslint-enable no-control-regex */
 
-function startContributeChat(collection: CollectionSummary): void {
+// Contributing runs an agent that exports the collection and opens a GitHub PR —
+// confirm before launching so a stray click doesn't start a share unprompted.
+async function startContributeChat(collection: CollectionSummary): Promise<void> {
+  const confirmed = await cui.confirm({
+    message: t("collectionsView.contributeConfirm", { title: collection.title }),
+    confirmText: t("collectionsView.contribute"),
+    variant: "primary",
+  });
+  if (!confirmed) return;
   const title = sanitizeForPrompt(collection.title);
   const slug = sanitizeForPrompt(collection.slug);
   cui.startChat(t("collectionsView.contributePrompt", { title, slug }), cui.generalRoleId);
