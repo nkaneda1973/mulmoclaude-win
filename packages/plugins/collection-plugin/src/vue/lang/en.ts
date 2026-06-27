@@ -19,7 +19,7 @@ const enMessages = {
     },
     contribute: "Contribute",
     contributePrompt:
-      'Help me contribute my "{title}" collection (slug: {slug}) to the MulmoClaude collection registry (receptron/mulmoclaude-collections). First read `config/helps/collection-skills.md` for the contribution bundle layout. Ask me for my GitHub username (meta.author must equal it) and whether to include my records as sample seed data (skip anything containing secrets). Then build the `collections/<author>/{slug}/` bundle (SKILL.md, schema.json, meta.json, optional seed/items), copy it into a clone of the registry under `github/`, run `node scripts/build-index.mjs` and `node scripts/validate.mjs`, and open a PR once I confirm.',
+      'Help me contribute my "{title}" collection (slug: {slug}) to the MulmoClaude collection registry (receptron/mulmoclaude-collections). First read `config/helps/collection-skills.md` for the contribution bundle layout. Ask me for my GitHub username (must match meta.author, used as the registry namespace) and whether to include my records as sample seed data (skip anything containing secrets). Then build the contribution bundle (SKILL.md, schema.json, meta.json, optional seed/items), copy it into a clone of the registry under `github/`, run `node scripts/build-index.mjs` and `node scripts/validate.mjs`, and open a PR once I confirm.',
     addCollectionLabel: "Collection",
     addCollectionPrompt:
       "Help me create a new collection. First read `config/helps/collection-skills.md` for the schema-driven collection conventions. Then use the `presentForm` tool (do not use AskUserQuestion) to ask me what kind of data I want to track, and author the schema.json and SKILL.md from my answers.",
