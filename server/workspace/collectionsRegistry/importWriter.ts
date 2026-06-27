@@ -85,15 +85,21 @@ const MAX_SLUG_ATTEMPTS = 50;
 // the path is skipped to the next candidate, so a user's own same-named collection
 // is never clobbered and the import still succeeds under a free slug.
 async function resolveTarget(workspaceRoot: string, registry: string, entry: RegistryCollectionEntry): Promise<TargetResolution> {
+  // Scan all candidate slugs once: an existing install whose origin matches this
+  // registry collection is updated in place (even if an earlier slug is now free —
+  // otherwise a re-import would duplicate the install). Only when no matching install
+  // exists do we install fresh at the first free slug.
+  let firstFree: { targetDir: string; localSlug: string } | null = null;
   for (let attempt = 0; attempt < MAX_SLUG_ATTEMPTS; attempt += 1) {
     const localSlug = attempt === 0 ? entry.slug : `${entry.slug}-${attempt + 1}`;
     const targetDir = projectSkillDir(workspaceRoot, localSlug);
     const kind = await statType(targetDir);
-    if (kind === "absent") return { targetDir, localSlug, updated: false };
     if (kind === "dir" && originMatches(await readOrigin(targetDir), registry, entry.author, entry.slug)) {
       return { targetDir, localSlug, updated: true };
     }
+    if (kind === "absent" && firstFree === null) firstFree = { targetDir, localSlug };
   }
+  if (firstFree) return { ...firstFree, updated: false };
   return { conflict: `couldn't find an available slug for '${entry.slug}'` };
 }
 

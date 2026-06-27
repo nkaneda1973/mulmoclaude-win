@@ -116,6 +116,22 @@ describe("writeImportedCollection", () => {
     }
   });
 
+  it("re-imports into the existing renamed slug even after the original slug frees up", async () => {
+    mkdirSync(skillDir(wsRoot), { recursive: true });
+    writeFileSync(path.join(skillDir(wsRoot), "SKILL.md"), "someone else's collection");
+    const first = await writeImportedCollection({ registry: REGISTRY, entry, bundle: makeBundle(), workspaceRoot: wsRoot, nowIso: "t1" });
+    assert.ok(first.ok && first.localSlug === "movies-2");
+    // the user deletes their own collection → the original slug frees up
+    rmSync(skillDir(wsRoot), { recursive: true, force: true });
+    const again = await writeImportedCollection({ registry: REGISTRY, entry, bundle: makeBundle(), workspaceRoot: wsRoot, nowIso: "t2" });
+    assert.ok(again.ok);
+    if (again.ok) {
+      assert.equal(again.localSlug, "movies-2", "updates the existing renamed install, not a fresh 'movies'");
+      assert.equal(again.updated, true);
+    }
+    assert.ok(!existsSync(path.join(wsRoot, ".claude", "skills", "movies", ".origin.json")), "no duplicate fresh install at the freed slug");
+  });
+
   it("rejects an invalid schema with 422", async () => {
     const bundle = makeBundle({ "schema.json": JSON.stringify({ title: "x" }) });
     const result = await writeImportedCollection({ registry: REGISTRY, entry, bundle, workspaceRoot: wsRoot, nowIso: "t" });
