@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, existsSync, readFileSync, rmSync
 import path from "node:path";
 import { tmpdir } from "node:os";
 
-import { writeImportedCollection } from "../../server/workspace/collectionsRegistry/importWriter.js";
+import { writeImportedCollection, claudeSkillDir, dataSkillDir } from "../../server/workspace/collectionsRegistry/importWriter.js";
 import type { RegistryCollectionEntry } from "../../server/workspace/collectionsRegistry/registryIndex.js";
 
 const REGISTRY = "receptron/mulmoclaude-collections";
@@ -53,11 +53,14 @@ function makeBundle(overrides: Record<string, string> = {}): Map<string, string>
   );
 }
 
-// `data/skills/<slug>/` is the source-of-truth after the refactor (#1838) —
+// `data/skills/<slug>/` is the source-of-truth after the refactor (#1839) —
 // both authored and imported collections live here. Tests pin BOTH this and
 // the `.claude/skills/<slug>/` mirror to lock the new dual-write contract.
-const sourceDir = (root: string, slug = "movies") => path.join(root, "data", "skills", slug);
-const mirrorDir = (root: string, slug = "movies") => path.join(root, ".claude", "skills", slug);
+// Path helpers come from the same `@mulmoclaude/core/skill-bridge` package
+// the writer uses (re-exported by importWriter), so tests never hardcode the
+// `data/skills` / `.claude/skills` segments themselves.
+const sourceDir = (root: string, slug = "movies") => dataSkillDir(root, slug);
+const mirrorDir = (root: string, slug = "movies") => claudeSkillDir(root, slug);
 const seedFile = (root: string, slug = "movies") => path.join(root, "data", "collections", slug, "items", "a.json");
 
 describe("writeImportedCollection", () => {
@@ -203,6 +206,40 @@ describe("writeImportedCollection", () => {
     const result = await writeImportedCollection({ registry: REGISTRY, entry, bundle, workspaceRoot: wsRoot, nowIso: "t" });
     assert.equal(result.ok, false);
     if (!result.ok) assert.equal(result.status, 422);
+  });
+
+  it("rejects a bundle missing SKILL.md with 422 (no half-imported skill)", async () => {
+    // The mirror step calls mirrorSkillWrite for SKILL.md unconditionally;
+    // missing SKILL.md would throw inside the catch-all and return ok:true
+    // for an unusable import unless we reject up front.
+    const bundle = makeBundle();
+    bundle.delete("SKILL.md");
+    const result = await writeImportedCollection({ registry: REGISTRY, entry, bundle, workspaceRoot: wsRoot, nowIso: "t" });
+    assert.equal(result.ok, false);
+    if (!result.ok) {
+      assert.equal(result.status, 422);
+      assert.match(result.error, /SKILL\.md/);
+    }
+    // Nothing landed on disk either side.
+    assert.ok(!existsSync(sourceDir(wsRoot)), "no source dir written");
+    assert.ok(!existsSync(mirrorDir(wsRoot)), "no mirror dir written");
+  });
+
+  it("walks past a slug whose mirror exists but source is absent (don't clobber a manual Claude skill)", async () => {
+    // Pre-existing `.claude/skills/movies/` (e.g. installed by the Claude CLI
+    // directly, or a legacy pre-refactor import). data/skills/movies/ is
+    // absent. Without the mirror-also-absent check the writer would happily
+    // pick `movies`, then `mirrorSkillDelete` would silently wipe the user's
+    // skill (CodeRabbit review on #1839).
+    mkdirSync(mirrorDir(wsRoot), { recursive: true });
+    writeFileSync(path.join(mirrorDir(wsRoot), "SKILL.md"), "manually installed claude skill");
+    const result = await writeImportedCollection({ registry: REGISTRY, entry, bundle: makeBundle(), workspaceRoot: wsRoot, nowIso: "t" });
+    assert.ok(result.ok);
+    if (result.ok) {
+      assert.equal(result.localSlug, "movies-2", "skipped 'movies' because the mirror was taken");
+    }
+    // The manual skill is intact.
+    assert.equal(readFileSync(path.join(mirrorDir(wsRoot), "SKILL.md"), "utf-8"), "manually installed claude skill");
   });
 
   it("re-import removes files that dropped out of the manifest (source + mirror)", async () => {

@@ -124,15 +124,24 @@ async function findMatchingInstall(skillsDir: string, registry: string, entry: R
 // Pick the local install slug (rename-on-collision, R8). First reuse an
 // existing matching install (update). Otherwise install fresh at the first
 // free slug — the registry slug, else `<slug>-2`, `-3`, … — never clobbering
-// a user's own same-named collection (`data/skills/<slug>/` without
-// `.origin.json` matching ⇒ treat as taken, walk forward).
+// a user's own same-named collection.
+//
+// A slug is "free" only when BOTH `data/skills/<slug>/` AND
+// `.claude/skills/<slug>/` are absent. The mirror check matters because
+// `mirrorToClaudeSkills` calls `mirrorSkillDelete(slug)` before writing — if
+// the user has a manually-installed Claude skill at `.claude/skills/<slug>/`
+// with no corresponding `data/skills/<slug>/` (e.g. installed by the Claude
+// CLI directly, or a legacy pre-refactor import we never migrated), picking
+// that slug would silently wipe their skill (CodeRabbit review on #1839).
 async function resolveTarget(workspaceRoot: string, registry: string, entry: RegistryCollectionEntry): Promise<TargetResolution> {
   const skillsDir = path.dirname(dataSkillDir(workspaceRoot, entry.slug));
   const existing = await findMatchingInstall(skillsDir, registry, entry);
   if (existing) return { targetDir: dataSkillDir(workspaceRoot, existing), localSlug: existing, updated: true };
   for (let attempt = 0; attempt < MAX_SLUG_ATTEMPTS; attempt += 1) {
     const localSlug = renameCandidate(entry.slug, attempt);
-    if ((await statType(dataSkillDir(workspaceRoot, localSlug))) === "absent") {
+    const sourceAbsent = (await statType(dataSkillDir(workspaceRoot, localSlug))) === "absent";
+    const mirrorAbsent = (await statType(claudeSkillDir(workspaceRoot, localSlug))) === "absent";
+    if (sourceAbsent && mirrorAbsent) {
       return { targetDir: dataSkillDir(workspaceRoot, localSlug), localSlug, updated: false };
     }
   }
@@ -142,6 +151,14 @@ async function resolveTarget(workspaceRoot: string, registry: string, entry: Reg
 type SchemaResolution = { schema: CollectionSchema } | { error: string };
 
 function validateAndNormalize(bundle: Map<string, string>, localSlug: string, workspaceRoot: string): SchemaResolution {
+  // SKILL.md is required: `mirrorToClaudeSkills` calls
+  // `mirrorSkillWrite({slug, relSegments: [SKILL_FILE]})` unconditionally
+  // after the data-side swap, which throws if SKILL.md is missing. Caught
+  // outside, that throw is logged but the data-side write still succeeds and
+  // the function returns `ok: true` for an unusable import. Reject up front
+  // so a missing SKILL.md surfaces as a clean 422 instead (CodeRabbit review
+  // on #1839).
+  if (bundle.get(SKILL_FILE) === undefined) return { error: "bundle is missing SKILL.md" };
   const schemaText = bundle.get(SCHEMA_FILE);
   if (schemaText === undefined) return { error: "bundle is missing schema.json" };
   let parsedJson: unknown;
