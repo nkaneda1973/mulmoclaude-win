@@ -155,20 +155,30 @@ export async function writeImportedCollection(params: {
   const validated = validateAndNormalize(bundle, entry.slug, workspaceRoot);
   if ("error" in validated) return { ok: false, status: STATUS_UNPROCESSABLE, error: validated.error };
 
-  // Stage the full replacement (bundle + origin) in a hidden sibling dir, then swap
-  // it in with a single rename. So a mid-write failure never destroys the prior
-  // install (it's untouched until the swap) and never leaves an origin-less partial
-  // dir that a later retry would misclassify as a foreign-collection 409. The
-  // re-import also truly replaces the bundle (files dropped from the manifest are
-  // gone after the swap). Records live in dataPath (a separate dir) and are untouched.
-  const staging = path.join(path.dirname(target.targetDir), `.importing-${entry.slug}`);
+  // Build the replacement fully in a hidden sibling staging dir (bundle + origin),
+  // so the prior install is untouched until everything is durably written. Leftover
+  // staging/backup dirs from a crashed import are cleaned first, keeping retries possible.
+  const skillsParent = path.dirname(target.targetDir);
+  const staging = path.join(skillsParent, `.importing-${entry.slug}`);
+  const backup = path.join(skillsParent, `.backup-${entry.slug}`);
   await rm(staging, { recursive: true, force: true });
+  await rm(backup, { recursive: true, force: true });
   await mkdir(staging, { recursive: true });
   await writeBundleFiles(staging, bundle, validated.schema);
   const origin: ImportOrigin = { registry, author: entry.author, slug: entry.slug, version: entry.version, contentSha: entry.contentSha, importedAt: nowIso };
   await writeFileAtomic(path.join(staging, ORIGIN_FILE), `${JSON.stringify(origin, null, 2)}\n`);
-  await rm(target.targetDir, { recursive: true, force: true });
-  await rename(staging, target.targetDir);
+
+  // Swap with rollback: move the old install aside (rename), move the new in (rename),
+  // then discard the old. If the swap fails, restore the old so we never end up with no
+  // installed collection. Records live in dataPath (a separate dir) and are untouched.
+  if (target.updated) await rename(target.targetDir, backup);
+  try {
+    await rename(staging, target.targetDir);
+  } catch (err) {
+    if (target.updated) await rename(backup, target.targetDir).catch(() => undefined);
+    throw err;
+  }
+  await rm(backup, { recursive: true, force: true });
 
   const seed = await materializeSeed(dataDir, bundle);
   return { ok: true, localSlug: entry.slug, updated: target.updated, seedWritten: seed.written, seedSkipped: seed.skipped };
