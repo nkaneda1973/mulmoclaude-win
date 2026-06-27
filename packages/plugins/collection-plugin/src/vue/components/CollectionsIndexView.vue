@@ -182,10 +182,20 @@ function startCreateCollectionChat(): void {
 // block or escape the surrounding context.
 /* eslint-disable no-control-regex -- intentional: we strip ASCII control chars from untrusted user input */
 function sanitizeForPrompt(value: string): string {
-  return value
-    .replace(/[\x00-\x1f\x7f]/g, " ")
-    .replace(/[<>]/g, "")
-    .trim();
+  return (
+    value
+      // ASCII control chars (incl. CR / LF / tab) → space.
+      .replace(/[\x00-\x1f\x7f]/g, " ")
+      // Unicode line / paragraph separators (U+2028 / U+2029). Some
+      // string-rendering paths and LLM tokenizers treat these as real
+      // line breaks, so a crafted title containing one could visually
+      // smuggle a new "line" of instruction past a reader scanning the
+      // prompt (Codex follow-up on the ASCII-only first pass).
+      .replace(/[\u2028\u2029]/g, " ")
+      // Angle brackets — can't open or close a wrapper tag.
+      .replace(/[<>]/g, "")
+      .trim()
+  );
 }
 /* eslint-enable no-control-regex */
 
