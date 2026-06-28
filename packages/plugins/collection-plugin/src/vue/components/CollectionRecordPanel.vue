@@ -98,15 +98,30 @@
          else its read-only display. -->
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 bg-white rounded-2xl border border-slate-200/60 p-6 shadow-sm">
       <template v-for="(field, key) in collection.schema.fields" :key="key">
-        <div v-if="cellVisible(field)" class="flex flex-col gap-1.5" :class="colSpanClass(field)">
+        <div v-if="cellVisible(field, String(key))" class="flex flex-col gap-1.5" :class="colSpanClass(field)">
           <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1" :for="`collections-field-${key}`">
             {{ field.label }}
             <!-- eslint-disable-next-line @intlify/vue-i18n/no-raw-text -- bare "*" is a universal required-field glyph; treating it as i18n copy would force eight translations of the same symbol. -->
             <span v-if="editing && field.required" class="text-rose-500 font-bold">*</span>
           </label>
 
+          <!-- Embed per-record picker: a dropdown of the target collection's
+               records whose selection is stored in the embed's `idField`. The
+               read-only block renders below (in view mode) from that value. -->
+          <select
+            v-if="editing && field.type === 'embed' && field.idField"
+            :id="`collections-field-${key}`"
+            v-model="editing.text[field.idField]"
+            :required="embedPickerRequired(field)"
+            class="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs bg-slate-50 hover:bg-slate-50/50 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none transition-all cursor-pointer font-medium text-slate-700"
+            :data-testid="`collections-input-${key}`"
+          >
+            <option value="">{{ t("collectionsView.selectPlaceholder") }}</option>
+            <option v-for="opt in render.embedOptions(field.to ?? '')" :key="opt.slug" :value="opt.slug">{{ opt.display }}</option>
+          </select>
+
           <!-- ===== EDIT CONTROLS (editable field types only) ===== -->
-          <template v-if="editing && isEditableType(field.type)">
+          <template v-else-if="editing && isEditableType(field.type)">
             <!-- Boolean checkbox -->
             <label v-if="field.type === 'boolean'" class="inline-flex items-center gap-2.5 text-sm text-slate-700 cursor-pointer select-none">
               <input
@@ -551,15 +566,28 @@ function submitItemChat(): void {
   chatMessage.value = "";
 }
 
-// `embedViews` is a ComputedRef nested in the `render` object, so it isn't
-// auto-unwrapped in the template — re-expose it as a top-level computed.
-const embedViews = computed(() => props.render.embedViews.value);
-
 /** The record the read-only displays render from: the live draft while
  *  editing (so non-editable cells like derived/embed preview the in-flight
  *  values), else the open record. Always an object so `[key]` lookups are
  *  safe in the template. */
 const detailRecord = computed<CollectionItem>(() => (editing.value ? (props.liveDerived ?? props.liveRecord ?? {}) : (props.viewing ?? {})));
+
+// Embed view-models are resolved against the active record (a per-record
+// `idField` embed points at a different target per row), so recompute them
+// whenever the open / draft record changes.
+const embedViews = computed(() => props.render.embedViewsFor(detailRecord.value));
+
+// Fields that an embed owns via `idField`: the embed hosts the picker (a
+// dropdown in edit mode) and the read-only block, so the raw storage field
+// gets no standalone cell of its own — same spirit as a `toggle` fronting
+// its enum.
+const embedOwnedKeys = computed<Set<string>>(() => {
+  const keys = new Set<string>();
+  for (const field of Object.values(props.collection.schema.fields)) {
+    if (field.type === "embed" && field.idField) keys.add(field.idField);
+  }
+  return keys;
+});
 
 /** Title for the header: the create label, the edited record's id, or the
  *  open record's title — same h2 slot in every mode. */
@@ -592,8 +620,11 @@ function colSpanClass(field: FieldSpec): "col-span-full" | "col-span-1" {
  *  cell appears or disappears on toggle: respect the `when` predicate
  *  (against the active record) and hide the primary key except while
  *  creating. */
-function cellVisible(field: FieldSpec): boolean {
+function cellVisible(field: FieldSpec, key: string): boolean {
   if (field.primary && editing.value?.mode !== "create") return false;
+  // An embed owns its `idField`'s editing + display, so the raw storage
+  // field shows no standalone cell (the embed's picker / block stands in).
+  if (embedOwnedKeys.value.has(key)) return false;
   return fieldVisible(field, detailRecord.value);
 }
 
@@ -604,6 +635,13 @@ function isFieldRequiredInUi(field: FieldSpec): boolean {
   if (!field.required) return false;
   if (editing.value?.mode === "create" && field.primary === true) return false;
   return true;
+}
+
+/** Required flag for an embed's per-record picker — read off the storage
+ *  field it writes (`idField`), since the embed itself stores nothing. */
+function embedPickerRequired(field: FieldSpec): boolean {
+  const target = field.idField ? props.collection.schema.fields[field.idField] : undefined;
+  return target ? isFieldRequiredInUi(target) : false;
 }
 
 /** Tailwind fill/text/border classes tinting an enum `<select>` by its current

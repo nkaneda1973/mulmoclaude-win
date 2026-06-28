@@ -36,10 +36,11 @@ const refMessage = {
   path: ["to"],
 };
 
-// `embed` pulls a fixed record from another collection into the
-// read-only detail view. It must declare a valid `to` slug (same
-// path-traversal guard as `ref`) AND a non-empty `id` naming the
-// fixed record's primary key (e.g. `me` for the singleton profile).
+// `embed` pulls a record from another collection into the read-only
+// detail view. It must declare a valid `to` slug (same path-traversal
+// guard as `ref`) AND exactly one of `id` (a fixed target record, e.g.
+// `me` for the singleton profile) or `idField` (a sibling field naming
+// the per-record target, e.g. an invoice's `issuerId`).
 // The calendar anchor/end fields accept either a date-only or a datetime
 // field (the latter carries the clock for the day view).
 const isDateLike = (type: string | undefined): boolean => type === "date" || type === "datetime";
@@ -48,13 +49,17 @@ const isDateLike = (type: string | undefined): boolean => type === "date" || typ
 // string-backed field — a number/enum/date column has no time-range text.
 const isTimeStringField = (type: string | undefined): boolean => type === "string" || type === "text";
 
-const embedRefine = (spec: { type: string; to?: string; id?: string }): boolean => {
+const embedRefine = (spec: { type: string; to?: string; id?: string; idField?: string }): boolean => {
   if (spec.type !== "embed") return true;
   if (typeof spec.to !== "string" || safeSlugName(spec.to) === null) return false;
-  return typeof spec.id === "string" && spec.id.trim().length > 0;
+  const hasId = typeof spec.id === "string" && spec.id.trim().length > 0;
+  const hasIdField = typeof spec.idField === "string" && spec.idField.trim().length > 0;
+  // Exactly one: a fixed target or a per-record one, never both / neither.
+  return hasId !== hasIdField;
 };
 const embedMessage = {
-  message: "fields with type 'embed' must declare a `to` (valid collection slug) and a non-empty `id` (the fixed record's primary key)",
+  message:
+    "fields with type 'embed' must declare a `to` (valid collection slug) and exactly one of `id` (a fixed record's primary key) or `idField` (a sibling field naming the per-record target)",
   path: ["id"],
 };
 
@@ -145,6 +150,10 @@ const FieldSpecSchema = z
     required: z.boolean().optional(),
     to: z.string().min(1).optional(),
     id: z.string().trim().min(1).optional(),
+    // `embed` per-record target: a sibling field naming the record id
+    // to pull (validated to be a real top-level field by a schema-level
+    // refine below — a field can't see its siblings here).
+    idField: z.string().trim().min(1).optional(),
     currency: z.string().trim().min(1).optional(),
     currencyField: z.string().trim().min(1).optional(),
     values: z.array(z.string().trim().min(1)).min(1).optional(),
@@ -575,6 +584,14 @@ export const CollectionSchemaZ = z
   // Checked at the schema level because a field can't see its siblings.
   .refine((schema) => Object.values(schema.fields).every((field) => field.when === undefined || schema.fields[field.when.field] !== undefined), {
     message: "a field's `when.field` must name a top-level field declared in `fields`",
+    path: ["fields"],
+  })
+  // An `embed`'s `idField` resolves the target record id from a
+  // sibling's value, so it must name a real top-level field — a typo
+  // would silently embed nothing. Checked at the schema level because a
+  // field can't see its siblings.
+  .refine((schema) => Object.values(schema.fields).every((field) => field.idField === undefined || schema.fields[field.idField] !== undefined), {
+    message: "an embed field's `idField` must name a top-level field declared in `fields`",
     path: ["fields"],
   })
   // `triggerField` requires the completion pair: the time gate only

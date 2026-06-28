@@ -74,16 +74,25 @@ function toRefRecords(linked: Record<string, LinkedTarget>): DeriveRefRecords {
   return Object.fromEntries(Object.entries(linked).map(([slug, target]) => [slug, target.byId]));
 }
 
+/** Resolve an `embed` field's target record id: the fixed `id`, or the
+ *  value of the sibling `idField` on this record (empty when absent). */
+function embedTargetId(field: CollectionFieldSpec, record: CollectionItem): string {
+  if (field.id) return field.id;
+  if (field.idField) return String(record[field.idField] ?? "");
+  return "";
+}
+
 /** Project the computed (never-stored) field kinds onto one derived
- *  record: `toggle` → boolean off its enum, `embed` → the fixed target
- *  record (or null when missing). */
+ *  record: `toggle` → boolean off its enum, `embed` → the target record
+ *  (fixed `id` or per-record `idField`), or null when missing. */
 function projectComputed(schema: CollectionSchema, enriched: CollectionItem, linked: Record<string, LinkedTarget>): CollectionItem {
   for (const [key, field] of Object.entries(schema.fields)) {
     if (field.type === "toggle" && field.field) {
       enriched[key] = String(enriched[field.field] ?? "") === field.onValue;
     }
-    if (field.type === "embed" && field.to && field.id) {
-      enriched[key] = linked[field.to]?.byId[field.id] ?? null;
+    if (field.type === "embed" && field.to) {
+      const targetId = embedTargetId(field, enriched);
+      enriched[key] = (targetId && linked[field.to]?.byId[targetId]) || null;
     }
   }
   return enriched;
