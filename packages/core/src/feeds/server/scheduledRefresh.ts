@@ -7,11 +7,12 @@ import { SCHEDULE_TYPES, MISSED_RUN_POLICIES } from "@receptron/task-scheduler";
 import type { SystemTaskDef } from "../../scheduler/adapter.js";
 import { refreshDue } from "./engine.js";
 
-const ONE_HOUR_MS = 3_600_000;
-
 // Id kept stable so the scheduler-state row isn't orphaned across hosts/renames.
 export const FEED_REFRESH_TASK_ID = "system:feed-refresh";
-export const DEFAULT_FEED_REFRESH_INTERVAL_MS = ONE_HOUR_MS;
+// Single source of truth for the default refresh cadence (one hour). Core has no
+// shared time module — `server/utils/time.ts` is host-only — so the named export
+// IS the constant; hosts override via `feedRefreshTaskDef({ intervalMs })`.
+export const DEFAULT_FEED_REFRESH_INTERVAL_MS = 60 * 60 * 1000;
 
 /**
  * The hourly "refresh due collections" task, shared by every host.

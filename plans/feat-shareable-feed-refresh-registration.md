@@ -54,6 +54,7 @@ intra-`core` dep):
 
 ```ts
 // packages/core/src/feeds/server/scheduledRefresh.ts
+import { SCHEDULE_TYPES, MISSED_RUN_POLICIES } from "@receptron/task-scheduler";
 import type { SystemTaskDef } from "../../scheduler/adapter.js"; // sibling subpath
 import { refreshDue } from "./engine.js";
 
@@ -69,8 +70,8 @@ export function feedRefreshTaskDef(opts?: { workspaceRoot?: string; intervalMs?:
     id: FEED_REFRESH_TASK_ID,
     name: "Scheduled collection refresh",
     description: "Refresh due collections — fetch declarative feeds + dispatch agent-ingest workers",
-    schedule: { type: "interval", intervalMs: opts?.intervalMs ?? DEFAULT_FEED_REFRESH_INTERVAL_MS },
-    missedRunPolicy: "runOnce",
+    schedule: { type: SCHEDULE_TYPES.interval, intervalMs: opts?.intervalMs ?? DEFAULT_FEED_REFRESH_INTERVAL_MS },
+    missedRunPolicy: MISSED_RUN_POLICIES.runOnce,
     run: () => refreshDue(opts?.workspaceRoot).then(() => {}),
   };
 }
@@ -123,8 +124,10 @@ Options (decide in this PR):
 
 ## Versioning / publish
 
-Patch-bump `@mulmoclaude/core` (current `0.2.6` → next), build
-(`vite build && vite build -c vite.esm.config.ts`), publish. MulmoTerminal then re-pins
+Patch-bump `@mulmoclaude/core` (`0.2.7` → `0.2.9`), raise the `@mulmoclaude/core` dep
+floor in `packages/mulmoclaude/package.json` to `^0.2.9` (the host now imports
+`feedRefreshTaskDef`), build (`vite build && vite build -c vite.esm.config.ts`), publish.
+MulmoTerminal then re-pins
 and registers the task (its own follow-up PR; the MulmoTerminal feeds PR #129 already
 notes scheduled refresh is deferred to this work).
 
