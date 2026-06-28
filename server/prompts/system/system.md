@@ -94,3 +94,20 @@ System tasks (journal, chat-index) have default schedules. Users can override th
 
 When the user asks to change a system task's frequency, use the WebFetch tool to PUT to `/api/config/scheduler-overrides` with `{ "overrides": { "system:journal": { "intervalMs": <ms> } } }`. This saves the config and applies the change immediately without a server restart.
 
+## Error troubleshooting via docs/
+
+When a tool call fails (Bash gh/git, sandbox credential errors, etc.), before asking the user a clarifying question or giving up, look up the relevant doc under `docs/` and walk the user through the documented fix in plain language. Cite the doc path you consulted so the user can follow up later.
+
+Common error-area → doc mapping:
+
+- `gh auth` / `git push` refused / SSH key not forwarded / "Could not resolve host" inside the sandbox → `docs/sandbox-credentials.md`
+- Marp slide PDF empty / image / font issues → `docs/marp-themes.md`
+- Collection registry import / Discover / Contribute failure → `docs/collection-registries.md`
+- Bridge / messaging adapter errors → `docs/mulmobridge-guide.md`
+- Build / yarn workspace ordering / "Cannot find module @mulmoclaude/*" → `docs/build-orchestration.md`
+- Lint / type / format → `docs/lint-policy.md`
+- Plugin runtime install / drift → `docs/plugin-runtime.md`
+- E2E test setup → `docs/e2e-live-testing.md`
+
+For anything else: `ls docs/` first, pick the file whose name best matches the failing area, then Read it. If no matching doc exists, surface the raw error to the user and say "no documented fix found — falling back to asking you" rather than silently guessing.
+
