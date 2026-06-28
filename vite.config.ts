@@ -156,19 +156,30 @@ export default defineConfig({
       // want here: the entry's exports ARE the public surface for
       // browser-side consumers.
       preserveEntrySignatures: 'strict',
-      // `PluginScopedRoot.vue` is dynamically imported from
-      // `src/tools/runtimeLoader.ts` ONLY so that the test file
-      // `test/tools/test_runtimeLoader.ts` (which runs under tsx in
-      // Node with no Vue SFC compiler) can import the loader module
-      // without crashing on a top-level `.vue` import. Production
-      // code still references the component statically from App.vue /
-      // SettingsModal.vue / plugins/scope.ts, so the dynamic import
-      // legitimately does not chunk-split — that's the intended
-      // outcome, not a build mistake. Silence the otherwise-correct
-      // INEFFECTIVE_DYNAMIC_IMPORT warning rather than rewriting the
-      // test seam.
+      // Targeted build-time warning suppressions. EVERY entry here
+      // matches by code AND file/message so unrelated occurrences of
+      // the same warning code still surface.
+      //
+      // 1. INEFFECTIVE_DYNAMIC_IMPORT — `PluginScopedRoot.vue` is
+      //    dynamically imported from `src/tools/runtimeLoader.ts`
+      //    ONLY so that `test/tools/test_runtimeLoader.ts` (which
+      //    runs under tsx in Node with no Vue SFC compiler) can
+      //    import the loader module without crashing on a top-level
+      //    `.vue` import. Production code also references the
+      //    component statically (App.vue / SettingsModal.vue /
+      //    plugins/scope.ts), so the dynamic import legitimately
+      //    doesn't chunk-split — that's the intended outcome.
+      // 2. EVAL — `spreadsheet/engine/functions/logical.ts` IFS handler
+      //    uses direct `eval()` so the spreadsheet condition string
+      //    runs in strict-mode caller scope. Indirect eval
+      //    (`globalThis.eval`) would widen semantics to sloppy global
+      //    script context (Codex review on PR #1855), so the call
+      //    stays direct and the warning is suppressed instead.
       onwarn(warning, defaultHandler) {
         if (warning.code === 'INEFFECTIVE_DYNAMIC_IMPORT' && warning.message.includes('PluginScopedRoot.vue')) {
+          return
+        }
+        if (warning.code === 'EVAL' && warning.message.includes('spreadsheet/engine/functions/logical.ts')) {
           return
         }
         defaultHandler(warning)

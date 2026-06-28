@@ -139,17 +139,20 @@ const ifsHandler: FunctionHandler = (args, context) => {
       }
     }
 
-    // Evaluate the condition. `globalThis.eval` is the indirect-eval
-    // form: same execution semantics we need for spreadsheet IFS
-    // expressions (global scope, no access to the local closure) but
-    // without the rolldown / static-analysis warning that a bare
-    // `eval(...)` call triggers.
+    // Evaluate the condition. Direct `eval()` is required here so the
+    // expression runs in strict-mode caller scope — switching to
+    // indirect eval (`globalThis.eval`) widens semantics to sloppy
+    // global script context (an expression like `x=1` would silently
+    // create a global, `this` flips from `undefined` to `globalThis`).
+    // The rolldown `[EVAL]` build warning is suppressed via the
+    // `onwarn` filter in `vite.config.ts` rather than by changing call
+    // semantics. (Codex review on PR #1855.)
     let conditionResult = false;
 
     if (/>=|<=|>|<|==|!=/.test(condExpr)) {
-      conditionResult = globalThis.eval(condExpr);
+      conditionResult = eval(condExpr);
     } else {
-      conditionResult = !!globalThis.eval(condExpr);
+      conditionResult = !!eval(condExpr);
     }
 
     if (conditionResult) {
