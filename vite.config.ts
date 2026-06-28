@@ -156,6 +156,23 @@ export default defineConfig({
       // want here: the entry's exports ARE the public surface for
       // browser-side consumers.
       preserveEntrySignatures: 'strict',
+      // `PluginScopedRoot.vue` is dynamically imported from
+      // `src/tools/runtimeLoader.ts` ONLY so that the test file
+      // `test/tools/test_runtimeLoader.ts` (which runs under tsx in
+      // Node with no Vue SFC compiler) can import the loader module
+      // without crashing on a top-level `.vue` import. Production
+      // code still references the component statically from App.vue /
+      // SettingsModal.vue / plugins/scope.ts, so the dynamic import
+      // legitimately does not chunk-split — that's the intended
+      // outcome, not a build mistake. Silence the otherwise-correct
+      // INEFFECTIVE_DYNAMIC_IMPORT warning rather than rewriting the
+      // test seam.
+      onwarn(warning, defaultHandler) {
+        if (warning.code === 'INEFFECTIVE_DYNAMIC_IMPORT' && warning.message.includes('PluginScopedRoot.vue')) {
+          return
+        }
+        defaultHandler(warning)
+      },
     },
   },
   server: {

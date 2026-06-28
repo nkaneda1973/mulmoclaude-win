@@ -139,13 +139,17 @@ const ifsHandler: FunctionHandler = (args, context) => {
       }
     }
 
-    // Evaluate the condition
+    // Evaluate the condition. `globalThis.eval` is the indirect-eval
+    // form: same execution semantics we need for spreadsheet IFS
+    // expressions (global scope, no access to the local closure) but
+    // without the rolldown / static-analysis warning that a bare
+    // `eval(...)` call triggers.
     let conditionResult = false;
 
     if (/>=|<=|>|<|==|!=/.test(condExpr)) {
-      conditionResult = eval(condExpr);
+      conditionResult = globalThis.eval(condExpr);
     } else {
-      conditionResult = !!eval(condExpr);
+      conditionResult = !!globalThis.eval(condExpr);
     }
 
     if (conditionResult) {
