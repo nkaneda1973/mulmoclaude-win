@@ -60,4 +60,15 @@ describe("parseSkillDescription — absent / degenerate", () => {
   it("does not read a description that appears after the closing fence", () => {
     assert.equal(parseSkillDescription("---\nname: movies\n---\ndescription: in the body"), "");
   });
+
+  it("returns '' for a malformed quoted scalar (missing closing quote)", () => {
+    // js-yaml treats an unterminated quote as invalid YAML; we degrade to ""
+    // rather than silently truncating to the collected prefix.
+    assert.equal(parseSkillDescription(withFrontmatter('description: "foo')), "");
+    assert.equal(parseSkillDescription(withFrontmatter("description: 'foo")), "");
+  });
+
+  it("returns '' for non-comment trailing text after a closing quote", () => {
+    assert.equal(parseSkillDescription(withFrontmatter('description: "foo" bar')), "");
+  });
 });

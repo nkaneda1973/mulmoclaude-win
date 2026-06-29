@@ -18,26 +18,40 @@ const BLOCK_SCALAR_INDICATORS = new Set(["|", ">", "|-", ">-", "|+", ">+"]);
 
 const isYamlSpace = (char: string | undefined): boolean => char === " " || char === "\t";
 
-// Double-quoted scalar: walk to the closing unescaped quote, processing the
-// escapes a description realistically carries (\" \\ \n \t; any other \x → x).
-function parseDoubleQuoted(value: string): string {
+// After a closing quote, YAML allows only whitespace and an optional "#" comment.
+// Anything else (e.g. `"foo" bar`) is malformed — js-yaml would throw, so we
+// reject (→ null → "") rather than silently truncate.
+const isOnlyTrailingComment = (rest: string): boolean => {
+  const trimmed = rest.trimStart();
+  return trimmed === "" || trimmed.startsWith("#");
+};
+
+// Escapes a description realistically carries inside a double-quoted scalar;
+// any other `\x` collapses to the literal `x`.
+const DOUBLE_QUOTE_ESCAPES: Record<string, string> = { n: "\n", t: "\t" };
+const unescapeDoubleQuote = (next: string): string => DOUBLE_QUOTE_ESCAPES[next] ?? next;
+
+// Double-quoted scalar: walk to the closing unescaped quote. Returns null for a
+// malformed scalar (no closing quote, or trailing non-comment text) so the caller
+// degrades to "" — matching the host's js-yaml behavior.
+function parseDoubleQuoted(value: string): string | null {
   const out: string[] = [];
   for (let i = 1; i < value.length; i += 1) {
     const char = value[i];
     if (char === "\\" && i + 1 < value.length) {
-      const next = value[i + 1];
-      out.push(next === "n" ? "\n" : next === "t" ? "\t" : next);
+      out.push(unescapeDoubleQuote(value[i + 1]));
       i += 1;
       continue;
     }
-    if (char === '"') break; // closing quote — ignore any trailing comment
+    if (char === '"') return isOnlyTrailingComment(value.slice(i + 1)) ? out.join("") : null;
     out.push(char);
   }
-  return out.join("");
+  return null; // unterminated
 }
 
-// Single-quoted scalar: the only escape is a doubled quote ('').
-function parseSingleQuoted(value: string): string {
+// Single-quoted scalar: the only escape is a doubled quote (''). Same
+// malformed-rejection contract as parseDoubleQuoted.
+function parseSingleQuoted(value: string): string | null {
   const out: string[] = [];
   for (let i = 1; i < value.length; i += 1) {
     const char = value[i];
@@ -47,11 +61,11 @@ function parseSingleQuoted(value: string): string {
         i += 1;
         continue;
       }
-      break; // closing quote — ignore any trailing comment
+      return isOnlyTrailingComment(value.slice(i + 1)) ? out.join("") : null;
     }
     out.push(char);
   }
-  return out.join("");
+  return null; // unterminated
 }
 
 // Plain scalar: a "#" preceded by whitespace (or at the start) begins a YAML
@@ -75,8 +89,8 @@ export function parseSkillDescription(raw: string): string {
     if (!line.startsWith(KEY)) continue;
     const value = line.slice(KEY.length).trim();
     if (value === "" || BLOCK_SCALAR_INDICATORS.has(value)) return "";
-    if (value.startsWith('"')) return parseDoubleQuoted(value);
-    if (value.startsWith("'")) return parseSingleQuoted(value);
+    if (value.startsWith('"')) return parseDoubleQuoted(value) ?? "";
+    if (value.startsWith("'")) return parseSingleQuoted(value) ?? "";
     return stripPlainComment(value).trim();
   }
   return "";
