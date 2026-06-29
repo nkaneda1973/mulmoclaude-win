@@ -28,6 +28,15 @@ const deMessages: CollectionMessages = {
     addCollectionLabel: "Sammlung",
     addCollectionPrompt:
       "Hilf mir, eine neue Sammlung zu erstellen. Lies zuerst `config/helps/collection-skills.md` für die Konventionen schemabasierter Sammlungen. Verwende dann das Tool `presentForm` (nutze nicht AskUserQuestion), um mich zu fragen, welche Art von Daten ich verfolgen möchte, und erstelle die schema.json und SKILL.md aus meinen Antworten.",
+    newCollection: {
+      title: "Neue Sammlung",
+      close: "Schließen",
+      freeformLabel: "Freier Chat",
+      freeformDescription: "Beschreibe die Sammlung in eigenen Worten",
+      guidedLabel: "Geführte Einrichtung",
+      guidedDescription: "Claude fragt, was erfasst werden soll, und erstellt sie",
+      templatesHeading: "Mit einer Vorlage beginnen",
+    },
     addFeedTitle: "Feed hinzufügen",
     addFeedHint: "Füge die URL eines Feeds oder einer API ein; ich rufe sie ab und ermittle Titel und Felder für dich.",
     addFeedPrompt:
