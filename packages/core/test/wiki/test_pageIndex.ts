@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, rm, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { __resetPageIndexCache, getPageIndex } from "../../server/api/routes/wiki/pageIndex.js";
+import { __resetPageIndexCache, getPageIndex } from "../../src/wiki/server/pageIndex.ts";
 
 // Bump a directory's mtime to the given ms epoch so tests can force
 // the cache-invalidation path without waiting on real mtime
