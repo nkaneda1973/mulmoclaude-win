@@ -13,11 +13,15 @@ export interface PageIndex {
   slugs: Map<string, string>;
 }
 
-let cache: PageIndex | null = null;
+// Keyed by `pagesDir`: the engine is workspace-injected and may be
+// called with more than one pages directory in a single process. A
+// single global slot would let one workspace's slug map be returned
+// for another whenever their mtimes happen to tie (Codex P2 on #1876).
+const cache = new Map<string, PageIndex>();
 
 /**
  * Get the page index for `pagesDir`. Returns a cached value as long as
- * the directory's mtime hasn't advanced; otherwise rebuilds. Safe to
+ * THAT directory's mtime hasn't advanced; otherwise rebuilds. Safe to
  * call concurrently — racing builds produce the same result.
  */
 export async function getPageIndex(pagesDir: string): Promise<PageIndex> {
@@ -27,7 +31,8 @@ export async function getPageIndex(pagesDir: string): Promise<PageIndex> {
     // cache a stale-forever value — the next call re-stats.
     return { mtimeMs: 0, slugs: new Map() };
   }
-  if (cache && cache.mtimeMs >= stat.mtimeMs) return cache;
+  const cached = cache.get(pagesDir);
+  if (cached && cached.mtimeMs >= stat.mtimeMs) return cached;
   const entries = await readDirSafeAsync(pagesDir);
   const slugs = new Map<string, string>();
   for (const entry of entries) {
@@ -36,11 +41,12 @@ export async function getPageIndex(pagesDir: string): Promise<PageIndex> {
     if (!name.endsWith(".md")) continue;
     slugs.set(name.slice(0, -".md".length), name);
   }
-  cache = { mtimeMs: stat.mtimeMs, slugs };
-  return cache;
+  const built: PageIndex = { mtimeMs: stat.mtimeMs, slugs };
+  cache.set(pagesDir, built);
+  return built;
 }
 
-/** Test-only: drop the module-level cache. */
+/** Test-only: drop the module-level cache (all directories). */
 export function __resetPageIndexCache(): void {
-  cache = null;
+  cache.clear();
 }
