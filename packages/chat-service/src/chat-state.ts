@@ -26,7 +26,15 @@ export interface ChatStateStore {
   getChatState(transportId: string, externalChatId: string): Promise<TransportChatState | null>;
   setChatState(transportId: string, state: TransportChatState): Promise<void>;
   resetChatState(transportId: string, externalChatId: string, roleId: string): Promise<TransportChatState>;
-  connectSession(transportId: string, externalChatId: string, chatSessionId: string): Promise<TransportChatState | null>;
+  /** Repoint the persisted chat state at another session. `roleId` is
+   *  optional: when omitted, the existing state's roleId is preserved
+   *  (the old default, kept for HTTP `/connect` callers that only know
+   *  the session ID). Callers that DO know the target session's role —
+   *  notably the `/switch` command, which already has `SessionSummary.roleId`
+   *  from `/sessions` — MUST pass it, otherwise the file-backed state
+   *  drifts into a stale-role / new-session pair and the next relay's
+   *  `startChat` uses the mismatched pair (issue #1888). */
+  connectSession(transportId: string, externalChatId: string, chatSessionId: string, roleId?: string): Promise<TransportChatState | null>;
   generateSessionId(transportId: string, externalChatId: string): string;
 }
 
@@ -87,12 +95,17 @@ export function createChatStateStore(opts: { transportsDir: string; logger: Logg
     return state;
   };
 
-  const connectSession = async (transportId: string, externalChatId: string, chatSessionId: string): Promise<TransportChatState | null> => {
+  const connectSession = async (transportId: string, externalChatId: string, chatSessionId: string, roleId?: string): Promise<TransportChatState | null> => {
     const existing = await getChatState(transportId, externalChatId);
     if (!existing) return null;
     const updated: TransportChatState = {
       ...existing,
       sessionId: chatSessionId,
+      // A missing `roleId` arg means "preserve the current role" (that's
+      // the HTTP `/connect` route, which doesn't know the target's role);
+      // when the caller passes one (`/switch`), take theirs so state and
+      // downstream `startChat` agree on which role runs the resumed session.
+      ...(roleId !== undefined ? { roleId } : {}),
       updatedAt: new Date().toISOString(),
     };
     await setChatState(transportId, updated);
@@ -100,6 +113,7 @@ export function createChatStateStore(opts: { transportsDir: string; logger: Logg
       transportId,
       externalChatId,
       sessionId: chatSessionId,
+      roleId: updated.roleId,
     });
     return updated;
   };
