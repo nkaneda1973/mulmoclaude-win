@@ -1,4 +1,3 @@
-import path from "path";
 import { parse, type HTMLElement } from "node-html-parser";
 
 // A local resource referenced by the HTML that must be copied into the
@@ -33,6 +32,15 @@ function stripQueryHash(ref: string): string {
   return cut === -1 ? ref : ref.slice(0, cut);
 }
 
+// Safe single-segment filename for a bundle entry. Splits on BOTH path
+// separators — a crafted `..\..\evil.png` must not survive into a zip
+// entry name, where a Windows unzip tool treats `\` as a separator
+// (zip-slip). `.`/`..`/empty collapse to a neutral name.
+function safeAssetName(ref: string): string {
+  const segment = stripQueryHash(ref).split(/[/\\]/).pop() ?? "";
+  return segment === "" || segment === "." || segment === ".." ? "asset" : segment;
+}
+
 // Assigns each unique originalRef a stable `assets/<name>`. Same ref →
 // same slot (dedup). A basename collision across different refs is
 // disambiguated by prefixing a short hash of the full ref, so two
@@ -51,7 +59,7 @@ function createAssetMapper() {
   const map = (originalRef: string): string => {
     const existing = byRef.get(originalRef);
     if (existing) return existing;
-    const base = path.posix.basename(stripQueryHash(originalRef)) || "asset";
+    const base = safeAssetName(originalRef);
     const name = usedNames.has(base) ? `${hash(originalRef)}-${base}` : base;
     usedNames.add(name);
     const bundlePath = `${ASSETS_DIR}/${name}`;

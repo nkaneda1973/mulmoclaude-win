@@ -72,4 +72,16 @@ describe("rewriteHtmlAssets", () => {
     const { assets } = rewriteHtmlAssets(`<img src="foo.png?v=2">`);
     assert.equal(assets[0].bundlePath, "assets/foo.png");
   });
+
+  it("sanitizes a backslash-containing ref to a safe bundle name (zip-slip)", () => {
+    const { html, assets } = rewriteHtmlAssets(`<img src="..\\..\\evil.png">`);
+    assert.equal(assets.length, 1);
+    assert.equal(assets[0].bundlePath, "assets/evil.png");
+    assert.doesNotMatch(html, /\.\.[\\/]/);
+  });
+
+  it("collapses an all-traversal ref to a neutral name", () => {
+    const { assets } = rewriteHtmlAssets(`<img src="../../..">`);
+    assert.equal(assets[0].bundlePath, "assets/asset");
+  });
 });
