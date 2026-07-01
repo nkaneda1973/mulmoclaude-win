@@ -1,5 +1,5 @@
 import path from "path";
-import { JSDOM } from "jsdom";
+import { parse, type HTMLElement } from "node-html-parser";
 
 // A local resource referenced by the HTML that must be copied into the
 // bundle. `originalRef` is the reference verbatim as it appears in the
@@ -99,21 +99,21 @@ const URL_ATTRS: readonly { selector: string; attr: string }[] = [
   { selector: "video[poster]", attr: "poster" },
 ];
 
-function rewriteAttrs(doc: Document, map: (ref: string) => string): void {
+function rewriteAttrs(root: HTMLElement, map: (ref: string) => string): void {
   for (const { selector, attr } of URL_ATTRS) {
-    for (const element of Array.from(doc.querySelectorAll(selector))) {
+    for (const element of root.querySelectorAll(selector)) {
       const ref = element.getAttribute(attr);
       if (ref && isLocalRef(ref)) element.setAttribute(attr, map(ref));
     }
   }
-  for (const element of Array.from(doc.querySelectorAll("[srcset]"))) {
+  for (const element of root.querySelectorAll("[srcset]")) {
     const value = element.getAttribute("srcset");
     if (value) element.setAttribute("srcset", rewriteSrcset(value, map));
   }
-  for (const element of Array.from(doc.querySelectorAll("style"))) {
-    element.textContent = rewriteCssUrls(element.textContent ?? "", map);
+  for (const element of root.querySelectorAll("style")) {
+    element.set_content(rewriteCssUrls(element.textContent, map));
   }
-  for (const element of Array.from(doc.querySelectorAll("[style]"))) {
+  for (const element of root.querySelectorAll("[style]")) {
     const value = element.getAttribute("style");
     if (value) element.setAttribute("style", rewriteCssUrls(value, map));
   }
@@ -121,11 +121,10 @@ function rewriteAttrs(doc: Document, map: (ref: string) => string): void {
 
 // Rewrites every local resource reference in `html` to point at a
 // co-located `assets/<name>`, returning the rewritten document plus the
-// list of refs to copy. Pure: no filesystem or network — jsdom neither
-// runs scripts nor loads subresources by default.
+// list of refs to copy. Pure: no filesystem or network.
 export function rewriteHtmlAssets(html: string): RewriteResult {
-  const dom = new JSDOM(html);
+  const root = parse(html, { comment: true });
   const mapper = createAssetMapper();
-  rewriteAttrs(dom.window.document, mapper.map);
-  return { html: dom.serialize(), assets: mapper.assets };
+  rewriteAttrs(root, mapper.map);
+  return { html: root.toString(), assets: mapper.assets };
 }

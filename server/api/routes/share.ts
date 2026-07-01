@@ -2,6 +2,7 @@ import { Router, Request, Response } from "express";
 import { API_ROUTES } from "../../../src/config/apiRoutes.js";
 import { WORKSPACE_DIRS } from "../../workspace/paths.js";
 import { packHtmlBundle, zipBundle } from "../../utils/share/packHtml.js";
+import { hasTraversalSegment } from "../../utils/files/safe.js";
 import { badRequest, serverError } from "../../utils/httpError.js";
 import { errorMessage } from "../../utils/errors.js";
 import { log } from "../../system/logger/index.js";
@@ -23,7 +24,7 @@ function safeFilename(name: string): string {
 // unzipped folder opens directly over file://.
 router.post(API_ROUTES.share.pack, async (req: Request<object, unknown, PackBody>, res: Response) => {
   const htmlPath = req.body?.path;
-  if (typeof htmlPath !== "string" || !htmlPath.startsWith(HTML_DIR_PREFIX)) {
+  if (typeof htmlPath !== "string" || !htmlPath.startsWith(HTML_DIR_PREFIX) || hasTraversalSegment(htmlPath)) {
     badRequest(res, `path must be an ${WORKSPACE_DIRS.htmls} file`);
     return;
   }

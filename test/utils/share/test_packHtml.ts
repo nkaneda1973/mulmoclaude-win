@@ -76,6 +76,10 @@ describe("packHtmlBundle", () => {
   it("throws when the html file does not exist", async () => {
     await assert.rejects(() => packHtmlBundle(`artifacts/html/${TOKEN}/nope.html`), /not found/);
   });
+
+  it("rejects an html path that escapes the workspace (containment)", async () => {
+    await assert.rejects(() => packHtmlBundle("artifacts/html/../../../../../../etc/passwd"), /not found or outside workspace/);
+  });
 });
 
 describe("zipBundle", () => {

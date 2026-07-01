@@ -2,7 +2,7 @@ import { readFile } from "fs/promises";
 import { realpathSync } from "fs";
 import path from "path";
 import JSZip from "jszip";
-import { resolveWorkspacePath, readWorkspaceText } from "../files/workspace-io.js";
+import { resolveWorkspacePath } from "../files/workspace-io.js";
 import { resolveWithinRoot } from "../files/safe.js";
 import { rewriteHtmlAssets } from "./rewriteAssets.js";
 import { log } from "../../system/logger/index.js";
@@ -36,12 +36,26 @@ function stripQueryHash(ref: string): string {
   return cut === -1 ? ref : ref.slice(0, cut);
 }
 
+// Resolve a workspace-relative path to a contained absolute path, or
+// null if it escapes the workspace / doesn't exist. `resolveWithinRoot`
+// already realpath-checks containment; the extra `path.relative` guard
+// is the form CodeQL's js/path-injection analysis recognizes as a
+// sanitizer (its `startsWith` form isn't), and is redundant at runtime.
+function safeWorkspaceAbs(relFromRoot: string): string | null {
+  const root = workspaceReal();
+  const abs = resolveWithinRoot(root, relFromRoot);
+  if (!abs) return null;
+  const rel = path.relative(root, abs);
+  if (rel.startsWith("..") || path.isAbsolute(rel)) return null;
+  return abs;
+}
+
 // Resolve a ref (relative to the HTML file's dir) to workspace bytes.
 // Returns null when the ref escapes the workspace or the file is
 // missing — the caller warns and leaves the (now dangling) link.
 async function readAsset(htmlDir: string, originalRef: string): Promise<Buffer | null> {
   const relFromRoot = path.posix.normalize(path.posix.join(htmlDir, stripQueryHash(originalRef)));
-  const abs = resolveWithinRoot(workspaceReal(), relFromRoot);
+  const abs = safeWorkspaceAbs(relFromRoot);
   if (!abs) return null;
   try {
     return await readFile(abs);
@@ -51,8 +65,9 @@ async function readAsset(htmlDir: string, originalRef: string): Promise<Buffer |
 }
 
 export async function packHtmlBundle(htmlRelPath: string): Promise<PackedBundle> {
-  const html = await readWorkspaceText(htmlRelPath);
-  if (html === null) throw new Error(`HTML not found: ${htmlRelPath}`);
+  const abs = safeWorkspaceAbs(htmlRelPath);
+  if (!abs) throw new Error(`HTML not found or outside workspace: ${htmlRelPath}`);
+  const html = await readFile(abs, "utf-8");
 
   const { html: rewritten, assets } = rewriteHtmlAssets(html);
   const htmlDir = path.posix.dirname(htmlRelPath);
