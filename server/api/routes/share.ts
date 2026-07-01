@@ -36,8 +36,10 @@ router.post(API_ROUTES.share.pack, async (req: Request<object, unknown, PackBody
     res.setHeader("Content-Disposition", `attachment; filename="${safeFilename(bundle.name)}.zip"`);
     res.send(zip);
   } catch (err) {
-    log.error("share", "pack: threw", { error: errorMessage(err) });
-    serverError(res, errorMessage(err));
+    // Log the detail server-side; return a generic message so an internal
+    // path / stack never reaches the client.
+    log.error("share", "pack: threw", { path: htmlPath, error: errorMessage(err) });
+    serverError(res, "failed to pack HTML bundle");
   }
 });
 
