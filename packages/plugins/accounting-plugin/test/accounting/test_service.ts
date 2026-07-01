@@ -194,23 +194,27 @@ describe("books lifecycle", () => {
     const book = await createBook({ name: "Good", country: "JP" }, root);
     await assert.rejects(() => updateBook({ bookId: book.book.id, country: "ZZ" }, root), AccountingError);
   });
-  it("createBook defaults fiscalYearEnd to Q4; updateBook persists changes", async () => {
+  it("createBook defaults fiscalYearEnd to December (12); updateBook persists an arbitrary month", async () => {
     const root = makeTmp();
     const defaultFy = await createBook({ name: "Default FY" }, root);
-    assert.equal(defaultFy.book.fiscalYearEnd, "Q4");
-    const explicit = await createBook({ name: "Tokyo FY", fiscalYearEnd: "Q1" }, root);
-    assert.equal(explicit.book.fiscalYearEnd, "Q1");
-    const updated = await updateBook({ bookId: defaultFy.book.id, fiscalYearEnd: "Q2" }, root);
-    assert.equal(updated.book.fiscalYearEnd, "Q2");
+    assert.equal(defaultFy.book.fiscalYearEnd, 12);
+    // A corporation closing on August 31 stores 8 — an arbitrary
+    // (non-calendar-quarter) month-end.
+    const explicit = await createBook({ name: "August FY", fiscalYearEnd: 8 }, root);
+    assert.equal(explicit.book.fiscalYearEnd, 8);
+    const updated = await updateBook({ bookId: defaultFy.book.id, fiscalYearEnd: 3 }, root);
+    assert.equal(updated.book.fiscalYearEnd, 3);
     const list = await listBooks(root);
     const persisted = list.books.find((entry) => entry.id === defaultFy.book.id);
-    assert.equal(persisted?.fiscalYearEnd, "Q2");
+    assert.equal(persisted?.fiscalYearEnd, 3);
   });
-  it("rejects unsupported fiscalYearEnd values", async () => {
+  it("rejects out-of-range fiscalYearEnd values", async () => {
     const root = makeTmp();
-    await assert.rejects(() => createBook({ name: "Bad", fiscalYearEnd: "Q5" }, root), AccountingError);
+    await assert.rejects(() => createBook({ name: "Bad", fiscalYearEnd: 13 }, root), AccountingError);
     const book = await createBook({ name: "Good" }, root);
-    await assert.rejects(() => updateBook({ bookId: book.book.id, fiscalYearEnd: "q1" }, root), AccountingError);
+    await assert.rejects(() => updateBook({ bookId: book.book.id, fiscalYearEnd: 0 }, root), AccountingError);
+    // Non-integer month is rejected too.
+    await assert.rejects(() => updateBook({ bookId: book.book.id, fiscalYearEnd: 8.5 }, root), AccountingError);
   });
 });
 
