@@ -73,17 +73,44 @@ function rewriteCssUrls(css: string, map: (ref: string) => string): string {
   });
 }
 
+function isSrcsetWs(char: string): boolean {
+  return char === " " || char === "\t" || char === "\n" || char === "\r" || char === "\f";
+}
+
+// One srcset candidate: a URL (a run of non-whitespace, so a data: URI's
+// internal commas stay intact) whose trailing commas are separators, then
+// an optional descriptor up to the next comma. Only local URLs are
+// rewritten; everything else is emitted verbatim. Returns the new cursor.
+function rewriteSrcsetCandidate(value: string, start: number, map: (ref: string) => string, out: string[]): number {
+  let index = start;
+  while (index < value.length && !isSrcsetWs(value[index])) index++;
+  let url = value.slice(start, index);
+  let trailing = "";
+  while (url.endsWith(",")) {
+    url = url.slice(0, -1);
+    trailing += ",";
+  }
+  out.push(isLocalRef(url) ? map(url) : url, trailing);
+  if (trailing !== "") return index;
+  const descStart = index;
+  while (index < value.length && value[index] !== ",") index++;
+  out.push(value.slice(descStart, index));
+  return index;
+}
+
+// WHATWG-style srcset walk: candidates are comma-separated, but because a
+// URL is a non-whitespace run, `data:` URIs (whose payload contains commas)
+// are never split. Separators / whitespace / descriptors are preserved.
 function rewriteSrcset(value: string, map: (ref: string) => string): string {
-  return value
-    .split(",")
-    .map((candidate) => {
-      const trimmed = candidate.trim();
-      if (trimmed === "") return trimmed;
-      const [url, ...descriptor] = trimmed.split(/\s+/);
-      if (!isLocalRef(url)) return trimmed;
-      return [map(url), ...descriptor].join(" ");
-    })
-    .join(", ");
+  const out: string[] = [];
+  let index = 0;
+  while (index < value.length) {
+    const sepStart = index;
+    while (index < value.length && (isSrcsetWs(value[index]) || value[index] === ",")) index++;
+    out.push(value.slice(sepStart, index));
+    if (index < value.length) index = rewriteSrcsetCandidate(value, index, map, out);
+  }
+  return out.join("");
 }
 
 // Embedded resources only. `a[href]` is intentionally excluded — it is

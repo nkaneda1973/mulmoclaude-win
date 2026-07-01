@@ -36,6 +36,18 @@ describe("rewriteHtmlAssets", () => {
     assert.equal(assets.length, 2);
   });
 
+  it("does not split a data: URI inside srcset (commas in payload)", () => {
+    const { html, assets } = rewriteHtmlAssets(`<img srcset="data:image/png;base64,AAA 1x">`);
+    assert.equal(assets.length, 0);
+    assert.match(html, /srcset="data:image\/png;base64,AAA 1x"/);
+  });
+
+  it("rewrites only the local candidate in a mixed data:/local srcset", () => {
+    const { html, assets } = rewriteHtmlAssets(`<img srcset="data:image/png;base64,AAA 1x, foo.png 2x">`);
+    assert.deepEqual(assets, [{ originalRef: "foo.png", bundlePath: "assets/foo.png" }]);
+    assert.match(html, /srcset="data:image\/png;base64,AAA 1x, assets\/foo\.png 2x"/);
+  });
+
   it("rewrites url() in <style> and inline style", () => {
     const { html, assets } = rewriteHtmlAssets(`<style>.a{background:url('bg.png')}</style><div style="background:url(d.png)"></div>`);
     assert.match(html, /url\('assets\/bg\.png'\)/);
