@@ -165,6 +165,34 @@ describe("claudeBinPath — Windows resolution", () => {
   });
 });
 
+describe("claudeBinPath — native installer (claude.ai/install)", () => {
+  // The native installer drops a standalone claude.exe on PATH (no .cmd
+  // wrapper, no node_modules layout) at %USERPROFILE%\.local\bin. This is
+  // now Anthropic's recommended install method, so the resolver must find
+  // it in addition to the npm/yarn/pnpm package layouts.
+  const NATIVE_CLAUDE_EXE = winPath.join("C:\\Users\\test", ".local", "bin", "claude.exe");
+
+  it("resolves a native claude.exe on PATH via `where claude.exe`", () => {
+    // `where claude.cmd` misses (no wrapper); `where claude.exe` returns
+    // the standalone binary, which the resolver accepts directly.
+    const opts = commonOpts({
+      spawnSync: makeSpawnSync([{ command: "where", stdout: `${NATIVE_CLAUDE_EXE}\r\n` }]),
+      existsSync: makeExistsSync([NATIVE_CLAUDE_EXE]),
+    });
+    assert.equal(claudeBinPath(opts), NATIVE_CLAUDE_EXE);
+  });
+
+  it("falls back to %USERPROFILE%\\.local\\bin default when PATH probes miss", () => {
+    // No `where` / `npm` hits — the resolver must still find the binary at
+    // the native installer's default location from USERPROFILE.
+    const opts = commonOpts({
+      env: { USERPROFILE: "C:\\Users\\test" },
+      existsSync: makeExistsSync([NATIVE_CLAUDE_EXE]),
+    });
+    assert.equal(claudeBinPath(opts), NATIVE_CLAUDE_EXE);
+  });
+});
+
 describe("claudeBinPath — pnpm version-agnostic global probe", () => {
   // Regression for the hard-coded `5/6/7` pnpm version list (Codex
   // review on PR #1769): enumerate `<root>/global/` via readdirSync

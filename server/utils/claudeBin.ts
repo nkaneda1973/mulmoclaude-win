@@ -110,6 +110,11 @@ function resolveOnWindows(options: ResolveOptions): Resolved | null {
 // order. Lazy so we stop the moment `resolveOnWindows` finds a hit.
 function* windowsCandidates(options: ResolveOptions): Generator<string> {
   yield* candidatesFromWhereProbe(options);
+  //==== 2026/07/01 追加 ここから ====
+  // ネイティブインストーラー版（claude.ai/install）対応。npm/yarn/pnpm の
+  // .cmd 探索を先に試し、当たらなければ PATH 上の単体 claude.exe を拾う。
+  yield* candidatesFromWhereExeProbe(options);
+  //==== 2026/07/01 追加 ここまで ====
   yield* candidatesFromNpmPrefix(options);
   yield* candidatesFromEnvDefaults(options);
 }
@@ -130,6 +135,21 @@ function* candidatesFromWhereProbe(options: ResolveOptions): Generator<string> {
   }
 }
 
+//==== 2026/07/01 追加 ここから ====
+// 1b. `where claude.exe` — ネイティブインストーラー版（claude.ai/install）は
+//     PATH 上に単体の claude.exe を置く（例: %USERPROFILE%\.local\bin\claude.exe）。
+//     .cmd ラッパーも node_modules パッケージ構成も持たないため、上の .cmd 探索と
+//     パッケージ walk の両方で取りこぼす。解決した .exe をそのまま候補として返す。
+function* candidatesFromWhereExeProbe(options: ResolveOptions): Generator<string> {
+  const out = runSpawnSync(options, "where", ["claude.exe"]);
+  if (!out) return;
+  for (const line of out.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (trimmed) yield trimmed;
+  }
+}
+//==== 2026/07/01 追加 ここまで ====
+
 // 2. `npm config get prefix` — covers the case where the npm prefix
 //    is not on PATH (rare, but happens when shells are configured
 //    without the npm bin shim).
@@ -145,6 +165,11 @@ function* candidatesFromEnvDefaults(options: ResolveOptions): Generator<string> 
   const env = options.env ?? process.env;
   const appData = env.APPDATA;
   const localAppData = env.LOCALAPPDATA;
+  //==== 2026/07/01 追加 ここから ====
+  // ネイティブインストーラーの既定の設置先（PATH に bin が無いときのフォールバック）。
+  const userProfile = env.USERPROFILE;
+  if (userProfile) yield winPath.join(userProfile, ".local", "bin", "claude.exe");
+  //==== 2026/07/01 追加 ここまで ====
   if (appData) {
     // npm default global prefix.
     yield winPath.join(appData, "npm", "node_modules", PACKAGE_REL_PATH);
