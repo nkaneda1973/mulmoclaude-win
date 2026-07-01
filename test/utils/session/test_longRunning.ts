@@ -1,6 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { isLongRunning, sessionDurationMs, LONG_RUNNING_THRESHOLD_MS } from "../../../src/utils/session/longRunning.js";
+import { isLongRunning, isLongRunningConversation, sessionDurationMs, LONG_RUNNING_THRESHOLD_MS } from "../../../src/utils/session/longRunning.js";
+import { SESSION_ORIGINS } from "../../../src/types/session.js";
 
 const START = "2026-01-01T00:00:00.000Z";
 const startMs = Date.parse(START);
@@ -40,5 +41,36 @@ describe("isLongRunning", () => {
 
   it("is false when timestamps are unparseable", () => {
     assert.equal(isLongRunning({ startedAt: "x", updatedAt: "y" }), false);
+  });
+});
+
+describe("isLongRunningConversation", () => {
+  const longSpan = { startedAt: START, updatedAt: isoAt(LONG_RUNNING_THRESHOLD_MS) };
+  const shortSpan = { startedAt: START, updatedAt: isoAt(3600_000) };
+
+  it("is true for a long human session", () => {
+    assert.equal(isLongRunningConversation({ ...longSpan, origin: SESSION_ORIGINS.human }), true);
+  });
+
+  it("is true for a long session with no origin (defaults to human)", () => {
+    assert.equal(isLongRunningConversation(longSpan), true);
+  });
+
+  it("excludes a long scheduler session", () => {
+    assert.equal(isLongRunningConversation({ ...longSpan, origin: SESSION_ORIGINS.scheduler }), false);
+  });
+
+  it("keeps long skill and bridge sessions", () => {
+    assert.equal(isLongRunningConversation({ ...longSpan, origin: SESSION_ORIGINS.skill }), true);
+    assert.equal(isLongRunningConversation({ ...longSpan, origin: SESSION_ORIGINS.bridge }), true);
+  });
+
+  it("keeps a long plugin-origin session", () => {
+    assert.equal(isLongRunningConversation({ ...longSpan, origin: "plugin:@mulmoclaude/foo" }), true);
+  });
+
+  it("is false for a short session regardless of origin", () => {
+    assert.equal(isLongRunningConversation({ ...shortSpan, origin: SESSION_ORIGINS.human }), false);
+    assert.equal(isLongRunningConversation({ ...shortSpan, origin: SESSION_ORIGINS.scheduler }), false);
   });
 });

@@ -12,7 +12,9 @@ export const HISTORY_FILTERS = {
   bookmarked: "bookmarked",
   // Session-property filter (not an origin): conversations alive for
   // 24h+ (updatedAt − startedAt). Lets a long-running chat be told
-  // apart from a one-shot.
+  // apart from a one-shot. Scheduler-origin sessions are excluded — a
+  // recurring schedule keeps one session alive for days, so it would
+  // always match without being a real conversation.
   longRunning: "longRunning",
   human: SESSION_ORIGINS.human,
   scheduler: SESSION_ORIGINS.scheduler,

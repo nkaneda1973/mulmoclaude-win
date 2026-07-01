@@ -1,4 +1,4 @@
-import type { SessionSummary } from "../../types/session";
+import { SESSION_ORIGINS, type SessionSummary } from "../../types/session";
 
 // A session counts as "long-running" once its activity span — most
 // recent update minus start — reaches a full day. Separates sustained
@@ -19,4 +19,15 @@ export function sessionDurationMs(session: Span): number {
 
 export function isLongRunning(session: Span): boolean {
   return sessionDurationMs(session) >= LONG_RUNNING_THRESHOLD_MS;
+}
+
+type OriginedSpan = Span & Pick<SessionSummary, "origin">;
+
+// The long-running filter targets sustained conversations the user had.
+// A scheduler-origin session is excluded even past 24h: a recurring
+// schedule keeps one session alive for days, so its span trivially
+// crosses the threshold without being a real back-and-forth. Other
+// origins (human, skill, bridge, plugin) stay — those are conversations.
+export function isLongRunningConversation(session: OriginedSpan): boolean {
+  return isLongRunning(session) && session.origin !== SESSION_ORIGINS.scheduler;
 }
